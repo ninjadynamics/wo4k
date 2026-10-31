@@ -1,4 +1,4 @@
-﻿# WO4K
+﻿<img src="assets/ui/wo4k-logo.png" alt="WO4K" width="480">
 
 WO4K is a modern Windows mod for **WipEout 2097 / XL**, by Ninja Dynamics.
 It adds widescreen rendering, smooth animation, extended track visibility,

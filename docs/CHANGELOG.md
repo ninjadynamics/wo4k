@@ -1,5 +1,11 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.14
+
+- Add the WO4K logo to the README and setup header, with a pre-sized app
+  asset and DPI compensation. Keep the logo and Beta label, remove the
+  redundant game title, and name WipeOut 2097 / XL in the description.
+
 ## 0.1.0-beta.13
 
 - Separate source tracking from generated binaries. Add Makefile targets,

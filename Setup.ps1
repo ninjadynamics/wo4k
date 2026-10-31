@@ -39,10 +39,9 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
  <Grid Margin="32,24,32,24">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <StackPanel>
-   <TextBlock Text="WO4K / Beta" FontSize="12" FontWeight="Bold" Foreground="#66DBD0" ToolTip="Beta: the original PC game, enhanced for modern Windows."/>
-   <TextBlock Text="WipEout 2097 / XL" FontSize="32" FontWeight="SemiBold" Margin="0,3,0,0" ToolTip="Configure the portable beta mod for your copy of WipEout2097 / XL."/>
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Left"><Image x:Name="Wo4kLogo" Width="300" Height="100" Stretch="Uniform" SnapsToDevicePixels="True" UseLayoutRounding="True" ToolTip="WO4K — modern enhancements for WipEout 2097 / XL."/><TextBlock Text="Beta" FontSize="12" FontWeight="Bold" Foreground="#66DBD0" VerticalAlignment="Center" Margin="12,0,0,0" ToolTip="Beta: the original PC game, enhanced for modern Windows."/></StackPanel>
    <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="GithubColumn" Width="121"/></Grid.ColumnDefinitions>
-    <TextBlock Text="Adds widescreen, smooth animation, HD artwork and modern controls to the original game." FontSize="15" Foreground="#A5B5CD" ToolTip="Play at your display's aspect ratio and refresh rate, with interpolated animation, extended track visibility, HD interface artwork, SDL3 gamepad support, locally improved sound effects and switchable PC/PlayStation soundtracks. The original 30 Hz game simulation is preserved."/>
+    <TextBlock Text="Adds widescreen, smooth animation, HD artwork and modern controls to WipeOut 2097 / XL." FontSize="15" Foreground="#A5B5CD" ToolTip="Play at your display's aspect ratio and refresh rate, with interpolated animation, extended track visibility, HD interface artwork, SDL3 gamepad support, locally improved sound effects and switchable PC/PlayStation soundtracks. The original 30 Hz game simulation is preserved."/>
     <Button x:Name="SourceLink" Grid.Column="1" Background="Transparent" Padding="0" HorizontalAlignment="Right" VerticalAlignment="Center" IsEnabled="False" AutomationProperties.Name="GitHub source" ToolTip="GitHub: add a valid HTTPS GitHub URL to source.url to enable this link."><Image x:Name="GithubLogo" Width="105" Height="24" Stretch="Uniform" SnapsToDevicePixels="True" UseLayoutRounding="True" ToolTip="Open the project GitHub page when a valid source URL is configured."/></Button>
    </Grid>
   </StackPanel>
@@ -98,7 +97,7 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
 $window=[Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader $xaml))
 $setupIcon=Join-Path $PSScriptRoot 'assets/icons/setup.ico'
 if([IO.File]::Exists($setupIcon)){$window.Icon=[Windows.Media.Imaging.BitmapFrame]::Create((New-Object Uri($setupIcon,[UriKind]::Absolute)))} 
-foreach($item in @(@('GithubLogo','github.png'),@('NinjaLogo','ninja-logo.png'))){
+foreach($item in @(@('Wo4kLogo','wo4k-logo-app.png'),@('GithubLogo','github.png'),@('NinjaLogo','ninja-logo.png'))){
     $path=Join-Path $PSScriptRoot ('assets/ui/'+$item[1])
     if([IO.File]::Exists($path)){
         $bitmap=New-Object Windows.Media.Imaging.BitmapImage
@@ -109,7 +108,7 @@ foreach($item in @(@('GithubLogo','github.png'),@('NinjaLogo','ninja-logo.png'))
 # Keep branding at its actual raster pixel dimensions, including on high-DPI screens.
 function Set-BrandingPixelSizes {
     $dpi=[Windows.Media.VisualTreeHelper]::GetDpi($window)
-    foreach($name in @('GithubLogo','NinjaLogo')){
+    foreach($name in @('Wo4kLogo','GithubLogo','NinjaLogo')){
         $image=$window.FindName($name)
         if($image.Source){$image.Width=$image.Source.PixelWidth/$dpi.DpiScaleX;$image.Height=$image.Source.PixelHeight/$dpi.DpiScaleY}
     }
