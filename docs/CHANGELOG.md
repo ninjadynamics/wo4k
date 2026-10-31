@@ -1,5 +1,14 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.13
+
+- Separate source tracking from generated binaries. Add Makefile targets,
+  optional local WinGet bootstrap and HOW-TO-COMPILE.md.
+- Generate binary differences from text recipes; fetch checksum-pinned
+  dependencies outside Git, including compatible libiconv 1.18.
+- Package WO4K-named ZIPs and publish them through the version-tag workflow.
+  A normal branch push remains source-only.
+
 ## 0.1.0-beta.12
 
 - Name the mod WO4K in the README and refresh installation, controls, source,

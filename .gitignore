@@ -1,4 +1,4 @@
-wobble/
+﻿wobble/
 .work/
 backups/
 exports/
@@ -7,3 +7,17 @@ dist/
 src/runtime/build/*
 !src/runtime/build/render_hooks.h
 !src/runtime/build/render_refs.h
+
+# Generated binaries belong in release ZIPs, never in source commits.
+.tools/
+*.exe
+*.dll
+*.ico
+*.o
+*.obj
+*.a
+*.lib
+*.zip
+*.wodiff
+/release-files.json
+/manifests/third-party.json

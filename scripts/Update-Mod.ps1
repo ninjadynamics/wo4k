@@ -71,7 +71,7 @@ function Read-ModUpdatePackage([string]$Zip,[string]$Stage) {
     $inventory=Get-Content -LiteralPath $file -Encoding UTF8 -Raw|ConvertFrom-Json
     Compare-ModReleaseVersion $inventory.version '0.0.0'|Out-Null
     $declared=@{};$declared['release-files.json']=$true
-    $top=@('Setup.ps1','Play.ps1','Setup.exe','Play.exe','README.md','LICENSE','.gitignore','release.url','source.url')
+    $top=@('Setup.ps1','Play.ps1','Setup.exe','Play.exe','README.md','LICENSE','.gitignore','release.url','source.url','Makefile','VERSION','compile.ps1','HOW-TO-COMPILE.md')
     foreach($entry in $inventory.files){
         $path=[string]$entry.path
         if(-not $path -or $path -match '(^/|\\|:|(^|/)\.\.?(/|$)|[\x00-\x1f])' -or $declared.ContainsKey($path)){throw 'Invalid release inventory path.'}

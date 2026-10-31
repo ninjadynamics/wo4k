@@ -8,7 +8,7 @@ Write-ModJson (Join-Path $script:ModRoot 'manifests/artwork.json') @($art.ToArra
 $libraries=@(
     [ordered]@{name='DDrawCompat';version=(Get-Item -LiteralPath (Join-Path $script:ModRoot 'runtime/ddraw.dll')).VersionInfo.FileVersion;file='runtime/ddraw.dll';license='0BSD';source='https://github.com/narzoul/DDrawCompat';license_file='licenses/DDrawCompat.txt'},
     [ordered]@{name='SDL3 controller host';version='3.4.16';file='runtime/wo2097-controller.exe';license='zlib (SDL3), MIT (host)';source='https://github.com/libsdl-org/SDL';license_file='licenses/SDL3.txt'},
-    [ordered]@{name='GNU libiconv';version='1.17';file='runtime/libiconv-2.dll';license='LGPL-2.1-or-later';source='https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.17.tar.gz';license_file='licenses/libiconv-LGPL.txt'}
+    [ordered]@{name='GNU libiconv';version='1.18';file='runtime/libiconv-2.dll';license='LGPL-2.1-or-later';source='https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.18.tar.gz';license_file='licenses/libiconv-LGPL.txt'}
 )
 foreach($entry in $libraries){$entry.sha256=Get-ModHash (Join-Path $script:ModRoot $entry.file)}
 Write-ModJson (Join-Path $script:ModRoot 'manifests/third-party.json') $libraries

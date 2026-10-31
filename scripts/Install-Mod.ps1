@@ -56,7 +56,7 @@ try {
     foreach($name in $required){if(-not [IO.File]::Exists((Get-ModChild $stage $name))){throw "Installation is incomplete: $name"}}
     $manifest=Get-Content -Encoding UTF8 -LiteralPath (Join-Path $script:ModRoot 'manifests/patches.json') -Raw|ConvertFrom-Json
     if((Get-ModHash (Join-Path $stage 'Wipeout2097.exe')) -ne $manifest.output_sha256){throw 'Final executable checksum failed.'}
-    $receipt=[ordered]@{version='0.1.0-beta.12';installed_at=(Get-Date -Format o);default_soundtrack=$DefaultSoundtrack;playstation_available=[bool]$psxSource;hd_textures=(-not $SdOnly);clean_audio=(-not $OriginalAudio);executable_sha256=$manifest.output_sha256}
+    $receipt=[ordered]@{version=([IO.File]::ReadAllText((Join-Path $script:ModRoot 'VERSION')).Trim());installed_at=(Get-Date -Format o);default_soundtrack=$DefaultSoundtrack;playstation_available=[bool]$psxSource;hd_textures=(-not $SdOnly);clean_audio=(-not $OriginalAudio);executable_sha256=$manifest.output_sha256}
     Write-ModJson (Join-Path $stage 'installation.json') $receipt
     if([IO.Directory]::Exists($target)){
         $backup=Get-ModChild $script:ModRoot ('backups/wobble-'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff'));[WoBeta.Files]::Parent($backup)

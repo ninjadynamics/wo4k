@@ -13,3 +13,5 @@ foreach($file in Get-ChildItem -LiteralPath (Join-Path $SourceGameRoot 'tmp/base
 }
 Write-ModJson (Get-ModChild $script:ModRoot 'manifests/patches.json') ([ordered]@{format=1;output_sha256=$output;pc_mds_sha256='063523a8cd02a4189b7c87cb3c531513af1b13c6438cd335dcdbe58fe5c3f13a';executables=@($variants.ToArray());audio=@($audio.ToArray())})
 [IO.File]::Copy((Join-Path $SourceGameRoot 'ddraw.dll'),(Join-Path $script:ModRoot 'runtime/ddraw.dll'),$true)
+
+& (Join-Path $PSScriptRoot 'Export-PatchRecipes.ps1')

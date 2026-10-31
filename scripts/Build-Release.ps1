@@ -1,7 +1,8 @@
-﻿param([string]$Version='0.1.0-beta.12')
+﻿param([string]$Version='')
 . (Join-Path $PSScriptRoot 'Core.ps1')
+if(-not $Version){$Version=[IO.File]::ReadAllText((Join-Path $script:ModRoot 'VERSION')).Trim()}
 $entries=New-Object Collections.Generic.List[object]
-$top=@('Setup.ps1','Play.ps1','Setup.exe','Play.exe','README.md','LICENSE','.gitignore','release.url','source.url')
+$top=@('Setup.ps1','Play.ps1','Setup.exe','Play.exe','README.md','LICENSE','.gitignore','release.url','source.url','Makefile','VERSION','compile.ps1','HOW-TO-COMPILE.md')
 $folders=@('scripts','src','runtime','assets','manifests','licenses','docs','tests')
 $files=@();foreach($name in $top){$files+=Get-Item -LiteralPath (Join-Path $script:ModRoot $name)}
 foreach($dir in $folders){$files+=Get-ChildItem -LiteralPath (Join-Path $script:ModRoot $dir) -File -Recurse | Where-Object {$_.FullName -notmatch '\\src\\runtime\\build\\' -or $_.Name -in 'render_hooks.h','render_refs.h'}}
@@ -16,7 +17,7 @@ foreach($file in $files){
 }
 $dist=Join-Path $script:ModRoot 'dist';[IO.Directory]::CreateDirectory($dist)|Out-Null
 $inventory=Join-Path $dist 'release-files.json';Write-ModJson $inventory ([ordered]@{version=$Version;files=@($entries.ToArray())})
-$name='wo-beta-mod-'+$Version+'.zip';$zipPath=Join-Path $dist $name
+$name='wo4k-'+$Version+'.zip';$zipPath=Join-Path $dist $name
 if([IO.File]::Exists($zipPath)){[IO.File]::Delete($zipPath)}
 $archive=[IO.Compression.ZipFile]::Open($zipPath,[IO.Compression.ZipArchiveMode]::Create)
 try{foreach($entry in $entries){[IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Get-ModChild $script:ModRoot $entry.path),$entry.path,[IO.Compression.CompressionLevel]::Optimal)|Out-Null};[IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,$inventory,'release-files.json',[IO.Compression.CompressionLevel]::Optimal)|Out-Null}finally{$archive.Dispose()}

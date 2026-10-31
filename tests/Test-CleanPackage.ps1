@@ -1,6 +1,6 @@
 ﻿param([Parameter(Mandatory=$true)][string]$PcImage,[string]$PsxArchive)
 . (Join-Path $PSScriptRoot '../scripts/Sources.ps1')
-$root=$script:ModRoot;$zip=Join-Path $root 'dist/wo-beta-mod-0.1.0-beta.12.zip'
+$root=$script:ModRoot;$zip=Join-Path $root ('dist/wo4k-'+[IO.File]::ReadAllText((Join-Path $root 'VERSION')).Trim()+'.zip')
 if(-not [IO.File]::Exists($zip)){throw 'Build the release ZIP first.'}
 $work=Join-Path $root ('.work/clean-'+[guid]::NewGuid().ToString('N').Substring(0,16));$clean=Join-Path $work 'unpacked mod Ω'
 Expand-ModZip $zip $clean

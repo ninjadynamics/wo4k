@@ -9,8 +9,9 @@ while retaining the original game's 30 Hz simulation and gameplay pace.
 [Source code](https://github.com/ninjadynamics/wo4k) ·
 [Report a bug](https://github.com/ninjadynamics/wo4k/issues)
 
-This repository contains the mod's source code, artwork, build scripts and
-installer. Ready-to-use ZIP packages and their SHA-256 checksums belong in
+This repository contains the mod's source code, artwork, Makefile and installer
+scripts. Compiled EXEs/DLLs and other generated build outputs are excluded from
+Git. Ready-to-use ZIP packages and their SHA-256 checksums belong in
 **Releases**. To play, download a release ZIP rather than GitHub's automatic
 “Source code” archive.
 
@@ -144,9 +145,15 @@ Setup.exe and Play.exe are thin launchers for Windows PowerShell 5.1. The audio
 processor is included as C source and processes effects locally during setup.
 
 - [Standalone extraction and installation commands](docs/TOOLS.md)
+- [How to compile: Makefile or optional local WinGet bootstrap](HOW-TO-COMPILE.md)
 - [Build dependencies and release assembly](docs/BUILD.md)
 - [Updater configuration and release publishing](docs/UPDATES.md)
 - [Changelog](docs/CHANGELOG.md)
+
+Use `make` with an existing toolchain, or optional `.\compile.ps1` to fetch
+missing compilers/Make into `.tools/` and run Make. `make release` builds,
+tests and packages. Pushing a matching version tag triggers the GitHub Actions
+release workflow; a normal branch push updates source only.
 
 Build scripts write the distributable ZIP, checksum and file inventory under
 `dist/`. Publish the ZIP and its `.zip.sha256` sidecar together in this repository's

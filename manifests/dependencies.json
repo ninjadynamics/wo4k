@@ -1,0 +1,34 @@
+﻿[
+  {
+    "archive": "zstd.zip",
+    "url": "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-v1.5.7-win64.zip",
+    "marker_sha256": "8076aae03feac7c66b319579e82172eed168deed2a3f25e5e2d3c60f55e84111",
+    "marker": "zstd-v1.5.7-win64/zstd.exe",
+    "sha256": "acb4e8111511749dc7a3ebedca9b04190e37a17afeb73f55d4425dbf0b90fad9",
+    "name": "Portable zstd"
+  },
+  {
+    "archive": "SDL3.pkg.tar.zst",
+    "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-sdl3-3.4.16-1-any.pkg.tar.zst",
+    "marker_sha256": "5252df18cbf7e6d3ab64a91ab5487d58208f4e8260f0b24b88f1eabbb988e1c3",
+    "marker": "mingw64/lib/libSDL3.a",
+    "sha256": "1aa752a71578f4ae554bfb3d93f6737657f369dc071c944611c0316c250ed387",
+    "name": "SDL3 3.4.16"
+  },
+  {
+    "archive": "libiconv.pkg.tar.zst",
+    "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libiconv-1.18-1-any.pkg.tar.zst",
+    "marker_sha256": "ff31fa811f9c07cc7fdaa68c9e8bca3a7b4fdf6e0a079a58175ea58ba139c7ae",
+    "marker": "mingw64/bin/libiconv-2.dll",
+    "sha256": "fda1cb18d83c363c73df1a836fe9ff5c830d28b8a3a693e1c05d1fdfea799119",
+    "name": "libiconv 1.18"
+  },
+  {
+    "archive": "DDrawCompat.zip",
+    "url": "https://github.com/narzoul/DDrawCompat/releases/download/v0.7.2/DDrawCompat-v0.7.2.zip",
+    "marker_sha256": "94895cf6ede8fd0f74ee1447fdc08b7044a9c65a1a25a49a4df893a0370975a3",
+    "marker": "ddraw.dll",
+    "sha256": "a932a4dcb2100552b6918fd4a3cc7de138bb97448bbca2a7051954993a397b39",
+    "name": "DDrawCompat 0.7.2"
+  }
+]

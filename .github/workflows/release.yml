@@ -1,0 +1,51 @@
+name: Build and release WO4K
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-clang
+            mingw-w64-x86_64-llvm
+            mingw-w64-x86_64-lld
+            mingw-w64-x86_64-make
+      - name: Compile and test from source
+        shell: powershell
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne ('v' + $version)) { throw 'Tag must match VERSION' }
+          $bin = Join-Path $env:MSYS2_LOCATION 'mingw64/bin'
+          $env:PATH = $bin + ';' + $env:PATH
+          & (Join-Path $bin 'mingw32-make.exe') release ('TOOLCHAIN=' + $bin.Replace('\','/')) ('VERSION=' + $version)
+          if ($LASTEXITCODE) { throw 'Build/test/package failed' }
+      - name: Keep verified build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wo4k-release
+          path: |
+            dist/wo4k-*.zip
+            dist/wo4k-*.zip.sha256
+      - name: Publish tagged release with binaries
+        if: github.ref_type == 'tag'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          # A beta version name remains a full release so /releases/latest can find it.
+          gh release create $env:GITHUB_REF_NAME "dist/wo4k-$version.zip" "dist/wo4k-$version.zip.sha256" --verify-tag --title "WO4K $version" --generate-notes --latest
+          if ($LASTEXITCODE) { throw 'Release publication failed' }
