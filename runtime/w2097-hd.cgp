@@ -1,0 +1,7 @@
+# Game-local postprocess; no changes to original texture files.
+shaders = "1"
+shader0 = "w2097-hd.cg"
+filter_linear0 = "true"
+wrap_mode0 = "clamp_to_edge"
+scale_type0 = "viewport"
+scale0 = "1.0"

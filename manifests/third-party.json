@@ -1,0 +1,29 @@
+[
+    {
+        "name":  "DDrawCompat",
+        "version":  "v0.7.2",
+        "file":  "runtime/ddraw.dll",
+        "license":  "0BSD",
+        "source":  "https://github.com/narzoul/DDrawCompat",
+        "license_file":  "licenses/DDrawCompat.txt",
+        "sha256":  "94895cf6ede8fd0f74ee1447fdc08b7044a9c65a1a25a49a4df893a0370975a3"
+    },
+    {
+        "name":  "SDL3 controller host",
+        "version":  "3.4.16",
+        "file":  "runtime/wo2097-controller.exe",
+        "license":  "zlib (SDL3), MIT (host)",
+        "source":  "https://github.com/libsdl-org/SDL",
+        "license_file":  "licenses/SDL3.txt",
+        "sha256":  "d22e720671ffb8a9d52023956122ca847a8bf9346fc72fec0691aaf099661f80"
+    },
+    {
+        "name":  "GNU libiconv",
+        "version":  "1.17",
+        "file":  "runtime/libiconv-2.dll",
+        "license":  "LGPL-2.1-or-later",
+        "source":  "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.17.tar.gz",
+        "license_file":  "licenses/libiconv-LGPL.txt",
+        "sha256":  "967189adfbc889fde89aafc867f7a1f02731f8592cf6fd5a4ace1929213e2e13"
+    }
+]

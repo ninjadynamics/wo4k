@@ -1,0 +1,37 @@
+{
+    "value":  [
+                  {
+                      "file":  "assets/hd/font-and-numbers.png",
+                      "width":  1024,
+                      "height":  1024,
+                      "sha256":  "485183398cfb22189afab73c268833f31f28489f757618722c283a444f7956b4",
+                      "license":  "MIT for mod contributions",
+                      "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+                  },
+                  {
+                      "file":  "assets/hd/hud-gauges.png",
+                      "width":  1024,
+                      "height":  1024,
+                      "sha256":  "d5bfa0963d309d84016a3e74a618292373ffde713eef60c53e1b051ff0a858d3",
+                      "license":  "MIT for mod contributions",
+                      "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+                  },
+                  {
+                      "file":  "assets/hd/notice.png",
+                      "width":  2880,
+                      "height":  2160,
+                      "sha256":  "c4844f53379724c2fd9e689cea323f4863987f45616e54fd4164dff23ceea8bb",
+                      "license":  "MIT for mod contributions",
+                      "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+                  },
+                  {
+                      "file":  "assets/hd/title.png",
+                      "width":  7680,
+                      "height":  2160,
+                      "sha256":  "02816191f3d2c300d530f0561b738f22ce17e32476d7641646bb4d9478fdb57d",
+                      "license":  "MIT for mod contributions",
+                      "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+                  }
+              ],
+    "Count":  4
+}

@@ -1,0 +1,9 @@
+wobble/
+.work/
+backups/
+exports/
+logs/
+dist/
+src/runtime/build/*
+!src/runtime/build/render_hooks.h
+!src/runtime/build/render_refs.h

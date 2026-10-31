@@ -1,0 +1,94 @@
+﻿# Beta release changes
+
+## 0.1.0-beta.12
+
+- Name the mod WO4K in the README and refresh installation, controls, source,
+  maintenance and release instructions against current behavior.
+- Configure source.url for ninjadynamics/wo4k and release.url for its latest
+  release, enabling the setup GitHub and Update controls.
+
+## 0.1.0-beta.11
+
+- Rename link configuration files to release.url and source.url throughout
+  setup, the updater, release packaging and documentation. Their contents
+  remain a single HTTPS URL; invalid or empty files disable their controls.
+
+## 0.1.0-beta.11
+
+- Embed the supplied red Ninja icon in Play.exe and cyan Ninja icon in
+  Setup.exe, with seven sizes for Windows shell display. Use the cyan
+  icon on the setup window as well.
+- Preserve the original Ninja Dynamics logo and display it at native raster
+  size with DPI compensation. Pre-resize GitHub to its final 105x24 pixels
+  with ffmpeg instead of resizing its original image in the UI.
+
+## 0.1.0-beta.9
+
+- Match the setup layout with the supplied GitHub logo beside the subtitle
+  and Ninja Dynamics artwork in the footer. Keep URL availability and
+  tooltips on both logo elements.
+
+## 0.1.0-beta.8
+
+- Align the audio menu's Soundtrack label with Music/SFX and right-align
+  PC/PlayStation with the volume bars. Adjust row spacing to the supplied
+  layout, moving slider frames and knobs together with their labels.
+
+## 0.1.0-beta.7
+
+- Fix renderer initialization rejecting the race UI feature group because
+  DrawShipTrails was already hooked by the refresh renderer. Extend the
+  existing hook, so Full trails, backtick FPS and checkpoint flash timing
+  activate together.
+- Add an integration check that initializes the full renderer on a private
+  image of the actual game EXE and invokes its patched race-start, effects
+  and keyboard entry points. This reproduces the earlier activation failure.
+
+## 0.1.0-beta.6
+
+- Play runs the artwork and audio-effect installers before starting the game,
+  refreshing changed or damaged outputs while skipping unchanged assets.
+- Setup retains local source effects for future audio processing updates;
+  source files never enter the release ZIP. Audio is never repeatedly denoised.
+- Restore F1 camera switching; use backtick to toggle the FPS counter.
+
+## 0.1.0-beta.5
+
+- Default to the Full exhaust trails used by the original pacing test,
+  independently of the clean install's simpler native setting. Remember
+  off/simple/full choices made with F4.
+- Present Extended Time from its live bonus timer on every render frame,
+  using the clock-based native flash cadence rather than sparse physics frames.
+- Enable the bottom-center FPS counter by default, with F1 to toggle and save
+  its visibility. Keyboard camera switching moves to V; controller Circle
+  continues to change the camera.
+
+## 0.1.0-beta.4
+
+- Center race announcements using their visible glyph widths, including
+  Autopilot, Disengaging, Extended Time, Wrong Way, Perfect Lap and shield
+  warnings. Keep the autopilot countdown and rear-lock label centered too.
+- Preserve fractional text positioning, overlay heights, corner HUD padding
+  and menu label positions across display aspect ratios.
+
+## 0.1.0-beta.3
+
+- Add background curl-based release updates configured by `release.url`,
+  with package verification, file backups and rollback on failed copies.
+- Add the Ninja Dynamics GitHub link configured by `source.url`.
+  Missing, empty or invalid link files silently disable the relevant control.
+- Describe the mod in the setup subtitle, with an expanded feature tooltip.
+- Label setup WO4K / Beta and WipEout 2097 / XL.
+
+## 0.1.0-beta.2
+
+- Fix sound loading in a fresh installation: recognize the original game's
+  doubled separators in relative asset paths, including `shp2shp.wav`.
+- Rename the setup option to **Improve audio quality**.
+- Use dark charcoal hover states for buttons, source fields, checkboxes,
+  soundtrack choices and browse menus.
+- Explain beside the soundtrack selector that banks can be switched during
+  play in the game's Audio options. Both banks must be installed.
+
+Existing installations only need the updated mod runtime; no audio extraction
+or reprocessing is required. Saves, audio and preferences are preserved.

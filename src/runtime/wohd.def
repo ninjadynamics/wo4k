@@ -1,0 +1,14 @@
+LIBRARY wohd
+EXPORTS
+mciSendCommandA=_wo_mci@16
+auxGetNumDevs=_wo_auxnum@0
+auxGetVolume=_wo_auxget@8
+auxSetVolume=_wo_auxset@8
+auxGetDevCapsA=_wo_auxcaps@12
+joyGetPosEx=_wo_joypos@8
+joyGetNumDevs=_wo_joynum@0
+joyGetDevCapsA=_wo_joycaps@12
+timeKillEvent=_wo_timekill@4
+timeGetDevCaps=_wo_timecaps@8
+timeSetEvent=_wo_timeset@20
+timeGetTime=_wo_timeget@0

@@ -1,0 +1,332 @@
+{
+    "format":  1,
+    "output_sha256":  "3c7a217df6bbc6c153a47abca9ace310ed642f7d6301cb56664d993d4c163ad2",
+    "pc_mds_sha256":  "063523a8cd02a4189b7c87cb3c531513af1b13c6438cd335dcdbe58fe5c3f13a",
+    "executables":  [
+                        {
+                            "source_sha256":  "bb998d2b3ee810852a801e4216250396212d7fa25966cdd811fba6c64e92514d",
+                            "source_size":  752128,
+                            "patch":  "patches/exe-bb998d2b3ee8.wodiff"
+                        },
+                        {
+                            "source_sha256":  "f70b5caa39361cd73fbf4f26192f5fe38c9a1c4299bb3388f0334a2ec0b02efd",
+                            "source_size":  769024,
+                            "patch":  "patches/exe-f70b5caa3936.wodiff"
+                        }
+                    ],
+    "audio":  [
+                  {
+                      "name":  "AUTOPLOT.WAV",
+                      "source_sha256":  "9f3b0674f2593e073e55e2a2d45f0ef0384430a946f36ea75d8a2e02d80e3d3f",
+                      "source_hashes":  [
+                                            "9f3b0674f2593e073e55e2a2d45f0ef0384430a946f36ea75d8a2e02d80e3d3f"
+                                        ],
+                      "output_sha256":  "c44f96bea2877e00f643371fca91b913bcd316e458ac154a32e9b90173052449"
+                  },
+                  {
+                      "name":  "CHKPOINT.WAV",
+                      "source_sha256":  "d33aca93ea3cec0c7fa7d6e879973e9b6c01bb99b338e3735b180ddf345577a0",
+                      "source_hashes":  [
+                                            "d33aca93ea3cec0c7fa7d6e879973e9b6c01bb99b338e3735b180ddf345577a0"
+                                        ],
+                      "output_sha256":  "7a48c47000d30169e26373b0da52ab0ca67f2d19c83acf272ba5595449a2831e"
+                  },
+                  {
+                      "name":  "CONTELIM.WAV",
+                      "source_sha256":  "c546553b2c51936ae49f0d38ae8ade5c66f68ca03c92e5e204e11f37c3977f8b",
+                      "source_hashes":  [
+                                            "c546553b2c51936ae49f0d38ae8ade5c66f68ca03c92e5e204e11f37c3977f8b"
+                                        ],
+                      "output_sha256":  "b3e8a5a223c5a6f48b64086ee76caccb45b65b44c20ddcf2c60e7c104f8a5bd0"
+                  },
+                  {
+                      "name":  "CROWD.WAV",
+                      "source_sha256":  "058f79874027583a180d649f850fbea0a3b16c5cf3cd8052bf8e9027b8484226",
+                      "source_hashes":  [
+                                            "058f79874027583a180d649f850fbea0a3b16c5cf3cd8052bf8e9027b8484226"
+                                        ],
+                      "output_sha256":  "2e1fe4f806d9f1517d49190a9d7adf29a3f0d79ca3326e994e6935a498041b30"
+                  },
+                  {
+                      "name":  "DROID.WAV",
+                      "source_sha256":  "e0515008c6346387c860ca69e7d40b3349271b8262cc454a74d359530903f745",
+                      "source_hashes":  [
+                                            "e0515008c6346387c860ca69e7d40b3349271b8262cc454a74d359530903f745"
+                                        ],
+                      "output_sha256":  "9de1ab053711d6ae7721b61e6460fbb51f685e6ad93b991afd3889f9b32b82d4"
+                  },
+                  {
+                      "name":  "DTCHWEPN.WAV",
+                      "source_sha256":  "0e5bf2ccbc5bea4e5f04978d63e97a9ddf8b83fa562c6dc63c02eb8b52f9e049",
+                      "source_hashes":  [
+                                            "0e5bf2ccbc5bea4e5f04978d63e97a9ddf8b83fa562c6dc63c02eb8b52f9e049"
+                                        ],
+                      "output_sha256":  "3867a758d3ac9c431473d10578671ef7fae0322746415f1f60c994063cf8d569"
+                  },
+                  {
+                      "name":  "ELECBOLT.WAV",
+                      "source_sha256":  "9934d14abd1c1fd7eaa35e8288b600b9c8c727bfff99c23344c070e099ac1d72",
+                      "source_hashes":  [
+                                            "9934d14abd1c1fd7eaa35e8288b600b9c8c727bfff99c23344c070e099ac1d72"
+                                        ],
+                      "output_sha256":  "49b73b8597eb0fb323a962aa94d503d54ab5061a39d397b93a8132c2d8e616df"
+                  },
+                  {
+                      "name":  "ELECTRO.WAV",
+                      "source_sha256":  "9eaa88c66d954805ca4d10ed5392b256f0728b143aef733f916def6c16df636b",
+                      "source_hashes":  [
+                                            "9eaa88c66d954805ca4d10ed5392b256f0728b143aef733f916def6c16df636b"
+                                        ],
+                      "output_sha256":  "cff0cd2e229aff19249719f54b7e06041a461289b042abcc71b7d352a2d67dd1"
+                  },
+                  {
+                      "name":  "ENGINES.WAV",
+                      "source_sha256":  "c73514b6cf3287362170be3743e01ef213b64dad699b5a2d5a027ec3c7f623cd",
+                      "source_hashes":  [
+                                            "c73514b6cf3287362170be3743e01ef213b64dad699b5a2d5a027ec3c7f623cd"
+                                        ],
+                      "output_sha256":  "77cde796278a28f60548bf24af3f72e1587b5c65cce5427205a2e625a6fb46b0"
+                  },
+                  {
+                      "name":  "EPAK.WAV",
+                      "source_sha256":  "5d6411006e90d7a771e4c34860d5a7f403b6c6fae0c4386e5d48d748c8cd9872",
+                      "source_hashes":  [
+                                            "5d6411006e90d7a771e4c34860d5a7f403b6c6fae0c4386e5d48d748c8cd9872"
+                                        ],
+                      "output_sha256":  "455db7e3aa77bd4971ddcfde25e9e86ed8b2fbe437633a66119c1533f6816bec"
+                  },
+                  {
+                      "name":  "GO.WAV",
+                      "source_sha256":  "626ba1f75b07f5cf838c501025bf17f911e4cdd8a8747e5b41a3dcd52d3395b9",
+                      "source_hashes":  [
+                                            "626ba1f75b07f5cf838c501025bf17f911e4cdd8a8747e5b41a3dcd52d3395b9"
+                                        ],
+                      "output_sha256":  "11466e3058fa95dd47b74c60a3b09772e6ff3a249cabab735671bd9fa7d1a038"
+                  },
+                  {
+                      "name":  "HITWALL2.WAV",
+                      "source_sha256":  "8416db07ce3a30bf6213bf46c36a4d172e0568012bb20290c244188756134a9e",
+                      "source_hashes":  [
+                                            "8416db07ce3a30bf6213bf46c36a4d172e0568012bb20290c244188756134a9e"
+                                        ],
+                      "output_sha256":  "7ae986befe71ec74129a9bf43f62e4d3a9fd43d33f4d2264847ea5fa97c3e8b7"
+                  },
+                  {
+                      "name":  "LOCKED.WAV",
+                      "source_sha256":  "494906f729f266e2951d2d17e851cf77476d919b940980be7d42324387435a28",
+                      "source_hashes":  [
+                                            "494906f729f266e2951d2d17e851cf77476d919b940980be7d42324387435a28"
+                                        ],
+                      "output_sha256":  "7391e11818755e1d03dbff8d9342423176a6917f90bddab646bceb62ec27f336"
+                  },
+                  {
+                      "name":  "MENUMOVE.WAV",
+                      "source_sha256":  "137fc6aed73b706edfd227c3b5ebed719ee817e904939cb0b25cbb040c0685f8",
+                      "source_hashes":  [
+                                            "137fc6aed73b706edfd227c3b5ebed719ee817e904939cb0b25cbb040c0685f8"
+                                        ],
+                      "output_sha256":  "2b7d4a9ecf64f359f332b107dd5c7298c854ce9a6e53f722bc1f5e8b640bd590"
+                  },
+                  {
+                      "name":  "MENUSEL.WAV",
+                      "source_sha256":  "ec747053b7d2ec740d7a4e6291eff7d6cbe0c2bb3799dd32bedc599fdf4a957a",
+                      "source_hashes":  [
+                                            "ec747053b7d2ec740d7a4e6291eff7d6cbe0c2bb3799dd32bedc599fdf4a957a"
+                                        ],
+                      "output_sha256":  "f8def1618203342dbe4e426c4d5007f45f6fc7312f7ecb5faf1531fe1ce54259"
+                  },
+                  {
+                      "name":  "MENUSLID.WAV",
+                      "source_sha256":  "0a087612c19bc18e1da2125289667f32e82f129ecd83713d5e2b756bce62e843",
+                      "source_hashes":  [
+                                            "0a087612c19bc18e1da2125289667f32e82f129ecd83713d5e2b756bce62e843"
+                                        ],
+                      "output_sha256":  "21501bb1bce03cbdfad9eb940f8a3628f0a0d319a184b8e3a761b227e9d3530c"
+                  },
+                  {
+                      "name":  "MINE.WAV",
+                      "source_sha256":  "3e68e1a951cebcd6f8e40fb79d470b7bf9fc86047a992cb86b24ba35f1966a39",
+                      "source_hashes":  [
+                                            "3e68e1a951cebcd6f8e40fb79d470b7bf9fc86047a992cb86b24ba35f1966a39"
+                                        ],
+                      "output_sha256":  "679bc7cc82f1ad046f54e5343c2ba467e0d28db91ac74102866a7dce69cbb730"
+                  },
+                  {
+                      "name":  "MINES.WAV",
+                      "source_sha256":  "09b61dd11b26acf29551499f8c92220be272873b13d14b1e847fe3f8a30626f2",
+                      "source_hashes":  [
+                                            "09b61dd11b26acf29551499f8c92220be272873b13d14b1e847fe3f8a30626f2"
+                                        ],
+                      "output_sha256":  "47a2f359c44e2ebb1c6a4c1a02befff36c0599d47a80fb25206f66a7a0bea956"
+                  },
+                  {
+                      "name":  "MISSILE.WAV",
+                      "source_sha256":  "e99cf6b46b3f29627543b6530a4b04f2f572b8b6e372da879aba74813453af80",
+                      "source_hashes":  [
+                                            "e99cf6b46b3f29627543b6530a4b04f2f572b8b6e372da879aba74813453af80"
+                                        ],
+                      "output_sha256":  "ba2accb6f441a307a53eccdd9b605732e0a4e4f66797b4c65c12a46054fa3041"
+                  },
+                  {
+                      "name":  "MISSILES.WAV",
+                      "source_sha256":  "d38daa0574e368e68c8836456c35df0cb85da3984f136eecfeed2293e3c0bc9f",
+                      "source_hashes":  [
+                                            "d38daa0574e368e68c8836456c35df0cb85da3984f136eecfeed2293e3c0bc9f"
+                                        ],
+                      "output_sha256":  "753fdde238d815302287eb8e2fa9155be7d67cc18548feead74cc3b7d22cc65c"
+                  },
+                  {
+                      "name":  "NEWTURBO.WAV",
+                      "source_sha256":  "83ff6ec6905003baa1ac707eeea5fb0696306843fc909f858bdc73aa658bd538",
+                      "source_hashes":  [
+                                            "83ff6ec6905003baa1ac707eeea5fb0696306843fc909f858bdc73aa658bd538"
+                                        ],
+                      "output_sha256":  "3a61c1ccbe0b850458fe3bbd34f40870e7e84cb8e2e67dcbb1d4ec7d9eaaa869"
+                  },
+                  {
+                      "name":  "NRG_LOW.WAV",
+                      "source_sha256":  "00d2b0abb672c62fae6336d1221b18096a29c9b2b760f8fb19a8a93a31b8f1d6",
+                      "source_hashes":  [
+                                            "00d2b0abb672c62fae6336d1221b18096a29c9b2b760f8fb19a8a93a31b8f1d6"
+                                        ],
+                      "output_sha256":  "083a2bfb201b4792aa541b893ac918a9dff5217fafc6dabcc95db6b7ec444ebb"
+                  },
+                  {
+                      "name":  "ONE.WAV",
+                      "source_sha256":  "eb89951ea268740cc3b172fa49e0783dd43f4ffd3f248356dc7dfe85bb229db3",
+                      "source_hashes":  [
+                                            "eb89951ea268740cc3b172fa49e0783dd43f4ffd3f248356dc7dfe85bb229db3"
+                                        ],
+                      "output_sha256":  "2b7c8abf6b9557d57847cbafe63dfe1ca008dd013bd65c19937450d3aa8c9828"
+                  },
+                  {
+                      "name":  "PICKUP.WAV",
+                      "source_sha256":  "cf491397a764a2a4973fbe7bd7d7050aa44192fb51de70e6aa84edfe65a5eadf",
+                      "source_hashes":  [
+                                            "cf491397a764a2a4973fbe7bd7d7050aa44192fb51de70e6aa84edfe65a5eadf"
+                                        ],
+                      "output_sha256":  "333ac738d6b60ec64d99ebdcf29084dbdc029fe08131170c2f4ea7ad107696f3"
+                  },
+                  {
+                      "name":  "PLASMA.WAV",
+                      "source_sha256":  "875fe3d1718ad64a53c372d5bbcd8a8e9bf746c4959c68f830921df9c3de2ac4",
+                      "source_hashes":  [
+                                            "875fe3d1718ad64a53c372d5bbcd8a8e9bf746c4959c68f830921df9c3de2ac4"
+                                        ],
+                      "output_sha256":  "d0cc51c57e2395776df5b02be7384228cf3f284ec3215de466c75709a10e5f46"
+                  },
+                  {
+                      "name":  "QUAKE.WAV",
+                      "source_sha256":  "d98c6b7236e0ce390236f75691a36cdfad4ce059d3ed5936197afdfb0d1733ae",
+                      "source_hashes":  [
+                                            "d98c6b7236e0ce390236f75691a36cdfad4ce059d3ed5936197afdfb0d1733ae"
+                                        ],
+                      "output_sha256":  "87f4846e07e85653c4a29759b4f81f2974415137e936cd30a2bd237240f58dac"
+                  },
+                  {
+                      "name":  "RECHARGE.WAV",
+                      "source_sha256":  "c6cdec24d5fa71bc11ad52d1269458588b7c4eb3a6bfc7277b3fb5ab9f335ace",
+                      "source_hashes":  [
+                                            "c6cdec24d5fa71bc11ad52d1269458588b7c4eb3a6bfc7277b3fb5ab9f335ace"
+                                        ],
+                      "output_sha256":  "5a3a3eac781b4baddd7d458e8e2a6d50d3f9b0e89e19634813ad7b102b4b4f57"
+                  },
+                  {
+                      "name":  "ROCKETS.WAV",
+                      "source_sha256":  "142b43846a16cd987f03afbe8fea8b7fa418cb989df50601d56b9ca6721cb3cd",
+                      "source_hashes":  [
+                                            "142b43846a16cd987f03afbe8fea8b7fa418cb989df50601d56b9ca6721cb3cd"
+                                        ],
+                      "output_sha256":  "015281839a177b451bf9281bf41f957488ad26e135d55ddde53afb96c46a2f5c"
+                  },
+                  {
+                      "name":  "SCRAPE.WAV",
+                      "source_sha256":  "13eebe727081d5b3a7b0dbc5855b89399f00b2e945f94f522f3cd21770c2d14b",
+                      "source_hashes":  [
+                                            "13eebe727081d5b3a7b0dbc5855b89399f00b2e945f94f522f3cd21770c2d14b"
+                                        ],
+                      "output_sha256":  "05077941a4c442c05d61a519ad1953e0619d4a599f726c553a91b7f2b0be490d"
+                  },
+                  {
+                      "name":  "Shield.wav",
+                      "source_sha256":  "8d0ea70e68649ed8745f9e54be114cb812bdfc94123905e366f01466b6594a34",
+                      "source_hashes":  [
+                                            "8d0ea70e68649ed8745f9e54be114cb812bdfc94123905e366f01466b6594a34",
+                                            "012f7099dc415a0cabb3937dfeb24d0be85087aa663ef43cb886729cc0e24817"
+                                        ],
+                      "output_sha256":  "1222d06863d6b693be9f28f59bac82267fa387fa79f6bd6ee40982c165ba91f5"
+                  },
+                  {
+                      "name":  "SHP2SHP.WAV",
+                      "source_sha256":  "3bb9ef8d186fecbbdec20ce037414352117ea71ba1d9791c463c96aa0790c12a",
+                      "source_hashes":  [
+                                            "3bb9ef8d186fecbbdec20ce037414352117ea71ba1d9791c463c96aa0790c12a"
+                                        ],
+                      "output_sha256":  "dfe7637a955ca926a459ed9be7f2d2cea8f1a45dde482539ad60ce9a89f7e91a"
+                  },
+                  {
+                      "name":  "SHPSTALL.WAV",
+                      "source_sha256":  "68c3e42a4d82d6a403e1bb19ef43523634f001e71317b1118ace245093c74f04",
+                      "source_hashes":  [
+                                            "68c3e42a4d82d6a403e1bb19ef43523634f001e71317b1118ace245093c74f04"
+                                        ],
+                      "output_sha256":  "d43f1d240455118c42a02e16535e78b1a317b77b773ebadd22a141a0db69c12f"
+                  },
+                  {
+                      "name":  "THREE.WAV",
+                      "source_sha256":  "b6b417419905117bd95999fa5c41895e9a844ecffe0dbf04056710899fc798ee",
+                      "source_hashes":  [
+                                            "b6b417419905117bd95999fa5c41895e9a844ecffe0dbf04056710899fc798ee"
+                                        ],
+                      "output_sha256":  "76340103bd0d1a1372633d70b9076c6547ff296f4ab1fe5d72ba66df30f6660e"
+                  },
+                  {
+                      "name":  "THUNDER.WAV",
+                      "source_sha256":  "59e13a3c3becdccca786950ff87ea54629f18f77f59f698bdcc613d311c65676",
+                      "source_hashes":  [
+                                            "59e13a3c3becdccca786950ff87ea54629f18f77f59f698bdcc613d311c65676"
+                                        ],
+                      "output_sha256":  "8ee1b762ebb0772afd2a122759a886d2a8b57d547cec334d60d3d0eeadd65c86"
+                  },
+                  {
+                      "name":  "TURBLNCE.WAV",
+                      "source_sha256":  "d219eb7e2eebb0ca28bb5d99cf33ab72d05b892a45b0b6fad4714e5d56a51f56",
+                      "source_hashes":  [
+                                            "d219eb7e2eebb0ca28bb5d99cf33ab72d05b892a45b0b6fad4714e5d56a51f56"
+                                        ],
+                      "output_sha256":  "4048a6083489e7405ccb9f1ada7bb817723688f55c559e72e521d5f967f6f432"
+                  },
+                  {
+                      "name":  "TWO.WAV",
+                      "source_sha256":  "de78a1843886a4632e8a4a4adf656b269f46473f184835ced8cb746ca83f57c3",
+                      "source_hashes":  [
+                                            "de78a1843886a4632e8a4a4adf656b269f46473f184835ced8cb746ca83f57c3"
+                                        ],
+                      "output_sha256":  "a5147487550091c43a4555b604bbb4a694a0ea58270c8b73b0815a1a571a1b82"
+                  },
+                  {
+                      "name":  "WARNING.WAV",
+                      "source_sha256":  "1f1790b3c65cdad019f16ccc2050320992bba66c9e2a78d34234ed4ec6fa3f12",
+                      "source_hashes":  [
+                                            "1f1790b3c65cdad019f16ccc2050320992bba66c9e2a78d34234ed4ec6fa3f12"
+                                        ],
+                      "output_sha256":  "3cfb7900b2d4054a7ff426e3129826bea3c50044c7204dab0dfaa06984e1c882"
+                  },
+                  {
+                      "name":  "WEAPNHIT.WAV",
+                      "source_sha256":  "a5055e2f7c8318cbdf007e8a7aad96f8c343da1d06f97c071919cfc5653ea95d",
+                      "source_hashes":  [
+                                            "a5055e2f7c8318cbdf007e8a7aad96f8c343da1d06f97c071919cfc5653ea95d"
+                                        ],
+                      "output_sha256":  "d2b531028cb5c15478c10c6ad7325a6281ae0cd12c8da0327e42e19c5f535b30"
+                  },
+                  {
+                      "name":  "WEPNWALL.WAV",
+                      "source_sha256":  "85af745fabebc5e4e629a2fe0a3cb67051c70ae899553cbfcffaa390a044b0de",
+                      "source_hashes":  [
+                                            "85af745fabebc5e4e629a2fe0a3cb67051c70ae899553cbfcffaa390a044b0de"
+                                        ],
+                      "output_sha256":  "3779c7796a6942ff3e2900f09dc1b6c786f3823d75b460dffb6d8ff01f858331"
+                  }
+              ]
+}

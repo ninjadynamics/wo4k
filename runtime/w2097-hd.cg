@@ -1,0 +1,34 @@
+// Mild, bounded detail recovery after high-resolution rendering.
+// Compatible with the libretro Cg interface used by DDrawCompat.
+struct input_size {
+    float2 video_size;
+    float2 texture_size;
+    float2 output_size;
+};
+uniform input_size IN;
+uniform float4x4 modelViewProj;
+uniform sampler2D Texture : TEXUNIT0;
+
+struct vertex_output {
+    float4 position : POSITION;
+    float2 texCoord : TEXCOORD0;
+};
+vertex_output main_vertex(float4 position : POSITION, float2 texCoord : TEXCOORD0) {
+    vertex_output result;
+    result.position = mul(modelViewProj, position);
+    result.texCoord = texCoord;
+    return result;
+}
+float4 main_fragment(vertex_output input) : COLOR {
+    float2 pixel = 1.0 / IN.texture_size;
+    float4 c = tex2D(Texture, input.texCoord);
+    float3 l = tex2D(Texture, input.texCoord - float2(pixel.x, 0)).rgb;
+    float3 r = tex2D(Texture, input.texCoord + float2(pixel.x, 0)).rgb;
+    float3 u = tex2D(Texture, input.texCoord - float2(0, pixel.y)).rgb;
+    float3 d = tex2D(Texture, input.texCoord + float2(0, pixel.y)).rgb;
+    float3 low = min(c.rgb, min(min(l, r), min(u, d)));
+    float3 high = max(c.rgb, max(max(l, r), max(u, d)));
+    float3 detail = c.rgb - (l + r + u + d) * 0.25;
+    // The displayed game frame is opaque; scene/effect alpha is not window opacity.
+    return float4(clamp(c.rgb + detail * 0.15, low, high), 1.0);
+}
