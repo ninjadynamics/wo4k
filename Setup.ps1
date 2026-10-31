@@ -112,6 +112,13 @@ function Set-BrandingPixelSizes {
         $image=$window.FindName($name)
         if($image.Source){$image.Width=$image.Source.PixelWidth/$dpi.DpiScaleX;$image.Height=$image.Source.PixelHeight/$dpi.DpiScaleY}
     }
+    # Align action-button centers with the wordmark, rather than the full ninja silhouette.
+    $shift=[Math]::Max(0,((128-63.5)/$dpi.DpiScaleY-14)/2)
+    $window.FindName('NinjaLogo').Margin=New-Object Windows.Thickness(0,-32,24,(-$shift))
+    foreach($name in @('UpdateButton','PlayButton','InstallButton')){
+        $right=if($name -eq 'InstallButton'){0}else{9}
+        $window.FindName($name).Margin=New-Object Windows.Thickness(0,0,$right,$shift)
+    }
     $window.FindName('GithubColumn').Width=New-Object Windows.GridLength($window.FindName('GithubLogo').Width+16)
     $window.MinWidth=[Math]::Max(760,64+360+180+24+$window.FindName('NinjaLogo').Width+16)
     if($window.Width -lt $window.MinWidth){$window.Width=$window.MinWidth}
