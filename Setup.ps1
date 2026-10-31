@@ -4,6 +4,7 @@ if([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA'){throw 'Start Setu
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Windows.Forms
 . (Join-Path $PSScriptRoot 'scripts/Core.ps1')
 . (Join-Path $PSScriptRoot 'scripts/Links.ps1')
+. (Join-Path $PSScriptRoot 'scripts/Source-Status.ps1')
 # Import only function definitions; no filesystem search on the UI thread.
 . (Join-Path $PSScriptRoot 'scripts/Discover-Sources.ps1') -OutputFile (Join-Path $PSScriptRoot '.work/unused.json')
 [xml]$xaml=@'
@@ -46,32 +47,27 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
    </Grid>
   </StackPanel>
   <Border Grid.Row="1" Background="#172335" CornerRadius="8" Padding="14,11" Margin="0,19,0,17" ToolTip="Game installation uses your local source files without mounting a disc. Only the Update button downloads a mod release.">
-   <TextBlock Text="Choose your Windows game source. PlayStation music is an optional extra." Foreground="#BCD5E8" ToolTip="Minimum: Windows PC game data and its PC soundtrack. Add a PS1 disc source to enable both soundtracks."/>
+   <TextBlock x:Name="SourceHint" Text="Please provide the path(s) to your WipeOut 2097 / XL game files." Foreground="#BCD5E8" ToolTip="Use the PC ZIP/disc image for game data and any included PC music, or the small 11 MB PC version without music. Add a PlayStation source for optional PS1 music."/>
   </Border>
   <StackPanel Grid.Row="2">
-   <TextBlock Text="WINDOWS GAME" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Required. Original PC game ZIP, ISO, MDS/MDF, CUE/BIN or a supported Wobble folder."/>
-   <Grid Margin="0,5,0,13"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="43"/><ColumnDefinition Width="43"/></Grid.ColumnDefinitions>
-    <TextBox x:Name="GamePath" ToolTip="Path to the PC game source. Auto-search fills verified candidates; you can type or browse instead."/>
-    <Button x:Name="GameBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select a PC source file or folder."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" ToolTip="Browse for a game archive, disc image or existing folder."/></Button>
-    <Button x:Name="GameMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search common local folders again for supported Windows game files."><TextBlock x:Name="GameWand" Text="✨" FontFamily="Segoe UI Emoji" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for the Windows game source."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
-   </Grid>
-   <TextBlock Text="PC SOUNDTRACK" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Required PC music. Leave this field empty when the game source already includes its audio tracks."/>
-   <Grid Margin="0,5,0,13"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="43"/><ColumnDefinition Width="43"/></Grid.ColumnDefinitions>
-    <TextBox x:Name="PcPath" ToolTip="PC MDS/MDF or CUE/BIN set, its ZIP, or existing PC music folder. A data-only ISO does not contain CD audio."/>
-    <Button x:Name="PcBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select the PC soundtrack source file or folder."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" ToolTip="Browse for original PC disc audio or previously extracted tracks."/></Button>
-    <Button x:Name="PcMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search again for the original PC soundtrack."><TextBlock x:Name="PcWand" Text="✨" FontFamily="Segoe UI Emoji" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for PC music."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
+   <TextBlock Text="WINDOWS GAME" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Required: PC ZIP/disc image or the small 11 MB PC version. Included PC music is extracted automatically; the small version can play without music or with optional PlayStation music."/>
+   <Grid Margin="0,5,0,13"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/></Grid.ColumnDefinitions>
+    <TextBox x:Name="GamePath" ToolTip="PC ZIP, ISO/disc image or 11 MB PC version. Setup extracts included PC music automatically. Music is optional: the small version works silently or with the PlayStation soundtrack."/>
+    <Button x:Name="GameBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select a PC source file or folder."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16" ToolTip="Browse for a game archive, disc image or existing folder."/></Button>
+    <Button x:Name="GameMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search common local folders again for supported Windows game files."><TextBlock x:Name="GameWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for the Windows game source."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
    </Grid>
    <TextBlock Text="PLAYSTATION SOUNDTRACK · OPTIONAL" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Optional. Adds the11-song PlayStation soundtrack alongside the PC soundtrack."/>
-   <Grid Margin="0,5,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="43"/><ColumnDefinition Width="43"/></Grid.ColumnDefinitions>
+   <Grid Margin="0,5,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/></Grid.ColumnDefinitions>
     <TextBox x:Name="PsxPath" ToolTip="Optional PS1 game ZIP, CUE/BIN set or existing PlayStation music folder. The PS1 game cannot replace the Windows game data."/>
-    <Button x:Name="PsxBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select the optional PlayStation music source."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" ToolTip="Browse for PlayStation disc audio."/></Button>
-    <Button x:Name="PsxMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search again for an optional PlayStation soundtrack source."><TextBlock x:Name="PsxWand" Text="✨" FontFamily="Segoe UI Emoji" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for PlayStation music."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
+    <Button x:Name="PsxBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select the optional PlayStation music source."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16" ToolTip="Browse for PlayStation disc audio."/></Button>
+    <Button x:Name="PsxMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search again for an optional PlayStation soundtrack source."><TextBlock x:Name="PsxWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for PlayStation music."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
    </Grid>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
     <TextBlock Text="Default soundtrack" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="The music bank selected on first launch. You can switch soundtracks later in the game's audio options."/>
-    <ComboBox x:Name="Soundtrack" Grid.Column="1" SelectedIndex="0" Padding="8,5" ToolTip="Choose PC or PlayStation as the default. PlayStation is enabled when its source is verified.">
-     <ComboBoxItem Content="PC" ToolTip="Start with the original PC soundtrack. Always included in the minimum installation."/>
+    <ComboBox x:Name="Soundtrack" Grid.Column="1" SelectedIndex="2" Padding="8,5" ToolTip="Choose available PC or PlayStation music, or No music. The 11 MB PC version needs no soundtrack.">
+     <ComboBoxItem x:Name="PcChoice" IsEnabled="False" Content="PC" ToolTip="Use PC music when your selected PC source includes it."/>
      <ComboBoxItem x:Name="PsxChoice" Content="PlayStation" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Supply a valid PlayStation music source to enable this choice."/>
+     <ComboBoxItem Content="No music" ToolTip="Play with sound effects only. Works with the small 11 MB PC version; no music source is required."/>
     </ComboBox>
    </Grid>
    <TextBlock x:Name="SoundtrackHint" Text="Switch soundtracks anytime in the game's Audio options." FontSize="12" Foreground="#9FB0CA" Margin="0,6,0,0" ToolTip="When both soundtracks are installed, change between PC and PlayStation music on the fly in Options / Audio. Your choice is remembered."/>
@@ -80,7 +76,7 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
   </StackPanel>
   <StackPanel Grid.Row="3" Margin="0,18,0,0">
    <ProgressBar x:Name="Progress" Height="4" Minimum="0" Maximum="100" Value="0" Foreground="#66DBD0" Background="#243149" ToolTip="Current discovery or installation progress. A moving bar means work is continuing in the background."/>
-   <TextBlock x:Name="Status" Text="Ready when you are." Foreground="#9FB0CA" FontSize="12" Margin="0,8,0,13" ToolTip="Current setup state. Missing auto-search results are left empty without warnings."/>
+   <TextBlock x:Name="Status" Text="Please provide the path(s) to your WipeOut 2097 / XL game files." Foreground="#9FB0CA" FontSize="12" Margin="0,8,0,13" ToolTip="Current setup state. Missing auto-search results are left empty without warnings."/>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/><ColumnDefinition Width="100"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
     <Grid>
      <TextBlock Text="Portable · No CD mounting" VerticalAlignment="Bottom" Margin="0,0,0,7" Foreground="#7385A1" FontSize="12" ToolTip="Installs into the wobble folder beside Setup. No registry installation, disc mounting, or fixed drive path."/>
@@ -127,11 +123,11 @@ Set-BrandingPixelSizes
 $window.Add_SourceInitialized({Set-BrandingPixelSizes})
 $window.Add_DpiChanged({Set-BrandingPixelSizes})
 $script:fields=@{};$script:magic=@{};$script:wands=@{};$script:browse=@{}
-foreach($kind in @('Game','Pc','Psx')){$script:fields[$kind]=$window.FindName($kind+'Path');$script:magic[$kind]=$window.FindName($kind+'Magic');$script:wands[$kind]=$window.FindName($kind+'Wand');$script:browse[$kind]=$window.FindName($kind+'Browse')}
+foreach($kind in @('Game','Psx')){$script:fields[$kind]=$window.FindName($kind+'Path');$script:magic[$kind]=$window.FindName($kind+'Magic');$script:wands[$kind]=$window.FindName($kind+'Wand');$script:browse[$kind]=$window.FindName($kind+'Browse')}
 $script:status=$window.FindName('Status');$script:progress=$window.FindName('Progress');$script:install=$window.FindName('InstallButton');$script:play=$window.FindName('PlayButton');$script:combo=$window.FindName('Soundtrack');$script:psxChoice=$window.FindName('PsxChoice')
 $script:update=$window.FindName('UpdateButton');$script:sourceLink=$window.FindName('SourceLink');$script:guiState='Idle';$script:workerKind='installation'
 $script:scan=$null;$script:worker=$null;$script:scanMode='All';$script:scanResult='';$script:workerStatus='';$script:psxVerified=$false
-$script:restorePsxDefault=$false
+$script:restorePsxDefault=$false;$script:soundtrackTouched=$false;$script:gameVerified=$false;$script:sourceError=$false
 $priorSettings=Join-Path $PSScriptRoot 'wobble/Wipeout2097.ini'
 if(Test-Path -LiteralPath $priorSettings){$script:restorePsxDefault=[IO.File]::ReadAllText($priorSettings) -match '(?im)^Soundtrack\s*=\s*1\s*$'}
 function Refresh-LinkControls {
@@ -147,30 +143,41 @@ function Refresh-LinkControls {
 }
 function Set-GuiState([string]$State) {
     $script:guiState=$State;$locked=$State -in @('Installing','Updating')
-    foreach($kind in @('Game','Pc','Psx')) {
+    foreach($kind in @('Game','Psx')) {
         $script:magic[$kind].IsEnabled=$State -eq 'Idle'
         $script:magic[$kind].ToolTip=if($State -eq 'Searching'){'Searching local folders; this button is disabled until discovery finishes.'}elseif($locked){'Setup is busy. Discovery is available again afterward.'}else{'Search local folders again for a verified '+$kind+' source.'}
         $script:wands[$kind].ToolTip=$script:magic[$kind].ToolTip
         if($State -eq 'Searching'){$a=New-Object Windows.Media.Animation.DoubleAnimation(0,360,(New-Object Windows.Duration([TimeSpan]::FromSeconds(1.4))));$a.RepeatBehavior=[Windows.Media.Animation.RepeatBehavior]::Forever;$script:wands[$kind].RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty,$a)}else{$script:wands[$kind].RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty,$null)}
         $script:fields[$kind].IsEnabled=-not $locked;$script:browse[$kind].IsEnabled=-not $locked
-        $script:fields[$kind].ToolTip=if($locked){'Setup is busy. This source field is locked until it finishes.'}else{'Path to your '+$kind+' source. Type a path, browse, or use automatic discovery.'}
+        $script:fields[$kind].ToolTip=if($locked){'Setup is busy. This source field is locked until it finishes.'}elseif($kind -eq 'Game'){'PC ZIP/disc image or the small 11 MB PC version. Included PC music is extracted automatically. The small version works without music or with optional PlayStation music.'}else{'Optional PlayStation soundtrack ZIP/disc image or extracted music folder.'}
         $script:browse[$kind].ToolTip=if($locked){'Setup is busy. Source selection is temporarily unavailable.'}else{'Choose a '+$kind+' source file or folder.'}
     }
     $script:install.IsEnabled=$State -eq 'Idle';$script:play.IsEnabled=($State -eq 'Idle' -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/Wipeout2097.exe')))
     $script:play.ToolTip=if($script:play.IsEnabled){'Refresh artwork and sound effects, then launch the mod with widescreen, controller and music support.'}elseif($State -ne 'Idle'){'Setup is busy. Play becomes available when work finishes.'}else{'Complete setup to enable Play.'}
     $script:install.ToolTip=if($State -eq 'Idle'){'Install or repair using these sources; preserve saves and back up the previous installation.'}else{'Setup is busy. Wait for the current operation to finish.'}
     $script:combo.IsEnabled=-not $locked;$window.FindName('HdTextures').IsEnabled=-not $locked;$window.FindName('CleanAudio').IsEnabled=-not $locked
-    $script:combo.ToolTip=if($locked){'Setup is busy. The default soundtrack choice is temporarily locked.'}else{'Choose the initial soundtrack. PlayStation is enabled only with a verified source.'}
+    $script:combo.ToolTip=if($locked){'Setup is busy. The default soundtrack choice is temporarily locked.'}else{'Choose available PC or PlayStation music, or No music. The small 11 MB PC version does not require a soundtrack.'}
     $script:progress.IsIndeterminate=$State -in @('Searching','Updating')
     $script:status.ToolTip=$script:status.Text
     Refresh-LinkControls
+    if($State -eq 'Idle'){Update-SourceMessage}
+}
+function Update-SourceMessage {
+    $message=Get-ModSourceMessage $script:fields.Game.Text.Trim() $script:fields.Psx.Text.Trim() ([bool]$script:gameVerified) ([bool]$script:psxVerified) ([bool]$script:sourceError)
+    $window.FindName('SourceHint').Text=$message;$window.FindName('SourceHint').ToolTip=$message
+    if($script:guiState -eq 'Idle'){$script:status.Text=$message;$script:status.ToolTip=$message}
 }
 function Update-PsxChoice {
+    $pcInfo=Get-ModSourceInfo $script:fields.Game.Text.Trim()
+    $script:gameVerified=[bool]$pcInfo.Game; $pcAvailable=[bool]$pcInfo.Pc;$window.FindName('PcChoice').IsEnabled=$pcAvailable
+    $window.FindName('PcChoice').ToolTip=if($pcAvailable){'PC music found in the selected game source.'}else{'This PC source has no detected music. Choose No music or add a PlayStation soundtrack.'}
     $path=$script:fields.Psx.Text.Trim();$script:psxVerified=$false
     if($path){$info=Get-ModSourceInfo $path;$script:psxVerified=[bool]$info.Psx}
     $script:psxChoice.IsEnabled=$script:psxVerified
     $script:psxChoice.ToolTip=if($script:psxVerified){'Verified PlayStation source available. Choose it as the initial soundtrack.'}else{'Add a valid PlayStation music source to enable this option.'}
-    if(-not $script:psxVerified){$script:combo.SelectedIndex=0}elseif($script:restorePsxDefault){$script:combo.SelectedIndex=1;$script:restorePsxDefault=$false}
+    if($script:restorePsxDefault -and $script:psxVerified){$script:combo.SelectedIndex=1;$script:restorePsxDefault=$false}
+    elseif(-not $script:soundtrackTouched -or ($script:combo.SelectedIndex -eq 0 -and -not $pcAvailable) -or ($script:combo.SelectedIndex -eq 1 -and -not $script:psxVerified)){$script:combo.SelectedIndex=if($pcAvailable){0}elseif($script:psxVerified){1}else{2}}
+    Update-SourceMessage
 }
 function Start-SourceDiscovery([string]$Kind='All') {
     if($script:scan -or $script:worker){return}
@@ -179,7 +186,8 @@ function Start-SourceDiscovery([string]$Kind='All') {
     $script:status.Text='Looking for your game files…';Set-GuiState Searching
     $script:scan=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Discover-Sources.ps1')+'"'),'-OutputFile',('"'+$script:scanResult+'"')) -PassThru
 }
-foreach($kind in @('Game','Pc','Psx')) {
+$sourceTimer=New-Object Windows.Threading.DispatcherTimer;$sourceTimer.Interval=[TimeSpan]::FromMilliseconds(400);$sourceTimer.Add_Tick({$sourceTimer.Stop();Update-PsxChoice})
+foreach($kind in @('Game','Psx')) {
     $script:magic[$kind].Tag=$kind;$script:magic[$kind].Add_Click({param($sender,$event)Start-SourceDiscovery ([string]$sender.Tag)})
     $script:browse[$kind].Tag=$kind
     $script:browse[$kind].Add_Click({param($sender,$event)
@@ -194,8 +202,9 @@ foreach($kind in @('Game','Pc','Psx')) {
         }$menu.PlacementTarget=$sender;$menu.IsOpen=$true
     })
     $script:fields[$kind].Add_LostKeyboardFocus({Update-PsxChoice})
+    $script:fields[$kind].Add_TextChanged({$script:sourceError=$false;$sourceTimer.Stop();$sourceTimer.Start()})
 }
-$script:combo.Add_DropDownClosed({$script:restorePsxDefault=$false})
+$script:combo.Add_DropDownClosed({$script:restorePsxDefault=$false;$script:soundtrackTouched=$true})
 $script:sourceLink.Add_Click({$url=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'source.url') Source;if($url){Start-Process -FilePath $url|Out-Null}else{Refresh-LinkControls}})
 $script:update.Add_Click({
     if($script:worker -or $script:scan){return};Refresh-LinkControls;if(-not $script:update.IsEnabled){return}
@@ -208,26 +217,26 @@ $script:install.Add_Click({
     if($script:worker -or $script:scan){return};Update-PsxChoice
     if(-not $script:fields.Game.Text.Trim()){$script:status.Text='Choose your Windows game source to continue.';$script:status.ToolTip=$script:status.Text;return}
     $id=[guid]::NewGuid().ToString('N');$request=Join-Path $PSScriptRoot ('.work/request-'+$id+'.json');$script:workerStatus=Join-Path $PSScriptRoot ('.work/status-'+$id+'.json')
-    Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource=$script:fields.Pc.Text.Trim();PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked})
-    $script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
+    Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource='';PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked})
+    $script:sourceError=$false;Update-SourceMessage;$script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
     $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -PassThru
 })
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(300)
 $timer.Add_Tick({
     if($script:scan -and $script:scan.HasExited){
-        if(Test-Path -LiteralPath $script:scanResult){try{$found=Get-Content -Encoding UTF8 -LiteralPath $script:scanResult -Raw|ConvertFrom-Json;foreach($kind in @('Game','Pc','Psx')){if($script:scanMode -eq $kind -or ($script:scanMode -eq 'All' -and -not $script:fields[$kind].Text)){$script:fields[$kind].Text=$found.$kind}}}catch{}}
-        $script:scan.Dispose();$script:scan=$null;Update-PsxChoice;$script:status.Text='Ready when you are.';Set-GuiState Idle
+        if(Test-Path -LiteralPath $script:scanResult){try{$found=Get-Content -Encoding UTF8 -LiteralPath $script:scanResult -Raw|ConvertFrom-Json;foreach($kind in @('Game','Psx')){if($script:scanMode -eq $kind -or ($script:scanMode -eq 'All' -and -not $script:fields[$kind].Text)){$script:fields[$kind].Text=$found.$kind}}}catch{}}
+        $script:scan.Dispose();$script:scan=$null;Update-PsxChoice;Set-GuiState Idle
     }
     if($script:worker){
-        if(Test-Path -LiteralPath $script:workerStatus){try{$s=Get-Content -Encoding UTF8 -LiteralPath $script:workerStatus -Raw|ConvertFrom-Json;$script:status.Text=$s.message;$script:status.ToolTip=$s.message;$script:progress.Value=$s.percent}catch{}}
-        if($script:worker.HasExited){$script:worker.WaitForExit();if($script:worker.ExitCode -ne 0 -and $script:status.Text -like 'Starting*'){$script:status.Text='The '+$script:workerKind+' could not finish. Check the configuration and try again.'};$script:worker.Dispose();$script:worker=$null;Set-GuiState Idle}
+        if(Test-Path -LiteralPath $script:workerStatus){try{$s=Get-Content -Encoding UTF8 -LiteralPath $script:workerStatus -Raw|ConvertFrom-Json;$script:status.Text=$s.message;$script:status.ToolTip=$s.message;$script:progress.Value=$s.percent;if($s.state -eq 'error'){$script:sourceError=$true;Update-SourceMessage}}catch{}}
+        if($script:worker.HasExited){$script:worker.WaitForExit();if($script:worker.ExitCode -ne 0 -and $script:status.Text -like 'Starting*'){$script:status.Text='The '+$script:workerKind+' could not finish. Check the configuration and try again.'};if($script:worker.ExitCode -ne 0){$script:sourceError=$true}else{$script:sourceError=$false};$script:worker.Dispose();$script:worker=$null;Set-GuiState Idle}
     }
 })
 $window.Add_Activated({Refresh-LinkControls})
-$window.Add_Closing({param($sender,$event)if($script:worker){$event.Cancel=$true;$script:status.Text='Please wait for setup to finish before closing.'}else{$timer.Stop();if($script:scan -and -not $script:scan.HasExited){$script:scan.Kill()}}})
+$window.Add_Closing({param($sender,$event)if($script:worker){$event.Cancel=$true;$script:status.Text='Please wait for setup to finish before closing.'}else{$sourceTimer.Stop();$timer.Stop();if($script:scan -and -not $script:scan.HasExited){$script:scan.Kill()}}})
 Set-GuiState $PreviewState
 if($ValidateUi -or $PreviewPath) {
-    foreach($kind in @('Game','Pc','Psx')) {
+    foreach($kind in @('Game','Psx')) {
         if($PreviewState -eq 'Searching' -and ($script:magic[$kind].IsEnabled -or -not $script:wands[$kind].RenderTransform.HasAnimatedProperties)){throw 'Searching must animate and disable every magic button.'}
         if($PreviewState -eq 'Idle' -and -not $script:magic[$kind].IsEnabled){throw 'Idle magic buttons must be clickable.'}
         if($PreviewState -eq 'Updating' -and ($script:magic[$kind].IsEnabled -or $script:fields[$kind].IsEnabled -or $script:browse[$kind].IsEnabled)){throw 'Update must lock source selection and discovery.'}

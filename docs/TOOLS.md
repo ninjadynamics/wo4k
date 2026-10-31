@@ -1,4 +1,4 @@
-# Standalone tools
+﻿# Standalone tools
 
 Run in Windows PowerShell5.1 from the mod root. No Python/FFmpeg,
 mounting tools or separate image decoder is needed.
@@ -39,9 +39,9 @@ For a complete command-line install:
     -PsxMusicSource 'D:\Discs\WipEout2097.zip' -DefaultSoundtrack Psx
 ```
 
-The Windows image is enough for the minimum install if it contains its CD audio.
+PC game data alone is enough for the minimum install; missing PC music is optional.
 Add -PcMusicSource when your game ZIP/data ISO does not contain that audio.
-An optional PS1 source never substitutes for PC game data or PC music.
+An optional PS1 source can supply music for a data-only PC install; it never replaces PC game data. Use -DefaultSoundtrack None for sound effects only.
 
 Close the game before modifying installed artwork, music or effects. Keep your
 original inputs. Maintainer testing/extraction output is excluded from release ZIPs.

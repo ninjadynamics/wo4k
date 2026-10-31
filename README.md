@@ -30,14 +30,17 @@ Git. Ready-to-use ZIP packages and their SHA-256 checksums belong in
 
 ## Requirements
 
-**Windows 10/11 x64** and your own supported **Windows PC game files and PC
-soundtrack** are required. A PlayStation disc is optional and supplies music
-only; it cannot replace the PC game or PC soundtrack.
+**Windows 10/11 x64** and your own supported **Windows PC game files** are
+required. Supply one PC ZIP/disc image, or the small **11 MB PC version**.
+Setup extracts any PC music included with that source automatically.
+
+Music is optional. The small version can run with sound effects only, or with
+an optional PlayStation soundtrack. A PS1 source supplies music only and cannot
+replace the Windows game files. There is no separate PC soundtrack field.
 
 Setup accepts game folders, ZIP archives and supported ISO, MDS/MDF or CUE/BIN
-images. Keep paired disc files together. A data-only ISO contains no CD audio:
-provide an audio-bearing PC disc image or an existing extracted PC music folder
-separately. A game source that already includes PC music can supply both fields.
+images. Keep paired disc files together. Data-only ISOs and small PC downloads
+contain no CD audio; choose **No music**, or add a PlayStation soundtrack.
 Supported executable checksums are listed in [manifests/patches.json](manifests/patches.json);
 unsupported binaries are rejected before an installation is committed.
 
@@ -48,8 +51,8 @@ unsupported binaries are rejected before an installation is committed.
 2. Open **Setup.exe**. It searches common local folders in the background.
    Use the browse button to select a file/folder or the animated ✨ button to
    search again. No match leaves a field silently empty; controls have tooltips.
-3. Supply the Windows game and PC soundtrack. Optionally add a PlayStation
-   soundtrack source and choose the default music bank.
+3. Select the PC game source once. Optionally add a PlayStation soundtrack,
+   then choose available PC/PlayStation music or **No music**.
 4. Choose **Install HD artwork** and **Improve audio quality** as desired,
    then click **Install / repair**.
 5. Click **Play**, or run **Play.exe**. In the original display-selection
@@ -161,6 +164,25 @@ Releases; GitHub's generated source archives are not update packages.
 
 WO4K is a beta. Report the mod version, Windows version, source type, symptoms
 and relevant `logs/` through [Issues](https://github.com/ninjadynamics/wo4k/issues).
+
+## Acknowledgements
+
+Huge thanks to the people who made this work possible:
+
+- **Yash-Singh1 and contributors — [wipeout-xl-decomp](https://github.com/Yash-Singh1/wipeout-xl-decomp).**
+  This repository covers WipEout XL / 2097 on PlayStation and includes a partial
+  PC decompilation. Its PC source was a valuable reverse-engineering reference
+  for locating and understanding the original game's routines while building WO4K.
+- **[DDrawCompat](https://github.com/narzoul/DDrawCompat), by narzoul and contributors,**
+  for the compatibility layer that makes the original rendering APIs usable on
+  modern Windows.
+- **[SDL3](https://github.com/libsdl-org/SDL) and its contributors,** including
+  its HIDAPI integration, for modern controller support.
+- The original **Psygnosis developers, artists, musicians and designers**, and
+  the WipEout community keeping these games alive.
+
+Third-party licensing and artwork attribution remain documented in
+[licenses/](licenses/) and [manifests/](manifests/).
 
 Our contributions are MIT licensed; see [LICENSE](LICENSE). Artwork provenance
 and third-party licenses are recorded in [manifests/](manifests/) and

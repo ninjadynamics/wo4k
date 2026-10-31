@@ -1,5 +1,15 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.15
+
+- Use one PC source field and extract included music automatically. Support
+  data-only / small PC downloads with no music or optional PS1 music.
+- Widen source buttons, add explicit source-status messages and restore
+  music volume when repairing a silent install with a soundtrack.
+- Add source-status and optional-music regression checks and credit the
+  decompilation reference and compatibility/controller contributors.
+
+
 ## 0.1.0-beta.14
 
 - Add the WO4K logo to the README and setup header, with a pre-sized app

@@ -1,4 +1,4 @@
-﻿param([string]$GameSource,[string]$PcMusicSource,[string]$PsxMusicSource,[ValidateSet('Pc','Psx')][string]$DefaultSoundtrack='Pc',[string]$RequestFile,[string]$StatusFile,[switch]$OriginalAudio,[switch]$SdOnly)
+﻿param([string]$GameSource,[string]$PcMusicSource,[string]$PsxMusicSource,[ValidateSet('Pc','Psx','None')][string]$DefaultSoundtrack='Pc',[string]$RequestFile,[string]$StatusFile,[switch]$OriginalAudio,[switch]$SdOnly)
 . (Join-Path $PSScriptRoot 'Sources.ps1')
 if($RequestFile){$request=Get-Content -Encoding UTF8 -LiteralPath $RequestFile -Raw|ConvertFrom-Json;$GameSource=$request.GameSource;$PcMusicSource=$request.PcMusicSource;$PsxMusicSource=$request.PsxMusicSource;$DefaultSoundtrack=$request.DefaultSoundtrack;$OriginalAudio=-not $request.CleanAudio;$SdOnly=-not $request.HdTextures}
 function Set-InstallStatus([int]$Percent,[string]$Message,[string]$State='busy') {
@@ -26,8 +26,10 @@ try {
     Set-InstallStatus 46 'Extracting the PC soundtrack'
     $pcSource=if($PcMusicSource){$PcMusicSource}elseif(Find-ModMusicFolder $native Pc){$native}else{$GameSource}
     $pc=Join-Path $session 'pc-music'
-    & (Join-Path $PSScriptRoot 'Extract-Music.ps1') -SourcePath $pcSource -Destination $pc -Bank Pc -WorkRoot (Join-Path $session 'pc-source') | Out-Null
-    & (Join-Path $PSScriptRoot 'Install-Music.ps1') -SourcePath $pc -GameRoot $stage -Bank Pc
+    & (Join-Path $PSScriptRoot 'Extract-Music.ps1') -SourcePath $pcSource -Destination $pc -Bank Pc -WorkRoot (Join-Path $session 'pc-source') -AllowMissing:(-not [bool]$PcMusicSource) | Out-Null
+    $pcAvailable=Test-Path -LiteralPath (Join-Path $pc 'tracks.ini')
+    if($pcAvailable){& (Join-Path $PSScriptRoot 'Install-Music.ps1') -SourcePath $pc -GameRoot $stage -Bank Pc}
+    else{Set-InstallStatus 58 'No PC music included; continuing without it'}
     $psxSource=$PsxMusicSource
     if(-not $psxSource -and (Find-ModMusicFolder $native Psx)){$psxSource=$native}
     if(-not $psxSource -and (Find-ModMusicFolder $target Psx)){$psxSource=$target}
@@ -37,6 +39,7 @@ try {
         & (Join-Path $PSScriptRoot 'Extract-Music.ps1') -SourcePath $psxSource -Destination $psx -Bank Psx -WorkRoot (Join-Path $session 'psx-source') | Out-Null
         & (Join-Path $PSScriptRoot 'Install-Music.ps1') -SourcePath $psx -GameRoot $stage -Bank Psx
     } elseif($DefaultSoundtrack -eq 'Psx'){throw 'PlayStation default selected, but no PlayStation soundtrack source was provided.'}
+    if($DefaultSoundtrack -eq 'Pc' -and -not $pcAvailable){$DefaultSoundtrack=if($psxSource){'Psx'}else{'None'}}
     Set-InstallStatus 82 'Installing the mod runtime and artwork'
     foreach($name in @('wohr.dll','ddraw.dll','wo2097-controller.exe','DDrawCompat-Wipeout2097.ini')) {
         [IO.File]::Copy((Join-Path $script:ModRoot ('runtime/'+$name)),(Get-ModChild $stage $name),$true)
@@ -50,13 +53,18 @@ try {
     foreach($name in @('CONFIG.DAT','SAVEGAME.BIN','Wipeout2097.ini')){$old=Get-ModChild $target $name;if([IO.File]::Exists($old)){[IO.File]::Copy($old,(Get-ModChild $stage $name),$true)}}
     $ini=[IO.File]::ReadAllText($settings)
     if($ini -match '(?im)^Soundtrack\s*='){$ini=[regex]::Replace($ini,'(?im)^Soundtrack\s*=.*$',('Soundtrack='+[int]($DefaultSoundtrack -eq 'Psx')))}else{$ini+="`r`n[Audio]`r`nSoundtrack=$([int]($DefaultSoundtrack -eq 'Psx'))`r`n"}
+    if($DefaultSoundtrack -eq 'None'){$ini=[regex]::Replace($ini,'(?im)^MusicVolume\s*=.*$','MusicVolume=0')}
+    elseif(Test-Path -LiteralPath (Join-Path $target 'installation.json')){
+        $prior=Get-Content -LiteralPath (Join-Path $target 'installation.json') -Encoding UTF8 -Raw|ConvertFrom-Json
+        if($prior.default_soundtrack -eq 'None'){$ini=[regex]::Replace($ini,'(?im)^MusicVolume\s*=.*$','MusicVolume=100')}
+    }
     [IO.File]::WriteAllText($settings,$ini,[Text.Encoding]::ASCII)
     Set-InstallStatus 93 'Verifying the completed installation'
-    $required=@('Wipeout2097.exe','wohr.dll','ddraw.dll','Common/MENU.DAT','Track01/TRACK.WAD','textures/sd/Pics/Hi-res/HUD2.tga','audio/ENGINES.WAV','music/pc/tracks.ini')
+    $required=@('Wipeout2097.exe','wohr.dll','ddraw.dll','Common/MENU.DAT','Track01/TRACK.WAD','textures/sd/Pics/Hi-res/HUD2.tga','audio/ENGINES.WAV')
     foreach($name in $required){if(-not [IO.File]::Exists((Get-ModChild $stage $name))){throw "Installation is incomplete: $name"}}
     $manifest=Get-Content -Encoding UTF8 -LiteralPath (Join-Path $script:ModRoot 'manifests/patches.json') -Raw|ConvertFrom-Json
     if((Get-ModHash (Join-Path $stage 'Wipeout2097.exe')) -ne $manifest.output_sha256){throw 'Final executable checksum failed.'}
-    $receipt=[ordered]@{version=([IO.File]::ReadAllText((Join-Path $script:ModRoot 'VERSION')).Trim());installed_at=(Get-Date -Format o);default_soundtrack=$DefaultSoundtrack;playstation_available=[bool]$psxSource;hd_textures=(-not $SdOnly);clean_audio=(-not $OriginalAudio);executable_sha256=$manifest.output_sha256}
+    $receipt=[ordered]@{version=([IO.File]::ReadAllText((Join-Path $script:ModRoot 'VERSION')).Trim());installed_at=(Get-Date -Format o);default_soundtrack=$DefaultSoundtrack;pc_music_available=[bool]$pcAvailable;playstation_available=[bool]$psxSource;hd_textures=(-not $SdOnly);clean_audio=(-not $OriginalAudio);executable_sha256=$manifest.output_sha256}
     Write-ModJson (Join-Path $stage 'installation.json') $receipt
     if([IO.Directory]::Exists($target)){
         $backup=Get-ModChild $script:ModRoot ('backups/wobble-'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff'));[WoBeta.Files]::Parent($backup)
