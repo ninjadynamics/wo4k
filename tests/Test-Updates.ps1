@@ -24,7 +24,7 @@ Assert-Result ((Compare-ModReleaseVersion 'v0.1.0-beta.2' '0.1.0-beta.2') -eq 0)
 $package=Join-Path $work 'payload';$fixture=Join-Path $work 'installed mod Ω';$game=Join-Path $fixture 'wobble'
 foreach($directory in @($package,$fixture,$game)){[IO.Directory]::CreateDirectory($directory)|Out-Null}
 $payload=[ordered]@{
-    'Setup.ps1'='new setup';'Play.ps1'='new play';'Setup.exe'='launcher fixture';'Play.exe'='launcher fixture';'scripts/Core.ps1'='new core';
+    'Setup.ps1'='new setup';'Play.ps1'='new play';'Setup.exe'='launcher fixture';'Play.exe'='launcher fixture';'scripts/Core.ps1'='new core';'scripts/Diagnostics.ps1'='diagnostics fixture';
     'runtime/wohr.dll'='new runtime';'release.url'='';'source.url'=''
 }
 $native=Join-Path $game 'Wipeout2097.exe';[IO.File]::WriteAllText($native,'game fixture')

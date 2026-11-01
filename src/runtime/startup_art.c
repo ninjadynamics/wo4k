@@ -52,23 +52,11 @@ static void startup_path(WCHAR *path,const WCHAR *name) {
     UINT n=0;while(startup_directory[n]) {path[n]=startup_directory[n];++n;}
     while((*((WCHAR *)path+n++)=*name++)) {}
 }
-static IDirectDrawSurface *startup_read_bmp(UINT index) {
-    WCHAR path[MAX_PATH];startup_path(path,index?L"notice.bmp":L"title.bmp");
-    HANDLE file=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);
-    if(file==INVALID_HANDLE_VALUE)return 0;
-    BYTE header[54];DWORD got=0;LARGE_INTEGER length;
-    BOOL valid=ReadFile(file,header,sizeof(header),&got,0) && got==sizeof(header) && GetFileSizeEx(file,&length);
-    if(!valid) {CloseHandle(file);return 0;}
-    LONG width=*(LONG *)(header+18),height=*(LONG *)(header+22);
-    valid=valid && header[0]=='B' && header[1]=='M' && *(DWORD *)(header+10)==54 &&
-        *(DWORD *)(header+14)==40 && *(WORD *)(header+26)==1 && *(WORD *)(header+28)==32 &&
-        !*(DWORD *)(header+30) && width>0 && width<=16384 && height<0 && height>=-16384;
-    UINT bytes=valid?(UINT)width*(UINT)(-height)*4:0;
-    valid=valid && bytes<=256*1024*1024 && length.QuadPart==(LONGLONG)54+bytes;
-    if(!valid) {CloseHandle(file);wo_render_event("startup_art_bad_bmp",index);return 0;}
-    BYTE *pixels=VirtualAlloc(0,bytes,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
-    if(!pixels) {CloseHandle(file);return 0;}
-    valid=ReadFile(file,pixels,bytes,&got,0) && got==bytes;CloseHandle(file);
+static IDirectDrawSurface *startup_read_png(UINT index) {
+    WCHAR path[MAX_PATH];startup_path(path,index?L"notice.png":L"title.png");
+    UINT png_width=0,png_height=0;BYTE *pixels=read_art_png(path,&png_width,&png_height);
+    if(!pixels)return 0;
+    LONG width=(LONG)png_width,height=-(LONG)png_height;BOOL valid=TRUE;
     IDirectDrawSurface *surface=0;
     IDirectDraw *dd=*(IDirectDraw **)(game+0xc8b50);
     if(valid && dd) {
@@ -110,7 +98,7 @@ static IDirectDrawSurface *__cdecl startup_load(const char *name,int index) {
     if(index==0 || index==1) {
         startup_art[index].surface=0;
         if(startup_name(name,index?"woxlcopy.ppm":"rstartxl.ppm")) {
-            IDirectDrawSurface *surface=startup_read_bmp((UINT)index);
+            IDirectDrawSurface *surface=startup_read_png((UINT)index);
             if(surface)return surface;
             wo_render_event("startup_art_fallback",(DWORD)index);
         }
@@ -172,13 +160,14 @@ static void __cdecl startup_flush(int layer) {
     *count=0;
 }
 static void initialize_startup_art(const WCHAR *root,UINT display_width,UINT display_height) {
+    WCHAR hd[4];if(GetEnvironmentVariableW(L"WO2097_HD_ART",hd,4) && hd[0]==L'0')return;
     if(!display_width || !display_height)return;
     startup_display_width=display_width;startup_display_height=display_height;
     if(!equal(game+RVA_startup_load,entry_startup_load,sizeof(entry_startup_load)) ||
        !equal(game+RVA_startup_flush,entry_startup_flush,sizeof(entry_startup_flush)))return;
     UINT n=0;while(root[n] && n<MAX_PATH-40) {startup_directory[n]=root[n];++n;}
     if(root[n])return;
-    const WCHAR *suffix=L"textures\\hd\\";
+    const WCHAR *suffix=L"..\\assets\\hd\\";
     while((*((WCHAR *)startup_directory+n++)=*suffix++)) {}
     old_startup_load=(ArtLoadFn)hook(RVA_startup_load,entry_startup_load,sizeof(entry_startup_load),startup_load);
     old_startup_flush=(ArtFlushFn)hook(RVA_startup_flush,entry_startup_flush,sizeof(entry_startup_flush),startup_flush);

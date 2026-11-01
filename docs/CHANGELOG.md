@@ -1,4 +1,18 @@
-﻿# Beta release changes
+# Beta release changes
+
+## 0.1.0-beta.16
+
+- Record launch, setup, install and update stages and failures locally. Show a
+  popup with the log path on failure, capture game exit codes and early
+  PowerShell errors, and include minimal Windows/CPU/RAM/GPU support details.
+  No device identifiers or automatic uploads. Keep Setup self-updatable.
+- Play the intro between notice and title and support all four original ending
+  triggers, with local MP4 conversion/replacements and original-video fallback.
+  Hide the game cursor, use a real-clock title timer and controller-aware prompt,
+  and present native title lettering before the display flip.
+- Read HD PNG artwork directly from assets/hd without duplicate installed
+  BMP/RGBA/PNG copies; migrate legacy layouts on every Play launch and retain
+  custom artwork and video replacements.
 
 ## 0.1.0-beta.15
 

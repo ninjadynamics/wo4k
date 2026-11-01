@@ -21,3 +21,13 @@ src/runtime/build/*
 *.wodiff
 /release-files.json
 /manifests/third-party.json
+
+# Original movie assets stay local.
+*.mpg
+*.mpeg
+*.mp4
+*.avi
+*.wmv
+
+.state/
+cache/

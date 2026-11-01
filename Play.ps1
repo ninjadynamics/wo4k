@@ -1,18 +1,46 @@
-﻿param([switch]$Diagnostics,[switch]$RefreshOnly)
+﻿param([switch]$Diagnostics,[switch]$RefreshOnly,[switch]$NoErrorDialog)
 $ErrorActionPreference='Stop'
-$game=Join-Path $PSScriptRoot 'wobble';$exe=Join-Path $game 'Wipeout2097.exe'
-if(-not (Test-Path -LiteralPath $exe)){Add-Type -AssemblyName PresentationFramework;[Windows.MessageBox]::Show('Run Setup first to supply your Windows game files.','WipEout 2097')|Out-Null;return}
-[IO.Directory]::CreateDirectory((Join-Path $PSScriptRoot 'logs'))|Out-Null
+. (Join-Path $PSScriptRoot 'scripts/Diagnostics.ps1')
+$log=Start-WoLog 'play' $PSScriptRoot
+$game=Join-Path $PSScriptRoot 'wobble';$exe=Join-Path $game 'Wipeout2097.exe';$stage='Checking the installation';$child=$null
 try {
+    Write-WoLog 'stage' $stage
+    if(-not [IO.File]::Exists($exe)){throw 'Run Install / repair first to supply your Windows game files.'}
+    $stage='Refreshing artwork and audio';Write-WoLog 'stage' $stage
     & (Join-Path $PSScriptRoot 'scripts/Refresh-Assets.ps1') -GameRoot $game
+    if($RefreshOnly){Write-WoLog 'complete' 'Assets refreshed without starting the game.';return}
+    $stage='Checking game dependencies';Write-WoLog 'stage' $stage
+    foreach($name in @('Wipeout2097.exe','wohr.dll','ddraw.dll','wo2097-controller.exe','libiconv-2.dll')){
+        $path=Join-Path $game $name
+        if(-not [IO.File]::Exists($path)){throw "Missing $name. Run Install / repair. Check Windows Security if a file was removed."}
+        Write-WoLog 'dependency' @{file=$name;bytes=(Get-Item -LiteralPath $path).Length;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash;signature=[string](Get-AuthenticodeSignature -LiteralPath $path).Status}
+    }
+    $receipt=Get-Content -LiteralPath (Join-Path $game 'installation.json') -Encoding UTF8 -Raw|ConvertFrom-Json
+    Write-WoLog 'installation' @{version=$receipt.version;hd_art=[bool]$receipt.hd_textures;improved_audio=[bool]$receipt.clean_audio}
+    $env:WO2097_HD_ART=if($receipt.hd_textures){'1'}else{'0'}
+    $env:WO2097_RENDER_TEST='1';$env:WO2097_DISTANCE_TEST='1';$env:WO2097_REFRESH_TEST='1';$env:WO2097_SIM60_TEST='0'
+    $graphics=Join-Path $game 'DDrawCompat-Wipeout2097.ini'
+    $config=if([IO.File]::Exists($graphics)){[IO.File]::ReadAllText($graphics)}else{''}
+    if($config -match '(?im)^LogLevel\s*='){$config=[regex]::Replace($config,'(?im)^LogLevel\s*=.*$','LogLevel = info')}else{$config+="`r`nLogLevel = info`r`n"}
+    [IO.File]::WriteAllText($graphics,$config,[Text.Encoding]::ASCII)
+    $stage='Starting the game';Write-WoLog 'stage' $stage
+    $watch=[Diagnostics.Stopwatch]::StartNew()
+    $start=New-Object Diagnostics.ProcessStartInfo
+    $start.FileName=$exe;$start.WorkingDirectory=$game;$start.UseShellExecute=$false
+    $child=New-Object Diagnostics.Process;$child.StartInfo=$start
+    if(-not $child.Start()){throw 'Windows could not start the game.'}
+    Write-WoLog 'game_started' 'Waiting for the game to exit.'
+    $child.WaitForExit();$code=$child.ExitCode;$watch.Stop()
+    Write-WoLog 'game_exit' @{code=$code;hex=('0x'+[BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$code),0).ToString('X8'));seconds=[Math]::Round($watch.Elapsed.TotalSeconds,2)}
+    if($null -eq $code){throw 'Windows did not return a game exit status.'}
+    if($code -ne 0){throw (Get-WoExitDescription $code)}
+    Write-WoLog 'complete' 'The game exited normally.'
 } catch {
+    Save-WoGameLogs $game
+    Complete-WoFailure $_ $stage -NoDialog:$NoErrorDialog
     if($RefreshOnly){throw}
-    Add-Type -AssemblyName PresentationFramework
-    [Windows.MessageBox]::Show(('Artwork/audio refresh could not finish. '+$_.Exception.Message),'WipEout 2097 / XL')|Out-Null
-    return
+    exit 1
+} finally {
+    Save-WoGameLogs $game
+    if($child){$child.Dispose()}
 }
-if($RefreshOnly){return}
-$env:WO2097_RENDER_TEST='1';$env:WO2097_DISTANCE_TEST='1';$env:WO2097_REFRESH_TEST='1';$env:WO2097_SIM60_TEST='0'
-$child=Start-Process -FilePath $exe -WorkingDirectory $game -PassThru
-$child.WaitForExit()
-if(Test-Path -LiteralPath (Join-Path $game 'Debug.txt')){Move-Item -LiteralPath (Join-Path $game 'Debug.txt') -Destination (Join-Path $PSScriptRoot 'logs/game-debug.txt') -Force}

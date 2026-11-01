@@ -1,4 +1,4 @@
-﻿# How to compile WO4K
+# How to compile WO4K
 
 Build on Windows 10/11 x64. The repository contains C/PowerShell source,
 artwork, configuration, licenses and text patch recipes. Compiled EXEs/DLLs,
@@ -94,6 +94,13 @@ dist/release-files.json
 
 `VERSION` is the version source of truth. An explicit `VERSION=...` Make override must match that file, so installer receipts and package labels agree. Use a matching version tag for publication. The package includes source, runtime binaries, artwork,
 licenses and setup scripts, but no original game executable/data/audio.
+
+`tests/Test-Movies.ps1` verifies extraction from a supplied PC source and can
+probe real Windows decoding for all five clips, broken-MP4 fallback, and (with
+`-Mp4Fixture path/to/video.mp4`) actual replacement playback. Run it in Windows
+PowerShell with `-STA`. The native `Test-RenderInit.ps1` integration test checks
+all four ending events against the patched race CALL, unchanged achievement
+flags, startup order, HD title/text ordering, and the real-clock title counter.
 
 Tests that inspect the actual game or launch it require your local installation
 and are separate from `make test`; see the scripts under `tests/`. Rebuilding a

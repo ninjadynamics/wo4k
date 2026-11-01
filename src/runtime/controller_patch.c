@@ -1,4 +1,4 @@
-#include "controller_wire.h"
+﻿#include "controller_wire.h"
 static ControllerWire *controller_wire;
 static HANDLE controller_mapping;
 static BOOL controller_started,controller_active,controller_ready;
@@ -72,7 +72,7 @@ static void apply_controller_state(const ControllerWire *sample,BOOL present) {
         if(b&(1u<<13))menu|=0x80;if(b&(1u<<14))menu|=0x20;
         BOOL racing=refresh_race && *(DWORD *)(game+0x8c98c) && !*(DWORD *)(game+0x89cb0);
         if((b&4) && !racing)menu|=0x1000;
-        if(b&(1u<<6))menu|=0x1000; // Options / Start
+        if(b&(1u<<6))menu|=(WORD)title_start_mask(title_input_active()); // Options / Start
         controller_left=state.left>1600?(state.left-1600)*256/(32767-1600):0;
         controller_right=state.right>1600?(state.right-1600)*256/(32767-1600):0;
         WORD edges=menu&~controller_menu;DWORD now=GetTickCount();

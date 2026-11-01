@@ -26,6 +26,14 @@ function Copy-ModGameData([string]$Source,[string]$Destination) {
             $target=Get-ModChild $Destination ($dir.Name+'/'+$file.FullName.Substring($dir.FullName.Length+1));[WoBeta.Files]::Parent($target);[IO.File]::Copy($file.FullName,$target,$true)
         }
     }
+    foreach($folder in @('MPEG','movies')){
+        $movies=Join-Path $Source $folder
+        if([IO.Directory]::Exists($movies)){
+            foreach($file in Get-ChildItem -LiteralPath $movies -File | Where-Object {$_.Name -match '^(?i)(WXLINTR|XTRO[1-4])\.(MPG|mp4)$' -or $_.Name -ieq 'intro.mp4'}){
+                $target=Get-ModChild $Destination ('movies/'+$file.Name);[WoBeta.Files]::Parent($target);[IO.File]::Copy($file.FullName,$target,$true)
+            }
+        }
+    }
     foreach($name in @('CONFIG.DAT','SAVEGAME.BIN','Wipeout2097.ini')) {
         $p=Join-Path $Source $name;if([IO.File]::Exists($p)){$target=Get-ModChild $Destination $name;[WoBeta.Files]::Parent($target);[IO.File]::Copy($p,$target,$true)}
     }

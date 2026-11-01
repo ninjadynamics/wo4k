@@ -33,6 +33,9 @@ CreateFileMappingW@24
 MapViewOfFile@20
 CreateProcessW@40
 GetTickCount@0
+GetSystemDirectoryW@8
+WaitForSingleObject@8
+GetExitCodeProcess@8
 '@ | Set-Content -LiteralPath (Join-Path $out 'kernel32.def') -Encoding Ascii
 @'
 LIBRARY WINMM.dll
@@ -53,8 +56,24 @@ EXPORTS
 GetSystemMetrics@4
 GetForegroundWindow@0
 GetWindowThreadProcessId@8
+SetCursor@4
+SetClassLongA@12
+SetWindowLongA@12
+CallWindowProcA@20
+SetForegroundWindow@4
+PeekMessageA@20
+TranslateMessage@4
+DispatchMessageA@4
+PostQuitMessage@4
 '@ | Set-Content -LiteralPath (Join-Path $out 'user32.def') -Encoding Ascii
-foreach ($lib in @('kernel32','winmm','user32')) {
+@'
+LIBRARY OLE32.dll
+EXPORTS
+CoInitializeEx@8
+CoUninitialize@0
+CoCreateInstance@20
+'@ | Set-Content -LiteralPath (Join-Path $out 'ole32.def') -Encoding Ascii
+foreach ($lib in @('kernel32','winmm','user32','ole32')) {
     & "$bin\llvm-dlltool.exe" -m i386 -k -d "$out\$lib.def" -l "$out\$lib.lib"
     if ($LASTEXITCODE) { throw "Import library failed: $lib" }
 }
@@ -63,7 +82,7 @@ foreach ($unit in @('wohd','render_patch','simulation_patch')) {
     & "$bin\clang.exe" --target=i686-w64-windows-gnu -isystem $headers -Os -fno-builtin -fno-stack-protector -Wall -Wextra -Wno-unused-parameter -c "$runtimeSource\$unit.c" -o "$out\$unit.obj"
     if ($LASTEXITCODE) { throw "Compile failed: $unit" }
 }
-& "$bin\lld-link.exe" /dll /machine:x86 /entry:DllMain@12 /nodefaultlib "/def:$runtimeSource\wohd.def" "/out:$out\wohd.dll" "$out\wohd.obj" "$out\render_patch.obj" "$out\simulation_patch.obj" "$out\kernel32.lib" "$out\winmm.lib" "$out\user32.lib"
+& "$bin\lld-link.exe" /dll /machine:x86 /entry:DllMain@12 /nodefaultlib "/def:$runtimeSource\wohd.def" "/out:$out\wohd.dll" "$out\wohd.obj" "$out\render_patch.obj" "$out\simulation_patch.obj" "$out\kernel32.lib" "$out\winmm.lib" "$out\user32.lib" "$out\ole32.lib"
 if ($LASTEXITCODE) { throw 'Link failed' }
 Copy-Item -LiteralPath "$out\wohd.dll" -Destination (Join-Path $PSScriptRoot '../runtime/wohr.dll') -Force
 Write-Host 'Built portable x86 mod runtime.'

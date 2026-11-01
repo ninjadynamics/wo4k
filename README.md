@@ -1,4 +1,4 @@
-﻿<img src="assets/ui/wo4k-logo.png" alt="WO4K" width="480">
+<img src="assets/ui/wo4k-logo.png" alt="WO4K" width="480">
 
 WO4K is a modern Windows mod for **WipEout 2097 / XL**, by Ninja Dynamics.
 It adds widescreen rendering, smooth animation, extended track visibility,
@@ -64,11 +64,43 @@ installed. Your choice is saved. The PC bank contains nine songs; the optional
 PlayStation bank contains eleven.
 
 Every Play launch runs the artwork and sound-effect installers first. Edit HD
-PNGs in `assets/hd/` to have them picked up at the next launch. Changed or damaged
-outputs are rebuilt; unchanged files are verified and skipped. Setup's HD/audio
+PNGs in `assets/hd/` to have them picked up at the next launch. Audio outputs are rebuilt when changed or damaged; HD PNGs are validated and
+read directly by the renderer. Setup's HD/audio
 preferences are respected. Original effects stay locally in `wobble/audio/source/`,
 so refresh never repeatedly denoises its own output or needs the disc again.
-Close the game before changing installed assets.
+HD PNGs live only in assets/hd; the runtime reads them directly, with no BMP,
+RGBA or PNG copies in Wobble. Play applies layout migrations and removes known
+obsolete mod outputs before every launch, including after Update. Custom files,
+saves and preferences are preserved. Close the game before changing assets.
+
+## Videos
+
+Setup extracts all five original PC videos to `wobble/movies/` when your source
+includes them. Startup runs in this order: **launcher → notice → intro → title**.
+The four endings play on their original completion events: six gold medals
+(XTRO1), the Phantom challenge (XTRO2), eight gold medals (XTRO3), and the Piranha
+challenge (XTRO4). Original achievement and save handling stays in the game.
+
+Drop in `intro.mp4` (or `WXLINTR.mp4`), `XTRO1.mp4`, `XTRO2.mp4`, `XTRO3.mp4`,
+or `XTRO4.mp4` to replace any video, including with HD artwork. MP4 takes priority;
+the corresponding original `WXLINTR.MPG` / `XTRO1.MPG`–`XTRO4.MPG` is the fallback,
+including when Windows cannot decode a replacement. Setup preserves your MP4
+replacements. When ffmpeg is available on PATH, Setup and Play convert the five
+original MPEGs to H.264/AAC MP4, validate them, and remove the copied MPEG
+intermediates. Without an encoder, original MPEG playback remains available.
+Videos fit the screen without stretching. Skip with **Esc**,
+**Enter**, **Space**, or a controller button. The cursor stays hidden during
+videos and in-game, and movies have no tooltip. Music pauses during cutscenes.
+
+The small PC download works without movies; missing files or unavailable Windows
+media codecs do not block the game. Movie files are supplied by you and never
+included in the mod release. Run **Install / repair** with your PC disc/ZIP to
+add movies to an existing installation. No disc needs to stay mounted afterward.
+
+The title-screen attract timer uses real elapsed time: 30 seconds on the first
+visit and 5 seconds on later visits. When a controller is detected, the prompt
+changes to **Press start**; Start/Options continues, as does Cross. Keyboard
+users retain **Press enter**.
 
 ## Controls
 
@@ -84,7 +116,7 @@ Keyboard input remains available.
 | D-pad | Menu navigation |
 | Triangle | Discard weapon |
 | Circle / F1 | Change camera |
-| Options / Start | Pause |
+| Options / Start | Continue from title / pause in game |
 | R1 + Square | Fire a rear-locked missile |
 | Backtick (`) | Toggle the bottom-center FPS counter |
 | F4 | Cycle exhaust trails: off / simple / full |
@@ -132,7 +164,6 @@ wobble/                      created locally by Setup
   music/psx/                 optional PlayStation soundtrack
   audio/                     sound effects; source/ retains original inputs
   textures/sd/               original artwork/texture containers
-  textures/hd/               HD PNGs and generated runtime uploads
 ```
 
 Repairs stage an installation before replacing it, preserve saves/preferences and
@@ -161,6 +192,24 @@ release workflow; a normal branch push updates source only.
 Build scripts write the distributable ZIP, checksum and file inventory under
 `dist/`. Publish the ZIP and its `.zip.sha256` sidecar together in this repository's
 Releases; GitHub's generated source archives are not update packages.
+
+Every launch, installation and update writes a local diagnostic log in `logs/`.
+If an operation fails, a popup shows the exact log location; launch failures
+include the Windows error or game exit code. The native launchers also capture
+PowerShell startup/parse errors. If the mod folder is unwritable, the popup
+points to a fallback log under `%TEMP%/WO4K`.
+
+Support logs include Windows edition/build/architecture, CPU model and core
+counts, RAM capacity, GPU model/driver, and the mod version and startup stages.
+They do not query machine/account names, serial numbers, UUIDs, MAC/IP addresses
+or hardware device IDs. Common personal paths are redacted in script logs;
+bootstrap errors may include script paths. Logs stay local and are never
+uploaded automatically. Review them before sharing.
+
+Existing players: click **Update**, close and reopen Setup to load its updated
+interface, then **Install / repair** if needed and **Play**. Logging is automatic;
+there is no diagnostic option to enable. Update already refreshes the installed
+runtime and preserves saves/preferences.
 
 WO4K is a beta. Report the mod version, Windows version, source type, symptoms
 and relevant `logs/` through [Issues](https://github.com/ninjadynamics/wo4k/issues).

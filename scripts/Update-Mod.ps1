@@ -1,8 +1,12 @@
-﻿param([string]$StatusFile,[switch]$FunctionsOnly)
+﻿param([string]$StatusFile,[switch]$FunctionsOnly,[switch]$NoErrorDialog)
+. (Join-Path $PSScriptRoot 'Diagnostics.ps1')
+if(-not $FunctionsOnly){$null=Start-WoLog 'update' (Join-Path $PSScriptRoot '..')}
+try {
 . (Join-Path $PSScriptRoot 'Core.ps1')
 . (Join-Path $PSScriptRoot 'Links.ps1')
 function Set-UpdateStatus([int]$Percent,[string]$Message,[string]$State='busy') {
     Write-Host $Message
+    Write-WoLog 'update_stage' @{percent=$Percent;message=$Message;state=$State}
     if($StatusFile){Write-ModJson $StatusFile ([ordered]@{percent=$Percent;message=$Message;state=$State})}
 }
 function Invoke-ModCurl([string]$Url,[string]$Destination) {
@@ -77,7 +81,7 @@ function Read-ModUpdatePackage([string]$Zip,[string]$Stage) {
         if(-not $path -or $path -match '(^/|\\|:|(^|/)\.\.?(/|$)|[\x00-\x1f])' -or $declared.ContainsKey($path)){throw 'Invalid release inventory path.'}
         if($path -notin $top -and $path -notmatch '^(scripts|src|runtime|assets|manifests|licenses|docs|tests|patches)/'){throw "Unexpected update payload: $path"}
         $extension=[IO.Path]::GetExtension($path).ToLowerInvariant()
-        if($extension -in '.wav','.mp3','.iso','.mdf','.mds','.bin','.tga','.tim','.cmp','.ppm','.wad','.swp','.dat','.py','.cmd','.bat','.obj','.lib'){throw "Forbidden update payload: $path"}
+        if($extension -in '.mpg','.mpeg','.mp4','.avi','.wmv','.wav','.mp3','.iso','.mdf','.mds','.bin','.tga','.tim','.cmp','.ppm','.wad','.swp','.dat','.py','.cmd','.bat','.obj','.lib'){throw "Forbidden update payload: $path"}
         if($extension -eq '.exe' -and $path -notin 'Setup.exe','Play.exe','runtime/wo2097-controller.exe','runtime/audio-clean.exe'){throw 'Unexpected executable in update.'}
         if($extension -eq '.dll' -and $path -notin 'runtime/wohr.dll','runtime/ddraw.dll','runtime/libiconv-2.dll'){throw 'Unexpected library in update.'}
         $payload=Get-ModChild $Stage $path
@@ -86,7 +90,7 @@ function Read-ModUpdatePackage([string]$Zip,[string]$Stage) {
     }
     if($declared.Count -ne $seen.Count){throw 'Release ZIP contains undeclared files.'}
     foreach($path in $seen.Keys){if(-not $declared.ContainsKey($path)){throw 'Release ZIP contains undeclared files.'}}
-    foreach($required in @('Setup.ps1','Play.ps1','Setup.exe','Play.exe','scripts/Core.ps1','runtime/wohr.dll','manifests/patches.json')){if(-not $declared.ContainsKey($required)){throw "Incomplete release: $required"}}
+    foreach($required in @('Setup.ps1','Play.ps1','Setup.exe','Play.exe','scripts/Core.ps1','scripts/Diagnostics.ps1','runtime/wohr.dll','manifests/patches.json')){if(-not $declared.ContainsKey($required)){throw "Incomplete release: $required"}}
     return $inventory
 }
 function Assert-ModUpdateLocalPath([string]$Root,[string]$Path) {
@@ -118,11 +122,6 @@ function Install-ModUpdate([string]$Root,[string]$Stage,$Inventory,[string]$Sess
         $receiptPath=Join-Path $game 'installation.json'
         if([IO.File]::Exists($receiptPath)){
             $receipt=Get-Content -LiteralPath $receiptPath -Encoding UTF8 -Raw|ConvertFrom-Json
-            if($receipt.hd_textures){
-                $artStage=Join-Path $Session 'art-stage'
-                & (Join-Path $Root 'scripts/Install-Textures.ps1') -SourcePath (Join-Path $Stage 'assets/hd') -GameRoot $artStage|Out-Null
-                foreach($file in Get-ChildItem -LiteralPath $artStage -File -Recurse){$relative=$file.FullName.Substring($artStage.Length+1).Replace('\','/');$plan.Add([pscustomobject]@{source=$file.FullName;relative=('wobble/'+$relative);hash=(Get-ModHash $file.FullName)})}
-            }
             $receipt.version=$Inventory.version;$nextReceipt=Join-Path $Session 'installation.json';Write-ModJson $nextReceipt $receipt
             $plan.Add([pscustomobject]@{source=$nextReceipt;relative='wobble/installation.json';hash=(Get-ModHash $nextReceipt)})
         }
@@ -156,7 +155,6 @@ function Install-ModUpdate([string]$Root,[string]$Stage,$Inventory,[string]$Sess
 }
 if($FunctionsOnly){return}
 $session=Join-Path $script:ModRoot ('.work/update-'+[guid]::NewGuid().ToString('N').Substring(0,16))
-try {
     $url=Get-ModConfiguredUrl (Join-Path $script:ModRoot 'release.url') Release
     if(-not $url){throw 'Update is unavailable: release.url is missing, empty or invalid.'}
     [IO.Directory]::CreateDirectory($session)|Out-Null
@@ -173,4 +171,7 @@ try {
     Set-UpdateStatus 75 'Installing the update; keeping your game files and preferences…'
     $count=Install-ModUpdate $script:ModRoot $stage $inventory $session
     Set-UpdateStatus 100 ('Updated to '+$inventory.version+'. Reopen Setup to load the updated interface.') complete
-} catch {Set-UpdateStatus 0 $_.Exception.Message error;throw}
+} catch {
+    if(-not $FunctionsOnly){Complete-WoFailure $_ 'Update failed' -StatusFile $StatusFile -NoDialog:$NoErrorDialog}
+    throw
+}

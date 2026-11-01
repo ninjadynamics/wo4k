@@ -60,3 +60,8 @@ payloads. The audio and texture installers accept `-Incremental` to verify
 existing outputs and only regenerate changed/damaged assets. They also detect
 changes to the audio processor or artwork packer. `-PassThru` returns update
 counts. Setup's HD/original-audio preferences are retained during every refresh.
+
+HD artwork lives only in assets/hd. Install-Textures.ps1 validates these PNGs;
+the runtime decodes them directly. Play runs Repair-Layout.ps1 on every launch.
+Install-Videos.ps1 optionally uses ffmpeg from PATH to create and validate MP4s,
+removing MPEG intermediates only after success and temporary outputs on failure.

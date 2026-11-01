@@ -36,20 +36,11 @@ static void ui_hd_capture_states(IDirect3DDevice *device) {
 static BOOL ui_hd_load(UINT index,UiHdPage *page) {
     WCHAR path[MAX_PATH];UINT at=0;
     while(ui_hd_directory[at]) {path[at]=ui_hd_directory[at];++at;}
-    const WCHAR *name=index?L"hud-gauges.rgba":L"font-and-numbers.rgba";
+    const WCHAR *name=index?L"hud-gauges.png":L"font-and-numbers.png";
     while((*((WCHAR *)path+at++)=*name++)) {}
-    HANDLE file=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);
-    if(file==INVALID_HANDLE_VALUE)return FALSE;
-    DWORD header[4],read=0;LARGE_INTEGER length;
-    BOOL ok=ReadFile(file,header,16,&read,0) && read==16 && GetFileSizeEx(file,&length);
-    if(!ok) {CloseHandle(file);return FALSE;}
-    UINT width=header[1],height=header[2],size=header[3];
-    ok=header[0]==0x31495557 && width>=256 && width<=8192 && width==height && !(width&(width-1)) &&
-        size==width*height*4 && size<=64*1024*1024 && length.QuadPart==(LONGLONG)16+size;
-    if(!ok) {CloseHandle(file);return FALSE;}
-    BYTE *pixels=VirtualAlloc(0,size,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
-    if(!pixels) {CloseHandle(file);return FALSE;}
-    ok=ReadFile(file,pixels,size,&read,0) && read==size;CloseHandle(file);
+    UINT width=0,height=0;BYTE *pixels=read_art_png(path,&width,&height);
+    if(!pixels)return FALSE;
+    BOOL ok=width>=256 && width<=8192 && width==height && !(width&(width-1));
     IDirectDraw *dd=*(IDirectDraw **)(game+0xc8b50);
     IDirect3DDevice *device=*(IDirect3DDevice **)(game+0xc8d10);
     HRESULT hr=E_FAIL;
@@ -202,6 +193,7 @@ static UINT ui_hd_rewrite(const BYTE *input,UINT length,BYTE *out,UINT capacity,
             if(ui_hd_extra_states)wanted[6]=0;
             wanted[7]=1;wanted[10]=0;wanted[11]=5; /* discard alpha0 before depth writes */
             wanted[8]=wanted[9]=2;
+            if(title_input_active()){wanted[4]=0;wanted[5]=0;} /* title lettering overlays the artwork, no scene depth */
             UINT panels=0;
             if(handle==ui_hd_pages[0].handle && vertices) {
                 for(UINT j=0;j<count;++j) {float z;if(ui_hd_panel(input+offset+4+j*8,vertices,vertex_count,&z))++panels;}
@@ -252,9 +244,10 @@ static void ui_hd_finish(void) {
     if(n) {copy(start,ui_hd_instructions,n);*(BYTE **)(game+0x631d54)=start+n;}
 }
 static void initialize_ui_hd(const WCHAR *root) {
+    WCHAR hd[4];if(GetEnvironmentVariableW(L"WO2097_HD_ART",hd,4) && hd[0]==L'0')return;
     UINT n=0;while(root[n] && n<MAX_PATH-40) {ui_hd_directory[n]=root[n];++n;}
     if(root[n])return;
-    const WCHAR *suffix=L"textures\\hd\\";while((*((WCHAR *)ui_hd_directory+n++)=*suffix++)) {}
+    const WCHAR *suffix=L"..\\assets\\hd\\";while((*((WCHAR *)ui_hd_directory+n++)=*suffix++)) {}
     old_ui_native_load=(UiNativeLoadFn)hook(RVA_ui_native_load,entry_ui_native_load,sizeof(entry_ui_native_load),ui_native_load);
     wo_render_event("ui_hd_loader_hook",old_ui_native_load!=0);
 }

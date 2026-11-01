@@ -125,7 +125,11 @@ static void text4(Text4Fn original,const char *text,int x,int y,int color) {
     original(text,x,y,color);
     anchor_x=ax;anchor_y=ay;ui_depth=depth;anchor_depth=ad;
 }
+static BOOL title_prompt_pending;
 static void text5(Text5Fn original,const char *text,int x,int y,int size,int color,BOOL centered) {
+    BOOL title=title_input_active() && text==(const char *)(game+0x8c868);
+    text=title_prompt(text);
+    if(title){centered=TRUE;title_prompt_pending=TRUE;}
     if(audio_config_depth && x==30) {
         if(y==108)y=119;else if(y==147)y=151;
     }
@@ -135,7 +139,7 @@ static void text5(Text5Fn original,const char *text,int x,int y,int size,int col
     /* Native AUTOPILOT/DISENGAGING are left-aligned at 120/110. Other race
      * announcements call CentreText outside DrawRaceHud, so hud_depth alone
      * cannot identify them. Measure the whole glyph run in both cases. */
-    BOOL notification=installed && !menu && (centered ||
+    BOOL notification=installed && !menu && (title || centered ||
         (hud_depth && ((x==120 && y==108) || (x==110 && y==120))));
     if(notification && (size==8 || size==16)) {
         float origin;
@@ -150,6 +154,11 @@ static void text5(Text5Fn original,const char *text,int x,int y,int size,int col
     if(menu_active() && *(DWORD *)(game+0x89cb0) && y==120 &&
        ((text[0]=='Y' && text[1]=='E' && text[2]=='S' && !text[3]) ||
         (text[0]=='N' && text[1]=='O' && !text[2])))anchor_x=anchor_y=.5f;
+    static BOOL title_text_logged;
+    if(title && !title_text_logged){
+        title_text_logged=TRUE;wo_render_event("title_prompt_draw",1);
+        wo_render_event("title_prompt_x",(DWORD)x);wo_render_event("title_prompt_y",(DWORD)y);
+    }
     original(text,x,y,size,color);
     hud_message_motion_x=previous_message_motion;
     anchor_x=ax;anchor_y=ay;ui_depth=depth;anchor_depth=ad;

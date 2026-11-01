@@ -10,4 +10,4 @@ all deps runtime controller audio launchers patches test package release clean:
 
 help:
 	@echo make [all^|deps^|runtime^|controller^|audio^|launchers^|patches^|test^|package^|release^|clean]
-	@echo Optional: TOOLCHAIN=C:/path/to/mingw64/bin VERSION=0.1.0-beta.13
+	@echo Optional: TOOLCHAIN=C:/path/to/mingw64/bin VERSION=0.1.0-beta.16

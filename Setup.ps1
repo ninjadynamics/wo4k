@@ -1,5 +1,8 @@
 ﻿param([switch]$ValidateUi,[string]$PreviewPath,[ValidateSet('Idle','Searching','Updating')][string]$PreviewState='Idle')
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'scripts/Diagnostics.ps1')
+$null=Start-WoLog 'setup' $PSScriptRoot -SkipHardware:$ValidateUi
+try {
 if([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA'){throw 'Start Setup.exe, or run powershell.exe -STA -File Setup.ps1.'}
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Windows.Forms
 . (Join-Path $PSScriptRoot 'scripts/Core.ps1')
@@ -210,16 +213,16 @@ $script:update.Add_Click({
     if($script:worker -or $script:scan){return};Refresh-LinkControls;if(-not $script:update.IsEnabled){return}
     $script:workerKind='update';$script:workerStatus=Join-Path $PSScriptRoot ('.work/update-status-'+[guid]::NewGuid().ToString('N')+'.json');[WoBeta.Files]::Parent($script:workerStatus)
     $script:status.Text='Starting update…';Set-GuiState Updating
-    try{$script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Update-Mod.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -PassThru}catch{$script:status.Text=$_.Exception.Message;Set-GuiState Idle}
+    try{$script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Update-Mod.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru}catch{Complete-WoFailure $_ 'Starting the updater failed' -StatusFile $script:workerStatus;$script:status.Text=$_.Exception.Message;Set-GuiState Idle}
 })
-$script:play.Add_Click({Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'Play.ps1')+'"'))|Out-Null})
+$script:play.Add_Click({Start-Process -FilePath (Join-Path $PSScriptRoot 'Play.exe') -WorkingDirectory $PSScriptRoot|Out-Null})
 $script:install.Add_Click({
     if($script:worker -or $script:scan){return};Update-PsxChoice
     if(-not $script:fields.Game.Text.Trim()){$script:status.Text='Choose your Windows game source to continue.';$script:status.ToolTip=$script:status.Text;return}
     $id=[guid]::NewGuid().ToString('N');$request=Join-Path $PSScriptRoot ('.work/request-'+$id+'.json');$script:workerStatus=Join-Path $PSScriptRoot ('.work/status-'+$id+'.json')
     Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource='';PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked})
     $script:sourceError=$false;Update-SourceMessage;$script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
-    $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -PassThru
+    $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru
 })
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(300)
 $timer.Add_Tick({
@@ -229,7 +232,12 @@ $timer.Add_Tick({
     }
     if($script:worker){
         if(Test-Path -LiteralPath $script:workerStatus){try{$s=Get-Content -Encoding UTF8 -LiteralPath $script:workerStatus -Raw|ConvertFrom-Json;$script:status.Text=$s.message;$script:status.ToolTip=$s.message;$script:progress.Value=$s.percent;if($s.state -eq 'error'){$script:sourceError=$true;Update-SourceMessage}}catch{}}
-        if($script:worker.HasExited){$script:worker.WaitForExit();if($script:worker.ExitCode -ne 0 -and $script:status.Text -like 'Starting*'){$script:status.Text='The '+$script:workerKind+' could not finish. Check the configuration and try again.'};if($script:worker.ExitCode -ne 0){$script:sourceError=$true}else{$script:sourceError=$false};$script:worker.Dispose();$script:worker=$null;Set-GuiState Idle}
+        if($script:worker.HasExited){$script:worker.WaitForExit();if($script:worker.ExitCode -ne 0 -and $script:status.Text -like 'Starting*'){$script:status.Text='The '+$script:workerKind+' could not finish. Check the configuration and try again.'};if($script:worker.ExitCode -ne 0){
+            $script:sourceError=$true;$reported=$false
+            if(Test-Path -LiteralPath $script:workerStatus){try{$state=Get-Content -LiteralPath $script:workerStatus -Encoding UTF8 -Raw|ConvertFrom-Json;if($state.PSObject.Properties['error_shown']){$reported=[bool]$state.error_shown}}catch{}}
+            Write-WoLog 'worker_exit' @{operation=$script:workerKind;code=$script:worker.ExitCode}
+            if(-not $reported){$null=Show-WoFailure ('The '+$script:workerKind+' failed. See the log and its worker error file.')}
+        }else{$script:sourceError=$false};$script:worker.Dispose();$script:worker=$null;Set-GuiState Idle}
     }
 })
 $window.Add_Activated({Refresh-LinkControls})
@@ -253,4 +261,14 @@ if($ValidateUi -or $PreviewPath) {
     if($PreviewPath){$content=$window.Content;$content.Width=[double]::NaN;$content.Height=[double]::NaN;$content.Background=$window.Background;$window.Content=$null;$previewSurface=New-Object Windows.Controls.Border;$previewSurface.Background=$window.Background;$previewSurface.Resources=$window.Resources;[Windows.Documents.TextElement]::SetForeground($previewSurface,$window.Foreground);[Windows.Documents.TextElement]::SetFontFamily($previewSurface,$window.FontFamily);$previewSurface.Child=$content;$previewSurface.Measure((New-Object Windows.Size($window.Width,$window.Height)));$previewSurface.Arrange((New-Object Windows.Rect(0,0,$window.Width,$window.Height)));$previewSurface.UpdateLayout();$previewDpi=[Windows.Media.VisualTreeHelper]::GetDpi($window);$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int][Math]::Ceiling($window.Width*$previewDpi.DpiScaleX),[int][Math]::Ceiling($window.Height*$previewDpi.DpiScaleY),(96*$previewDpi.DpiScaleX),(96*$previewDpi.DpiScaleY),[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($previewSurface);$encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));[WoBeta.Files]::Parent($PreviewPath);$f=[IO.File]::Create($PreviewPath);try{$encoder.Save($f)}finally{$f.Dispose()}}
     Write-Host ('PASS: '+$elements.Count+' UI elements have tooltips; state '+$PreviewState);return
 }
-$timer.Start();$window.Add_ContentRendered({Start-SourceDiscovery All});$window.ShowDialog()|Out-Null
+$dispatcher=[Windows.Threading.Dispatcher]::CurrentDispatcher
+$dispatcher.add_UnhandledException({
+    param($sender,$eventArgs)
+    Write-WoLog 'ui_failure' @{message=$eventArgs.Exception.Message;exception=$eventArgs.Exception.GetType().FullName}
+    $null=Show-WoFailure $eventArgs.Exception.Message
+    if(-not $script:worker){Set-GuiState Idle}
+    $eventArgs.Handled=$true
+})
+$timer.Start();$window.Add_ContentRendered({if($env:WO4K_READY_MARKER){[IO.File]::WriteAllText($env:WO4K_READY_MARKER,'ready');$env:WO4K_READY_MARKER=$null;$env:WO4K_ERROR_MARKER=$null};Start-SourceDiscovery All});$window.ShowDialog()|Out-Null
+
+} catch {Complete-WoFailure $_ 'Setup failed' -NoDialog:$ValidateUi;throw}

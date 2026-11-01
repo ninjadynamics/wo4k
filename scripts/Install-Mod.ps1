@@ -1,13 +1,16 @@
-﻿param([string]$GameSource,[string]$PcMusicSource,[string]$PsxMusicSource,[ValidateSet('Pc','Psx','None')][string]$DefaultSoundtrack='Pc',[string]$RequestFile,[string]$StatusFile,[switch]$OriginalAudio,[switch]$SdOnly)
+﻿param([string]$GameSource,[string]$PcMusicSource,[string]$PsxMusicSource,[ValidateSet('Pc','Psx','None')][string]$DefaultSoundtrack='Pc',[string]$RequestFile,[string]$StatusFile,[switch]$OriginalAudio,[switch]$SdOnly,[switch]$NoErrorDialog)
+. (Join-Path $PSScriptRoot 'Diagnostics.ps1')
+$null=Start-WoLog 'install' (Join-Path $PSScriptRoot '..')
+try {
 . (Join-Path $PSScriptRoot 'Sources.ps1')
 if($RequestFile){$request=Get-Content -Encoding UTF8 -LiteralPath $RequestFile -Raw|ConvertFrom-Json;$GameSource=$request.GameSource;$PcMusicSource=$request.PcMusicSource;$PsxMusicSource=$request.PsxMusicSource;$DefaultSoundtrack=$request.DefaultSoundtrack;$OriginalAudio=-not $request.CleanAudio;$SdOnly=-not $request.HdTextures}
 function Set-InstallStatus([int]$Percent,[string]$Message,[string]$State='busy') {
     Write-Host $Message
+    Write-WoLog 'install_stage' @{percent=$Percent;message=$Message;state=$State}
     if($StatusFile){Write-ModJson $StatusFile ([ordered]@{percent=$Percent;message=$Message;state=$State})}
 }
 $session=Join-Path $script:ModRoot ('.work/i-'+[guid]::NewGuid().ToString('N').Substring(0,16))
 $stage=Join-Path $session 'wobble';$target=Join-Path $script:ModRoot 'wobble';$backup=$null
-try {
     if(-not $GameSource){throw 'Select the Windows game source.'}
     foreach($p in @(Get-Process -Name Wipeout2097 -ErrorAction SilentlyContinue)){if($p.Path -and $p.Path.StartsWith($target+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Close this mod installation before updating it.'}}
     Set-InstallStatus 3 'Verifying sources'
@@ -15,6 +18,16 @@ try {
     $native=Get-ModNativeRoot $GameSource (Join-Path $session 'game-source')
     Set-InstallStatus 12 'Copying game data and applying the executable patch'
     Copy-ModGameData $native $stage;Install-ModExecutable $native $stage
+    # Existing drop-in MP4s belong to the user; repair carries them forward.
+    foreach($name in @('intro','WXLINTR','XTRO1','XTRO2','XTRO3','XTRO4')){
+        $oldMovie=Join-Path $target ('movies/'+$name+'.mp4')
+        if([IO.File]::Exists($oldMovie)){
+            $newMovie=Get-ModChild $stage ('movies/'+$name+'.mp4');[WoBeta.Files]::Parent($newMovie);[IO.File]::Copy($oldMovie,$newMovie,$true)
+            $oldCopy=Get-ModChild $stage ('movies/'+$(if($name -eq 'intro'){'WXLINTR'}else{$name})+'.MPG')
+            if([IO.File]::Exists($oldCopy)){[IO.File]::Delete($oldCopy)}
+        }
+    }
+    & (Join-Path $PSScriptRoot 'Install-Videos.ps1') -GameRoot $stage
     Set-InstallStatus 24 'Extracting SD textures'
     $sd=Get-ModChild $stage 'textures/sd'
     & (Join-Path $PSScriptRoot 'Extract-Textures.ps1') -SourcePath $native -Destination $sd -NoPng | Out-Null
@@ -80,6 +93,6 @@ try {
     try{[IO.Directory]::Delete($ownedSession,$true)}catch{Write-Verbose ('Temporary extraction retained: '+$_.Exception.Message)}
     Set-InstallStatus 100 'Ready to race' 'complete'
 } catch {
-    Set-InstallStatus 0 $_.Exception.Message 'error'
+    Complete-WoFailure $_ 'Installation failed' -StatusFile $StatusFile -NoDialog:$NoErrorDialog
     throw
 }

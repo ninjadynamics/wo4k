@@ -8,6 +8,7 @@
 #include "build/render_hooks.h"
 #include "simulation_api.h"
 #include "audio_api.h"
+#include "title_clock.h"
 
 typedef struct TLVertex {
     float x,y,z,rhw;
@@ -49,6 +50,11 @@ static float ui_panel_phase(void);
 static SHORT interpolate_menu_angle(const BYTE *object,int x,int y,int z,SHORT angle,SHORT pitch);
 static float particle_motion_x,particle_motion_y;
 static void controller_input(void);
+static BOOL title_input_active(void);
+static const char *title_prompt(const char *text);
+static void initialize_title(void);
+static void title_overlay_present(void);
+static void hide_game_cursor(void);
 static void initialize_controller(void);
 static void initialize_credits(void);
 static void initialize_race_ui(const WCHAR *settings);
@@ -95,7 +101,10 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 #include "race_ui_patch.c"
 #include "menu_model_motion.c"
 #include "controller_patch.c"
+#include "movies_patch.c"
+#include "title_patch.c"
 #include "audio_menu_patch.c"
+#include "png_art.c"
 #include "startup_art.c"
 #include "ui_hd.c"
 #include "credits_patch.c"
@@ -317,7 +326,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     *(float *)(game+0x8b190)=projection_x;
     installed=TRUE;
     update_projection();
-    wo_render_event("render_patch_version",20);
+    wo_render_event("render_patch_version",26);
     wo_render_event("render_display_width",width);wo_render_event("render_display_height",height);
     wo_render_event("render_geometry_width_percent",geometry_width);
     initialize_menu();
@@ -326,6 +335,8 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     initialize_rotations(settings);
     initialize_distance();
     initialize_refresh(settings);
+    initialize_movies(root);
+    initialize_title();
     initialize_audio_menu();
     initialize_startup_art(root,(UINT)width,(UINT)height);
     initialize_ui_hd(root);
@@ -333,3 +344,4 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
 }
 
 #include "distance_patch.c"
+#include "title_overlay.c"

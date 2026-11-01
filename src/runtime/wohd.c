@@ -49,6 +49,12 @@ static MCIERROR send(const WCHAR *s,WCHAR *answer,UINT size) {
     if(error) logevent("file_player_error",error);
     return error;
 }
+BOOL wo_audio_movie_pause(void) {
+    WCHAR mode[16];
+    BOOL playing=player && !send(L"status wo2097music mode",mode,16) && mode[0]==L'p' && mode[1]==L'l';
+    return playing && !send(L"pause wo2097music",0,0);
+}
+void wo_audio_movie_resume(BOOL playing) {if(playing && player)send(L"resume wo2097music",0,0);}
 static BOOL resolve_root(void) {
     UINT n=GetModuleFileNameW(module,root,MAX_PATH);
     if(!n || n>=MAX_PATH-40) return FALSE;

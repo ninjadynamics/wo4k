@@ -17,6 +17,8 @@ static BOOL equal(const BYTE *a,const BYTE *b,UINT n){while(n--)if(*a++!=*b++)re
 static void *hook(UINT r,const BYTE *b,UINT n,const void *f){(void)r;(void)b;(void)n;(void)f;return 0;}
 static void wo_render_event(const char *n,DWORD v){(void)n;(void)v;}
 #include "../src/runtime/hud_text.c"
+static BOOL title_input_active(void){return FALSE;}
+static const char *title_prompt(const char *text){return text;}
 #include "../src/runtime/menu_patch.c"
 
 static float screen_width,observed_left,observed_right,observed_anchor_y;

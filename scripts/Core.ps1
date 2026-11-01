@@ -160,6 +160,7 @@ function Expand-ModZip([string]$Path,[string]$Destination) {
 }
 function Test-ModGameFile([string]$Relative) {
     $r=$Relative.Replace('\','/')
+    if($r -match '^(?i)(MPEG|movies)/(WXLINTR|XTRO[1-4])\.(MPG|mp4)$' -or $r -match '^(?i)movies/intro\.mp4$'){return $true}
     return $r -match '^(?i)(Common|Blitsurf|Pics|Sound|Textures|Track\d{2})/' -or $r -match '^(?i)(Wipeout2(?:_HighTest)?\.exe|Wipeout2097\.exe|D3D\.exe|CONFIG\.DAT|SAVEGAME\.BIN|Wipeout2097\.ini)$'
 }
 function Import-ModFolder([string]$Source,[string]$Destination) {

@@ -1,22 +1,25 @@
 ﻿param([Parameter(Mandatory=$true)][string]$SourcePath,[Parameter(Mandatory=$true)][string]$GameRoot,[ValidateSet('Hd','Sd')][string]$Kind='Hd',[switch]$Incremental,[switch]$PassThru)
 . (Join-Path $PSScriptRoot 'Core.ps1')
-$destination=Get-ModChild $GameRoot ('textures/'+$Kind.ToLowerInvariant())
-if($Kind -eq 'Sd'){Copy-ModTree $SourcePath $destination;return}
-$stateFile=Get-ModChild $destination 'install-state.json';$previous=@{};$next=New-Object Collections.Generic.List[object];$updated=0
-if($Incremental -and [IO.File]::Exists($stateFile)){try{$state=Get-Content -LiteralPath $stateFile -Encoding UTF8 -Raw|ConvertFrom-Json;foreach($entry in $state.files){if($entry.PSObject.Properties['source_sha256'] -and $entry.PSObject.Properties['packer'] -and $entry.PSObject.Properties['output_sha256']){$previous[$entry.name]=$entry}}}catch{$previous=@{}}}
-$packer=Get-ModHash (Join-Path $PSScriptRoot 'Core.ps1')
-foreach($name in @('font-and-numbers','hud-gauges','notice','title')) {
-    $source=Join-Path $SourcePath ($name+'.png');if(-not [IO.File]::Exists($source)){continue}
-    $hash=Get-ModHash $source;$png=Get-ModChild $destination ($name+'.png')
-    $output=Get-ModChild $destination ($name+$(if($name -in 'notice','title'){'.bmp'}else{'.rgba'}))
-    $old=$previous[$name]
-    if($Incremental -and $old -and $old.source_sha256 -eq $hash -and $old.packer -eq $packer -and [IO.File]::Exists($png) -and [IO.File]::Exists($output) -and (Get-ModHash $png) -eq $hash -and (Get-ModHash $output) -eq $old.output_sha256){$next.Add($old);continue}
-    [WoBeta.Files]::Parent($png)
-    if(-not [string]::Equals([IO.Path]::GetFullPath($source),$png,[StringComparison]::OrdinalIgnoreCase)){[IO.File]::Copy($source,$png,$true)}
-    if($name -in 'notice','title'){[WoBeta.Files]::PackArt($source,$output)}
-    else{[WoBeta.Files]::PackUi($source,$output)}
-    $next.Add([pscustomobject]@{name=$name;source_sha256=$hash;packer=$packer;output_sha256=(Get-ModHash $output)});++$updated
+if($Kind -eq 'Sd'){Copy-ModTree $SourcePath (Get-ModChild $GameRoot 'textures/sd');return}
+$checked=0;$updated=0;$inputs=@{};$canonical=Join-Path $script:ModRoot 'assets/hd'
+foreach($name in @('font-and-numbers','hud-gauges','notice','title')){
+    $source=Join-Path $SourcePath ($name+'.png')
+    if(-not [IO.File]::Exists($source)){$source=Join-Path $canonical ($name+'.png')}
+    if(-not [IO.File]::Exists($source)){throw "Missing HD artwork: $name.png"}
+    $inputs[$name]=[IO.Path]::GetFullPath($source)
+    $image=New-Object Drawing.Bitmap($source)
+    try{
+        if($image.Width -le 0 -or $image.Height -le 0 -or $image.Width -gt 16384 -or $image.Height -gt 16384){throw "Invalid artwork dimensions: $name"}
+        if($name -in 'font-and-numbers','hud-gauges' -and ($image.Width -ne $image.Height -or $image.Width -lt 256 -or $image.Width -gt 8192 -or ($image.Width -band ($image.Width-1)))){throw "Invalid UI atlas dimensions: $name"}
+    }finally{$image.Dispose()}
+    ++$checked
 }
-Write-ModJson $stateFile @{files=@($next.ToArray())}
-Write-Host "Verified HD artwork; refreshed $updated images."
-if($PassThru){[pscustomobject]@{checked=$next.Count;updated=$updated}}
+foreach($name in $inputs.Keys){
+    $destination=Get-ModChild $canonical ($name+'.png');$source=$inputs[$name]
+    if(-not [string]::Equals($source,$destination,[StringComparison]::OrdinalIgnoreCase) -and
+        (-not [IO.File]::Exists($destination) -or (Get-ModHash $source) -ne (Get-ModHash $destination))){
+        [WoBeta.Files]::Parent($destination);[IO.File]::Copy($source,$destination,$true);++$updated
+    }
+}
+Write-Host "Verified $checked HD PNGs; the renderer reads assets/hd directly."
+if($PassThru){[pscustomobject]@{checked=$checked;updated=$updated}}

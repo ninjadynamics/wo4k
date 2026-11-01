@@ -148,6 +148,7 @@ static DWORD refresh_elapsed_us(LARGE_INTEGER begin,LARGE_INTEGER end) {
 }
 static int __cdecl refresh_present(void) {
     if(!refresh_active)return old_refresh_present();
+    hide_game_cursor();
     LARGE_INTEGER begin,end;QueryPerformanceCounter(&begin);
     BOOL race=refresh_race && *(DWORD *)(game+0x8c98c);
     if(!race)profile_frame_valid=FALSE;
@@ -156,6 +157,7 @@ static int __cdecl refresh_present(void) {
         if(us>stall_frame_max_us)stall_frame_max_us=us;
         if(us>=50000)++stall_frame_count;
     }
+    title_overlay_present();
     int result=old_refresh_present();QueryPerformanceCounter(&end);
     double ui_seconds=ui_last_time.QuadPart?(double)(end.QuadPart-ui_last_time.QuadPart)/refresh_frequency.QuadPart:0;
     ui_last_time=end;advance_ui_clock(ui_seconds);
