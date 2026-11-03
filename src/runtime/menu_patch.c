@@ -2,6 +2,7 @@
  * Frame caps keep their proportions; the flat panel spans grow to fill the
  * display. The repeating backdrop is tiled further across the expanded area.
  */
+#include "menu_frame_art.h"
 typedef void (__cdecl *MenuModelFn)(int,int,int,SHORT,SHORT,BYTE *);
 typedef void (__cdecl *Text4Fn)(const char *,int,int,int);
 typedef void (__cdecl *Text5Fn)(const char *,int,int,int,int);
@@ -47,6 +48,28 @@ static float menu_axis(float value,float size,float first,float last,float scale
 }
 static float menu_x(float x) {return menu_axis(x,320,32,296,ui_x);}
 static float menu_y(float y) {return menu_axis(y,240,44,204,ui_y);}
+typedef struct MenuArtBounds {
+    float outer_left,inner_left,inner_right,outer_right,start_top,footer_top,footer_bottom,footer_end;
+    UiHdFrameArt source;
+} MenuArtBounds;
+static BOOL menu_frame_art_bounds(MenuArtBounds *bounds){
+    UiHdFrameArt art;if(!ui_hd_frame_art(&art))return FALSE;
+    const BYTE *left=game+0x511740,*right=left+2*40,*bottom=left+3*40;
+    float lx=*(const SHORT *)(left+8),lw=*(const SHORT *)(left+16)-lx;
+    float rx=*(const SHORT *)(right+8),rw=*(const SHORT *)(right+16)-rx;
+    float by=*(const SHORT *)(bottom+10),bh=*(const SHORT *)(bottom+26)-by;
+    float ru=(float)right[20]-right[12],bv=(float)bottom[29]-bottom[13];
+    if(right[12]==0 && right[20]==63)ru=64;
+    if(lw<=0 || rw<=0 || bh<=0 || ru<=0 || bv<=0)return FALSE;
+    bounds->outer_left=lx;bounds->inner_left=lx+lw*art.left_inner/256;
+    bounds->inner_right=rx+rw*(art.right_inner-right[12])/ru;
+    bounds->outer_right=rx+rw*(art.right_outer-right[12])/ru;
+    bounds->start_top=by+bh*(art.start_top-bottom[13])/bv;
+    bounds->footer_top=by+bh*(art.footer_top-bottom[13])/bv;
+    bounds->footer_bottom=by+bh*(art.footer_bottom-bottom[13])/bv;
+    bounds->footer_end=by+bh*(art.footer_end-bottom[13])/bv;
+    bounds->source=art;return TRUE;
+}
 static void menu_adjust_vertex(TLVertex *v) {
     float width=*(float *)(game+0xaf0b4),height=*(float *)(game+0xc8630);
     float x=v->x*320/width,y=v->y*240/height;
@@ -63,6 +86,19 @@ static void draw_menu_frame(float z,const BYTE *p,int blend) {
     float saved_motion=menu_motion_dx;menu_motion_dx=panel_motion(p,320);
     float left=*(const SHORT *)(p+8),right=*(const SHORT *)(p+16);
     float top=*(const SHORT *)(p+10),bottom=*(const SHORT *)(p+26);
+    UINT page=*(const WORD *)(p+22);
+    BOOL hd=page>=6 && page<=8 && ui_hd_frame_page(page-5);
+    float u0=p[12],u1=p[20];
+    MenuArtBounds art;UINT tile=(UINT)(p-game-0x511740)/40;
+    BOOL side=hd && (tile==6 || tile==7) && menu_frame_art_bounds(&art);
+    if(side){
+        if(tile==6){left=art.outer_left;right=art.inner_left;u0=0;u1=art.source.left_inner;}
+        else{left=art.inner_right;right=*(SHORT *)(game+0x511740+2*40+16);u0=art.source.right_inner;u1=64;}
+    }
+    /* Native SD tiles reserve two columns at the page edge. Authored HD
+     * frame PNGs use the complete page, including the logo across its join. */
+    if(hd && page<8 && u0==0 && u1==254)u1=256;
+    if(hd && page==8 && u0==0 && u1==63)u1=64;
     const float xs[4]={left,32,296,right},ys[4]={top,44,204,bottom};
     /* Split at cap boundaries before remapping, so a corner and a long blue
      * span never share a stretched primitive. UVs stay in the original art. */
@@ -71,13 +107,27 @@ static void draw_menu_frame(float z,const BYTE *p,int blend) {
         float y0=ys[yi]>top?ys[yi]:top,y1=ys[yi+1]<bottom?ys[yi+1]:bottom;
         if(x1<=x0 || y1<=y0 || right<=left || bottom<=top)continue;
         BYTE part[40];copy(part,p,40);
+        if(side && tile==6)*(WORD *)(part+22)=6; /* sample the actual left cap's edge */
         for(UINT corner=0;corner<4;++corner) {
             UINT offset=8+corner*8;float x=(corner&1)?x1:x0,y=(corner&2)?y1:y0;
             *(SHORT *)(part+offset)=(SHORT)x;*(SHORT *)(part+offset+2)=(SHORT)y;
             part[offset+4]=menu_uv(p[12],p[20],(x-left)/(right-left));
             part[offset+5]=menu_uv(p[13],p[29],(y-top)/(bottom-top));
         }
+        BYTE *buffer=*(BYTE **)(game+0x87038);UINT before=buffer?*(UINT *)(buffer+0x39214):0;
         ++menu_frame_depth;old_quad(z,part,blend);--menu_frame_depth;
+        if(hd && buffer && *(BYTE **)(game+0x87038)==buffer && *(UINT *)(buffer+0x39214)==before+4){
+            TLVertex *v=(TLVertex *)(buffer+0xa410)+before;
+            for(UINT corner=0;corner<4;++corner){
+                float x=(corner&1)?x1:x0,y=(corner&2)?y1:y0;
+                v[corner].u=(u0+(u1-u0)*(x-left)/(right-left))/256;
+                v[corner].v=side?50.0f/256:(p[13]+((float)p[29]-p[13])*(y-top)/(bottom-top))/256;
+                if(side){
+                    v[corner].x=*(float *)(game+0xaf0b4)*menu_x(x+menu_motion_dx*320);
+                    v[corner].y=*(float *)(game+0xc8630)*menu_y(y);
+                }
+            }
+        }
     }
     menu_motion_dx=saved_motion;
 }
@@ -86,9 +136,51 @@ static void __cdecl flat_quad(float z,const BYTE *p) {
     float x0=*(const SHORT *)(p+8),x1=*(const SHORT *)(p+12);
     float y0=*(const SHORT *)(p+10),y1=*(const SHORT *)(p+18);
     float dx=x1-x0,dy=y1-y0;
+    MenuArtBounds art;BOOL fitted=menu_frame_art_bounds(&art);
+    float min_x=x0,max_x=x0,min_y=y0,max_y=y0;
+    for(UINT i=1;i<4;++i){
+        float x=*(const SHORT *)(p+8+i*4),y=*(const SHORT *)(p+10+i*4);
+        if(x<min_x)min_x=x;if(x>max_x)max_x=x;if(y<min_y)min_y=y;if(y>max_y)max_y=y;
+    }
+    fitted=fitted && max_x>min_x && max_y>min_y && min_x>=20 && max_x<=308 && min_y>=82 && max_y<=216;
+    BOOL white=p[4]==255 && p[5]==255 && p[6]==255;
+    if(fitted && white){
+        /* The authored caps/columns already supply these outer edges and
+         * horizontal bands. Native duplicate lines can overpaint their AA. */
+        if(max_x-min_x<=2 && (min_x==21 || min_x==306))return;
+        if(max_y-min_y<=1 && (min_y==82 || min_y==179 || min_y==196 || min_y==214))return;
+    }
     menu_thin_x=dx>=-2 && dx<=2;menu_thin_y=dy>=-2 && dy<=2;
     menu_center_x=(x0+x1)/2;menu_center_y=(y0+y1)/2;
+    BYTE *buffer=*(BYTE **)(game+0x87038);UINT before=buffer?*(UINT *)(buffer+0x39214):0;
     ++menu_frame_depth;old_flat_quad(z,p);--menu_frame_depth;
+    if(fitted && buffer && *(BYTE **)(game+0x87038)==buffer && *(UINT *)(buffer+0x39214)==before+4){
+        float left=min_x,right=max_x,top=min_y,bottom=max_y;
+        if(left<art.inner_left)left=art.inner_left;if(right>art.inner_right)right=art.inner_right;
+        if(min_y>=196){
+            /* MENU.DAT puts the footer's first divider at112, but the main
+             * column above is111. Move its fill and outline as one unit. */
+            if(white && max_x-min_x<=2 && min_x==112){left-=1;right-=1;}
+            if(!white && min_x==113 && max_x==210){left=112;right=209;}
+            if(top<art.footer_bottom)top=art.footer_bottom;
+            if(bottom>art.footer_end)bottom=art.footer_end;
+        }else if(!white && min_y>=179 && max_y<=197){
+            if(top<art.start_top)top=art.start_top;
+            if(bottom>art.footer_top)bottom=art.footer_top;
+        }else if(max_y<=180){
+            if(top<83)top=83;if(bottom>179)bottom=179;
+        }
+        if(right>left && bottom>top){
+            TLVertex *v=(TLVertex *)(buffer+0xa410)+before;
+            for(UINT i=0;i<4;++i){
+                float x=*(const SHORT *)(p+8+i*4),y=*(const SHORT *)(p+10+i*4);
+                x=left+(right-left)*(x-min_x)/(max_x-min_x);
+                y=top+(bottom-top)*(y-min_y)/(max_y-min_y);
+                v[i].x=*(float *)(game+0xaf0b4)*(menu_thin_x?menu_x((left+right)/2)+(x-(left+right)/2)*ui_x/320:menu_x(x));
+                v[i].y=*(float *)(game+0xc8630)*(menu_thin_y?menu_y((top+bottom)/2)+(y-(top+bottom)/2)*ui_y/240:menu_y(y));
+            }
+        }
+    }
     menu_thin_x=menu_thin_y=FALSE;
 }
 static void __cdecl pixel_quad(float z,const BYTE *p,int blend) {

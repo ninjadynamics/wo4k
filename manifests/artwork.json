@@ -11,7 +11,55 @@
         "file":  "assets/hd/hud-gauges.png",
         "width":  1024,
         "height":  1024,
-        "sha256":  "d5bfa0963d309d84016a3e74a618292373ffde713eef60c53e1b051ff0a858d3",
+        "sha256":  "033cbce418244786a4ad22123bd6c156776940ebef2ccdb8d920a3d3dc3a920b",
+        "license":  "MIT for mod contributions",
+        "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+    },
+    {
+        "file":  "assets/hd/hud-reticles.png",
+        "width":  1024,
+        "height":  1024,
+        "sha256":  "af5c49e1635aeca5a7396a85331a618c34906f759c122fb07c9c4baf41599761",
+        "license":  "MIT for mod contributions",
+        "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+    },
+    {
+        "file":  "assets/hd/menu-banner-logo.png",
+        "width":  1848,
+        "height":  256,
+        "sha256":  "ad14b8aebd6982d3349a717ff02ada02c4bd4cedd3be0207c02dc52d50231dbc",
+        "license":  "MIT for mod contributions",
+        "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+    },
+    {
+        "file":  "assets/hd/menu-frame-left.png",
+        "width":  1024,
+        "height":  1024,
+        "sha256":  "0628960d11c5139055dde82441bec31150d7a629beac71d7582413b6d080200a",
+        "license":  "MIT for mod contributions",
+        "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+    },
+    {
+        "file":  "assets/hd/menu-frame-middle.png",
+        "width":  1024,
+        "height":  1024,
+        "sha256":  "95d49efa03226939b1f8dddd11817db9ba2df6ab1af934014c56972af42ae63e",
+        "license":  "MIT for mod contributions",
+        "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+    },
+    {
+        "file":  "assets/hd/menu-frame-right.png",
+        "width":  1024,
+        "height":  1024,
+        "sha256":  "15bf5dceff9950062e2c7c7bc87f78eed2dd09f4f6e80508fbdd13da35b5aa00",
+        "license":  "MIT for mod contributions",
+        "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
+    },
+    {
+        "file":  "assets/hd/menu-logo-atlas.png",
+        "width":  1024,
+        "height":  1024,
+        "sha256":  "8766e4267c79b2b3281dcaebd47708e6652ba8cc5fcebef7638c7b8f69c12568",
         "license":  "MIT for mod contributions",
         "provenance":  "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
     },

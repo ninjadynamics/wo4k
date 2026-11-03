@@ -35,6 +35,18 @@ static int __cdecl fixture_present(void){
 static UINT title_input_calls;
 static void __cdecl fixture_title_input(void){++title_input_calls;}
 static void __cdecl fixture_reset(void){}
+static void fixture_logo_poly(BYTE *p,BOOL second){
+    for(UINT i=0;i<40;++i)p[i]=0;
+    p[4]=p[5]=p[6]=255;*(WORD *)(p+22)=35;
+    int left=second?304:50,width=second?210:254,top=second?64:0;
+    *(SHORT *)(p+8)=*(SHORT *)(p+24)=(SHORT)left;
+    *(SHORT *)(p+16)=*(SHORT *)(p+32)=(SHORT)(left+width);
+    *(SHORT *)(p+10)=*(SHORT *)(p+18)=76;*(SHORT *)(p+26)=*(SHORT *)(p+34)=140;
+    p[20]=p[36]=(BYTE)width;p[13]=p[21]=(BYTE)top;p[29]=p[37]=(BYTE)(top+64);
+}
+#include "test_menu_frame.c"
+#include "test_menu_art_alignment.c"
+#include "test_startup_launch.c"
 void wo_render_event(const char *name,DWORD value){
     const char *wanted="render_race_ui_clock";while(*name && *name==*wanted){++name;++wanted;}if(!*name && !*wanted)race_ui_event=value;
 }
@@ -113,6 +125,7 @@ void __stdcall test_entry(void){
     ((void (__cdecl *)(void *))(image+RVA_ship_effects))(0);
     if(*(DWORD *)(image+0x8c17c) || !native_effect_calls)ExitProcess(15);
     if(!GetEnvironmentVariableW(L"WO_TEST_SETTINGS",race_ui_settings,MAX_PATH))ExitProcess(16);
+    test_startup_launch(image,race_ui_settings);
     old_detail_keys=fixture_detail_keys;refresh_show_fps=TRUE;
     *(SHORT *)(image+0x66496a)=0x29;((RefreshVoidFn)(image+0x283f0))();
     if(refresh_show_fps || *(SHORT *)(image+0x66496a)!=-1 || GetPrivateProfileIntW(L"Render",L"ShowFPS",99,race_ui_settings)!=0)ExitProcess(17);
@@ -158,7 +171,7 @@ void __stdcall test_entry(void){
     BYTE instructions[28]={8,8,1,0},rewritten[512];
     *(DWORD *)(instructions+4)=1;*(DWORD *)(instructions+8)=123;
     instructions[12]=3;instructions[13]=8;*(WORD *)(instructions+14)=1;
-    instructions[24]=11;ui_hd_pages[0].handle=123;
+    instructions[24]=11;ui_hd_pages[22].handle=123;
     UINT rewritten_size=ui_hd_rewrite(instructions,28,rewritten,sizeof(rewritten),0,0);
     BOOL depth_off=FALSE,write_off=FALSE,draw_seen=FALSE;
     if(!rewritten_size)ExitProcess(45);
@@ -173,6 +186,73 @@ void __stdcall test_entry(void){
     }
     if(!draw_seen)ExitProcess(47);
     title_active=FALSE;
+    /* The optional third page binds to native HUD2 slot24 and gets alpha blending. */
+    DWORD *hud_handles=(DWORD *)(image+0xc7910);
+    static UiHdPage pages[3]={{.handle=201,.width=1024},{.handle=202,.width=1024},{.handle=203,.width=1024}};
+    for(UINT i=0;i<3;++i)ui_hd_commit_page(22+i,pages+i);
+    if(hud_handles[22]!=201 || hud_handles[23]!=202 || hud_handles[24]!=203 || !ui_hd_handle(203))ExitProcess(65);
+    *(DWORD *)(instructions+8)=203;
+    rewritten_size=ui_hd_rewrite(instructions,28,rewritten,sizeof(rewritten),0,0);
+    if(!rewritten_size)ExitProcess(66);
+    BOOL blend=FALSE;draw_seen=FALSE;
+    for(UINT at=0;at<rewritten_size;){
+        UINT opcode=rewritten[at],size=rewritten[at+1],count=*(WORD *)(rewritten+at+2);
+        if(opcode==8)for(UINT n=0;n<count;++n)if(*(DWORD *)(rewritten+at+4+n*8)==27)blend=*(DWORD *)(rewritten+at+8+n*8)!=0;
+        if(opcode==3){if(!blend)ExitProcess(67);draw_seen=TRUE;}
+        at+=4+size*count;
+    }
+    if(!draw_seen)ExitProcess(68);
+    BYTE alpha_pixels[8]={255,255,255,0,0,128,255,128};
+    hd_premultiply(alpha_pixels,2);
+    if(*(DWORD *)alpha_pixels || *(DWORD *)(alpha_pixels+4)!=0x80804000)ExitProcess(70);
+    static TLVertex fade_vertices[8];for(UINT i=0;i<3;++i)fade_vertices[i].color=0xffffffff;
+    fade_vertices[0].color=0x80804020;
+    static BYTE mixed[52]={8,8,1,0};*(DWORD *)(mixed+4)=1;*(DWORD *)(mixed+8)=203;
+    mixed[12]=mixed[36]=3;mixed[13]=mixed[37]=8;*(WORD *)(mixed+14)=*(WORD *)(mixed+38)=1;
+    *(WORD *)(mixed+18)=*(WORD *)(mixed+42)=1;*(WORD *)(mixed+20)=*(WORD *)(mixed+44)=2;
+    mixed[24]=8;mixed[25]=8;*(WORD *)(mixed+26)=1;*(DWORD *)(mixed+28)=1;*(DWORD *)(mixed+32)=999;mixed[48]=11;
+    UINT fade_count=3;
+    if(!ui_hd_prepare(mixed,sizeof(mixed),fade_vertices,&fade_count,8) || fade_count!=4 || *(WORD *)(mixed+16)!=3 || *(WORD *)(mixed+40)!=0 || fade_vertices[0].color!=0x80804020 || fade_vertices[3].color!=0x80402010)ExitProcess(71);
+    WCHAR native_png[MAX_PATH];static const WCHAR expected_png[]=L"Pics\\Hi-res\\FOO.page2.png";
+    if(!hd_native_name(native_png,".\\Pics\\Hi-res\\FOO.tga",TRUE,FALSE,2) || !equal((BYTE *)native_png,(BYTE *)expected_png,sizeof(expected_png)))ExitProcess(72);
+    BYTE *logo_base=VirtualAlloc(0,256*256*4,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
+    static BYTE logo_banner[462*64*4];
+    if(!logo_base)ExitProcess(73);
+    for(UINT i=0;i<256*256;++i)((DWORD *)logo_base)[i]=0xff00aa00;
+    for(UINT y=0;y<64;++y)for(UINT x=0;x<462;++x)((DWORD *)logo_banner)[y*462+x]=0xff000000|x;
+    UINT logo_size=256;logo_base=hd_logo_overlay(logo_base,&logo_size,logo_banner,462,64);
+    if(!logo_base || logo_size!=256 || ((DWORD *)logo_base)[0]!=0xff000000 || ((DWORD *)logo_base)[64*256]!=(0xff000000|252) || ((DWORD *)logo_base)[200*256]!=0xff00aa00)ExitProcess(74);
+    UINT joined_width=0,joined_height=0;BYTE *joined_logo=ui_hd_join_logo(logo_base,256,&joined_width,&joined_height);
+    if(!joined_logo || joined_width!=512 || joined_height!=128)ExitProcess(75);
+    /* Every texel crosses the old split continuously; padding is transparent. */
+    for(UINT y=0;y<64;++y)for(UINT x=0;x<512;++x)
+        if(((DWORD *)joined_logo)[y*512+x]!=(x<464?(0xff000000|(x*462/464)):0))ExitProcess(76);
+    for(UINT i=64*512;i<128*512;++i)if(((DWORD *)joined_logo)[i])ExitProcess(77);
+    VirtualFree(joined_logo,0,MEM_RELEASE);
+    VirtualFree(logo_base,0,MEM_RELEASE);
+    /* One native texture bucket can contain both the header and atlas widgets.
+     * Bind the joined texture only for marked header triangles, restoring it
+     * before every ordinary widget and after the final header run. */
+    static TLVertex logo_vertices[8];for(UINT i=0;i<4;++i)logo_vertices[i].specular=UI_HD_LOGO_TAG;
+    ui_hd_logo.handle=501;ui_hd_pages[25].handle=250;
+    static BYTE logo_instructions[44]={8,8,1,0};
+    *(DWORD *)(logo_instructions+4)=1;*(DWORD *)(logo_instructions+8)=250;
+    logo_instructions[12]=3;logo_instructions[13]=8;*(WORD *)(logo_instructions+14)=3;
+    const WORD logo_indices[12]={0,1,3,31,4,5,6,31,0,3,2,31};copy(logo_instructions+16,(const BYTE *)logo_indices,sizeof(logo_indices));
+    logo_instructions[40]=11;
+    rewritten_size=ui_hd_rewrite(logo_instructions,sizeof(logo_instructions),rewritten,sizeof(rewritten),logo_vertices,8);
+    if(!rewritten_size)ExitProcess(78);
+    DWORD active_texture=0;UINT logo_draws=0;
+    for(UINT at=0;at<rewritten_size;){
+        UINT opcode=rewritten[at],size=rewritten[at+1],count=*(WORD *)(rewritten+at+2);
+        if(opcode==8)for(UINT i=0;i<count;++i)if(*(DWORD *)(rewritten+at+4+i*8)==1)active_texture=*(DWORD *)(rewritten+at+8+i*8);
+        if(opcode==3){if(count!=1 || active_texture!=(logo_draws==1?250u:501u))ExitProcess(79);++logo_draws;}
+        at+=4+size*count;
+    }
+    if(logo_draws!=3 || active_texture!=250)ExitProcess(80);
+    pages[2].handle=0;pages[2].width=0;hud_handles[24]=777;
+    for(UINT i=0;i<3;++i)ui_hd_commit_page(22+i,pages+i);
+    if(hud_handles[24]!=777 || ui_hd_pages[24].handle || ui_hd_handle(203))ExitProcess(69);
     /* Run the ORIGINAL InitText/AddText/quad/vertex machine code. Relocate
      * only verified native DATA operands into this privately mapped image.
      * No GPU or input APIs are called while building these actual vertices. */
@@ -212,6 +292,52 @@ void __stdcall test_entry(void){
             if(report!=INVALID_HANDLE_VALUE){WriteFile(report,bounds,sizeof(bounds),&written,0);CloseHandle(report);}
         }
     }
+    title_active=FALSE;*(int *)(image+0x8c9d4)=1;ui_x=.75f;ui_y=1;
+    /* Execute the supported EXE's complete header routine, including its own
+     * SetTextQuad arguments. Its second half starts at x152, unlike the x151
+     * in the reference decompilation. Fixtures alone missed that difference. */
+    const UINT native_logo_refs[]={0x397b8,0x397be,0x397f6,0x397fb};
+    for(UINT i=0;i<sizeof(native_logo_refs)/sizeof(native_logo_refs[0]);++i){
+        DWORD *operand=(DWORD *)(image+native_logo_refs[i]);
+        if(*operand<0x400000 || *operand>=0xbee000)ExitProcess(89);
+        *operand+=(DWORD)(UINT_PTR)image-0x400000;
+    }
+    *(float *)(image+0x8ace4)=.1f;*(UINT *)(image+0x89cb8)=0;
+    *(UINT *)(native_vertices+0x39210)=*(UINT *)(native_vertices+0x39214)=0;*(SHORT *)(image+0x87040)=0;
+    ((void (__cdecl *)(void))(image+0x39790))();
+    if(*(UINT *)(native_vertices+0x39214)!=4 || *(UINT *)(native_vertices+0x39210)!=2)ExitProcess(90);
+    BYTE logo_first[40],logo_second[40];fixture_logo_poly(logo_first,FALSE);fixture_logo_poly(logo_second,TRUE);
+    for(UINT aspect=0;aspect<5;++aspect){
+        ui_x=aspect_x[aspect];ui_y=aspect_y[aspect];
+        *(UINT *)(native_vertices+0x39210)=*(UINT *)(native_vertices+0x39214)=0;*(SHORT *)(image+0x87040)=0;
+        ((void (__cdecl *)(void))(image+0x39790))();
+        if(*(UINT *)(native_vertices+0x39214)!=4 || *(UINT *)(native_vertices+0x39210)!=2)ExitProcess(81);
+        const TLVertex *v=(const TLVertex *)(native_vertices+0xa410);
+        for(UINT i=0;i<4;++i)if(v[i].specular!=UI_HD_LOGO_TAG || v[i].u!=((i&1)?232.0f/256:0) || v[i].v!=((i&2)?.5f:0))ExitProcess(82);
+        if(v[1].x-v[0].x<464*ui_x-.01f || v[1].x-v[0].x>464*ui_x+.01f || v[2].y-v[0].y<64*ui_y-.01f || v[2].y-v[0].y>64*ui_y+.01f)ExitProcess(83);
+    }
+    /* Actual finish pipeline, including faded-vertex cloning and tag cleanup. */
+    static BYTE logo_execute[4096];
+    for(UINT i=0;i<4;++i)((TLVertex *)logo_execute)[i]=((TLVertex *)(native_vertices+0xa410))[i];
+    ((TLVertex *)logo_execute)[0].color=0x80804020;
+    *(BYTE **)(image+0x7c9690)=logo_execute;*(BYTE **)(image+0x53f1a0)=logo_execute+1024;
+    *(BYTE **)(image+0x631d54)=logo_execute+1024+36;*(UINT *)(image+0xc8610)=sizeof(logo_execute);*(UINT *)(image+0x631d50)=4;
+    copy(logo_execute+1024,logo_instructions,36);*(WORD *)(logo_execute+1024+14)=2;
+    const WORD pair_indices[8]={0,1,3,31,0,3,2,31};copy(logo_execute+1024+16,(const BYTE *)pair_indices,sizeof(pair_indices));
+    ui_hd_finish();
+    if(*(UINT *)(image+0x631d50)!=5 || ((TLVertex *)logo_execute)[4].color!=0x80402010)ExitProcess(84);
+    for(UINT i=0;i<5;++i)if(((TLVertex *)logo_execute)[i].specular)ExitProcess(85);
+    *(UINT *)(native_vertices+0x39214)=0;*(SHORT *)(image+0x87040)=0;
+    scaled_quad(.1f,logo_second,0);if(*(UINT *)(native_vertices+0x39214)!=4)ExitProcess(86); /* unpaired second is retained */
+    fixture_logo_poly(logo_first,FALSE);logo_first[12]=1;
+    scaled_quad(.1f,logo_first,0);if(*(UINT *)(native_vertices+0x39214)!=8)ExitProcess(87); /* different widget is retained */
+    ui_hd_logo.handle=0;fixture_logo_poly(logo_first,FALSE);
+    *(UINT *)(native_vertices+0x39214)=0;*(SHORT *)(image+0x87040)=0;
+    ((void (__cdecl *)(void))(image+0x39790))();
+    if(*(UINT *)(native_vertices+0x39214)!=8)ExitProcess(88); /* SD/upload-failure fallback */
+    test_menu_frame(image,native_vertices);
+    test_menu_art_alignment(image,native_vertices);
+    *(int *)(image+0x8c9d4)=0;title_active=TRUE;
     /* Verify the production present path executes the untouched original
      * title buffers BEFORE the native flip, and leaves all queues owned by it. */
     static IDirect3DDeviceVtbl title_vtable={.BeginScene=fixture_title_begin,.Execute=fixture_title_execute,.EndScene=fixture_title_end};

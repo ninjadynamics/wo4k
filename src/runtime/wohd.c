@@ -37,6 +37,7 @@ static void logevent(const char *name,DWORD value) {
 }
 void wo_render_event(const char *name,DWORD value) {logevent(name,value);}
 #include "portable_paths.c"
+#include "startup_launch.c"
 static MCIERROR send(const WCHAR *s,WCHAR *answer,UINT size) {
     LARGE_INTEGER begin,end,frequency;
     QueryPerformanceCounter(&begin);
@@ -71,6 +72,8 @@ static void prepare_game_folder(void) {
     if(image[0x5b8b1]!=0xec || image[0x5b8b2]!=0x48 || image[0x5b8b3]!=0x53) return;
     SetCurrentDirectoryW(root);
     wo_paths_initialize(image);
+    WCHAR settings[MAX_PATH];copyw(settings,root);copyw(settings+lenw(settings),L"Wipeout2097.ini");
+    wo_startup_install(image,settings);
 }
 static MCIERROR fileopen(UINT track) {
     WCHAR command[MAX_PATH+96]; MCIERROR error;
@@ -96,6 +99,8 @@ static void initialize(void) {
     if(!resolve_root()) return;n=lenw(root);
     copyw(path,root);copyw(path+n,L"..\\logs\\game.log");
     logfile=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,0,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,0);
+    logevent("startup_setup_bypassed",wo_startup_bypassed);
+    logevent("startup_sound_mode",wo_startup_sound_mode);
     audio_setting_path();
     UINT bank=wo_audio_pref(L"Soundtrack",0);
     if(!audio_load_bank(bank==1?1:0))audio_load_bank(0);

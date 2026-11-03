@@ -6,6 +6,7 @@ try {
 if([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA'){throw 'Start Setup.exe, or run powershell.exe -STA -File Setup.ps1.'}
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Windows.Forms
 . (Join-Path $PSScriptRoot 'scripts/Core.ps1')
+. (Join-Path $PSScriptRoot 'scripts/Game-Settings.ps1')
 . (Join-Path $PSScriptRoot 'scripts/Links.ps1')
 . (Join-Path $PSScriptRoot 'scripts/Source-Status.ps1')
 # Import only function definitions; no filesystem search on the UI thread.
@@ -74,6 +75,21 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
     </ComboBox>
    </Grid>
    <TextBlock x:Name="SoundtrackHint" Text="Switch soundtracks anytime in the game's Audio options." FontSize="12" Foreground="#9FB0CA" Margin="0,6,0,0" ToolTip="When both soundtracks are installed, change between PC and PlayStation music on the fly in Options / Audio. Your choice is remembered."/>
+   <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
+    <TextBlock Text="Audio output" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="Choose the game's sound output mode. Changes are saved for the next launch; Play starts the game directly."/>
+    <ComboBox x:Name="AudioOutput" Grid.Column="1" SelectedIndex="1" ToolTip="Saved automatically for the next launch. Stereo is recommended for normal speakers and headphones.">
+     <ComboBoxItem Content="Mono" ToolTip="Mix the game's sound effects into mono."/>
+     <ComboBoxItem Content="Stereo" ToolTip="Play the game's sound effects in stereo."/>
+     <ComboBoxItem Content="Dolby Surround" ToolTip="Use the original game's Dolby Surround sound effects mode with a compatible decoder."/>
+    </ComboBox>
+   </Grid>
+   <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
+    <TextBlock Text="Fullscreen mode" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="Choose how the game fills your display. Changes are saved for the next launch."/>
+    <ComboBox x:Name="FullscreenMode" Grid.Column="1" SelectedIndex="0" ToolTip="Saved automatically for the next launch. Borderless uses a screen-sized window; Exclusive gives the game exclusive fullscreen access.">
+     <ComboBoxItem Content="Borderless" ToolTip="Fill the screen without a window border, with easy switching to other apps."/>
+     <ComboBoxItem Content="Exclusive" ToolTip="Use exclusive fullscreen presentation."/>
+    </ComboBox>
+   </Grid>
    <CheckBox x:Name="HdTextures" Content="Install HD artwork" IsChecked="True" ToolTip="Install the supplied HD fonts, HUD, notice and title. Original SD artwork is retained for fallback."/>
    <CheckBox x:Name="CleanAudio" Content="Improve audio quality" IsChecked="True" ToolTip="Reduce noise in your original 22 kHz sound effects while preserving their volume. Audio is processed locally from your game files."/>
   </StackPanel>
@@ -129,10 +145,15 @@ $script:fields=@{};$script:magic=@{};$script:wands=@{};$script:browse=@{}
 foreach($kind in @('Game','Psx')){$script:fields[$kind]=$window.FindName($kind+'Path');$script:magic[$kind]=$window.FindName($kind+'Magic');$script:wands[$kind]=$window.FindName($kind+'Wand');$script:browse[$kind]=$window.FindName($kind+'Browse')}
 $script:status=$window.FindName('Status');$script:progress=$window.FindName('Progress');$script:install=$window.FindName('InstallButton');$script:play=$window.FindName('PlayButton');$script:combo=$window.FindName('Soundtrack');$script:psxChoice=$window.FindName('PsxChoice')
 $script:update=$window.FindName('UpdateButton');$script:sourceLink=$window.FindName('SourceLink');$script:guiState='Idle';$script:workerKind='installation'
+$script:audioOutput=$window.FindName('AudioOutput')
+$script:fullscreenMode=$window.FindName('FullscreenMode')
 $script:scan=$null;$script:worker=$null;$script:scanMode='All';$script:scanResult='';$script:workerStatus='';$script:psxVerified=$false
 $script:restorePsxDefault=$false;$script:soundtrackTouched=$false;$script:gameVerified=$false;$script:sourceError=$false
 $priorSettings=Join-Path $PSScriptRoot 'wobble/Wipeout2097.ini'
 if(Test-Path -LiteralPath $priorSettings){$script:restorePsxDefault=[IO.File]::ReadAllText($priorSettings) -match '(?im)^Soundtrack\s*=\s*1\s*$'}
+$script:audioOutput.SelectedIndex=[Array]::IndexOf([int[]]@(1,2,5),(Get-ModSoundMode $priorSettings))
+$priorGraphics=Join-Path $PSScriptRoot 'wobble/DDrawCompat-Wipeout2097.ini'
+$script:fullscreenMode.SelectedIndex=[Array]::IndexOf([string[]]@('borderless','exclusive'),(Get-ModFullscreenMode $priorGraphics))
 function Refresh-LinkControls {
     $release=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'release.url') Release
     $source=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'source.url') Source
@@ -159,6 +180,8 @@ function Set-GuiState([string]$State) {
     $script:play.ToolTip=if($script:play.IsEnabled){'Refresh artwork and sound effects, then launch the mod with widescreen, controller and music support.'}elseif($State -ne 'Idle'){'Setup is busy. Play becomes available when work finishes.'}else{'Complete setup to enable Play.'}
     $script:install.ToolTip=if($State -eq 'Idle'){'Install or repair using these sources; preserve saves and back up the previous installation.'}else{'Setup is busy. Wait for the current operation to finish.'}
     $script:combo.IsEnabled=-not $locked;$window.FindName('HdTextures').IsEnabled=-not $locked;$window.FindName('CleanAudio').IsEnabled=-not $locked
+    $script:audioOutput.IsEnabled=-not $locked
+    $script:fullscreenMode.IsEnabled=-not $locked
     $script:combo.ToolTip=if($locked){'Setup is busy. The default soundtrack choice is temporarily locked.'}else{'Choose available PC or PlayStation music, or No music. The small 11 MB PC version does not require a soundtrack.'}
     $script:progress.IsIndeterminate=$State -in @('Searching','Updating')
     $script:status.ToolTip=$script:status.Text
@@ -208,7 +231,21 @@ foreach($kind in @('Game','Psx')) {
     $script:fields[$kind].Add_TextChanged({$script:sourceError=$false;$sourceTimer.Stop();$sourceTimer.Start()})
 }
 $script:combo.Add_DropDownClosed({$script:restorePsxDefault=$false;$script:soundtrackTouched=$true})
+$script:audioOutput.Add_SelectionChanged({
+    if($ValidateUi -or $PreviewPath -or $script:audioOutput.SelectedIndex -lt 0){return}
+    if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/Wipeout2097.exe')){
+        Set-ModSoundMode -SettingsPath $priorSettings -SoundMode (@(1,2,5)[$script:audioOutput.SelectedIndex])
+        $script:status.Text='Audio output saved for the next launch.';$script:status.ToolTip=$script:status.Text
+    }
+})
 $script:sourceLink.Add_Click({$url=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'source.url') Source;if($url){Start-Process -FilePath $url|Out-Null}else{Refresh-LinkControls}})
+$script:fullscreenMode.Add_SelectionChanged({
+    if($ValidateUi -or $PreviewPath -or $script:fullscreenMode.SelectedIndex -lt 0){return}
+    if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/Wipeout2097.exe')){
+        Set-ModFullscreenMode -SettingsPath $priorGraphics -FullscreenMode (@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex])
+        $script:status.Text='Fullscreen mode saved for the next launch.';$script:status.ToolTip=$script:status.Text
+    }
+})
 $script:update.Add_Click({
     if($script:worker -or $script:scan){return};Refresh-LinkControls;if(-not $script:update.IsEnabled){return}
     $script:workerKind='update';$script:workerStatus=Join-Path $PSScriptRoot ('.work/update-status-'+[guid]::NewGuid().ToString('N')+'.json');[WoBeta.Files]::Parent($script:workerStatus)
@@ -220,7 +257,7 @@ $script:install.Add_Click({
     if($script:worker -or $script:scan){return};Update-PsxChoice
     if(-not $script:fields.Game.Text.Trim()){$script:status.Text='Choose your Windows game source to continue.';$script:status.ToolTip=$script:status.Text;return}
     $id=[guid]::NewGuid().ToString('N');$request=Join-Path $PSScriptRoot ('.work/request-'+$id+'.json');$script:workerStatus=Join-Path $PSScriptRoot ('.work/status-'+$id+'.json')
-    Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource='';PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked})
+    Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource='';PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked;SoundMode=@(1,2,5)[$script:audioOutput.SelectedIndex];FullscreenMode=@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex]})
     $script:sourceError=$false;Update-SourceMessage;$script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
     $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru
 })
@@ -244,6 +281,10 @@ $window.Add_Activated({Refresh-LinkControls})
 $window.Add_Closing({param($sender,$event)if($script:worker){$event.Cancel=$true;$script:status.Text='Please wait for setup to finish before closing.'}else{$sourceTimer.Stop();$timer.Stop();if($script:scan -and -not $script:scan.HasExited){$script:scan.Kill()}}})
 Set-GuiState $PreviewState
 if($ValidateUi -or $PreviewPath) {
+    if($script:audioOutput.Items.Count -ne 3 -or $script:audioOutput.SelectedIndex -lt 0){throw 'Audio output must expose Mono, Stereo and Dolby Surround and restore a valid selection.'}
+    if($script:audioOutput.IsEnabled -ne ($PreviewState -ne 'Updating')){throw 'Audio output must lock during updates.'}
+    if($script:fullscreenMode.Items.Count -ne 2 -or $script:fullscreenMode.SelectedIndex -lt 0){throw 'Fullscreen mode must expose Borderless and Exclusive and restore the saved selection.'}
+    if($script:fullscreenMode.IsEnabled -ne ($PreviewState -ne 'Updating')){throw 'Fullscreen mode must lock during updates.'}
     foreach($kind in @('Game','Psx')) {
         if($PreviewState -eq 'Searching' -and ($script:magic[$kind].IsEnabled -or -not $script:wands[$kind].RenderTransform.HasAnimatedProperties)){throw 'Searching must animate and disable every magic button.'}
         if($PreviewState -eq 'Idle' -and -not $script:magic[$kind].IsEnabled){throw 'Idle magic buttons must be clickable.'}

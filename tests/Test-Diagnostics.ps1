@@ -34,7 +34,7 @@ try {
     [IO.File]::Copy((Join-Path $root 'Play.ps1'),(Join-Path $fixture 'Play.ps1'))
     $helper=[IO.File]::ReadAllText((Join-Path $root 'scripts/Diagnostics.ps1'))+"`r`nfunction Get-WoSystemInfo {return @{windows='Windows 11';cpu='Fixture';ram_gib=32;gpu='Fixture'}}`r`n"
     [IO.File]::WriteAllText((Join-Path $scripts 'Diagnostics.ps1'),$helper,(New-Object Text.UTF8Encoding($true)))
-    [IO.File]::WriteAllText((Join-Path $scripts 'Refresh-Assets.ps1'),'# Fixture assets are already current.')
+    [IO.File]::WriteAllText((Join-Path $scripts 'Refresh-Assets.ps1'),'[pscustomobject]@{art_checked=4;art_ignored=@();art_files=@()}')
     [IO.File]::WriteAllText((Join-Path $fixture 'VERSION'),'0.1.0-test')
     [IO.File]::WriteAllText((Join-Path $game 'installation.json'),' {"version":"test","hd_textures":true,"clean_audio":true}')
     foreach($name in @('wohr.dll','ddraw.dll','wo2097-controller.exe','libiconv-2.dll')){[IO.File]::WriteAllText((Join-Path $game $name),'dependency fixture')}
@@ -57,7 +57,7 @@ try {
     Assert ((($events|Where-Object event -eq failure).data.message).Contains('wohr.dll')) 'Missing DLL failure was hidden.'
     [IO.File]::WriteAllText((Join-Path $scripts 'Refresh-Assets.ps1'),"throw 'Fixture refresh failure'");$events=Run-Play 1
     Assert ((($events|Where-Object event -eq failure).data.message).Contains('Fixture refresh failure')) 'Refresh failure was hidden.'
-    [IO.File]::WriteAllText((Join-Path $scripts 'Refresh-Assets.ps1'),'# ready')
+    [IO.File]::WriteAllText((Join-Path $scripts 'Refresh-Assets.ps1'),'[pscustomobject]@{art_checked=4;art_ignored=@();art_files=@()}')
     [IO.File]::WriteAllText((Join-Path $game 'wohr.dll'),'fixture')
     [IO.File]::WriteAllText((Join-Path $game 'Wipeout2097.exe'),'invalid executable');$events=Run-Play 1
     Assert (@($events|Where-Object event -eq failure).Count -eq 1) 'Process creation failure was hidden.'

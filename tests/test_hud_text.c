@@ -20,6 +20,8 @@ static void wo_render_event(const char *n,DWORD v){(void)n;(void)v;}
 static BOOL title_input_active(void){return FALSE;}
 static const char *title_prompt(const char *text){return text;}
 #include "../src/runtime/menu_patch.c"
+static BOOL ui_hd_frame_page(UINT slot){(void)slot;return FALSE;}
+static BOOL ui_hd_frame_art(UiHdFrameArt *art){(void)art;return FALSE;}
 
 static float screen_width,observed_left,observed_right,observed_anchor_y;
 static BOOL observed;

@@ -1,0 +1,100 @@
+[
+  {
+    "file": "font-and-numbers.png",
+    "kind": "atlas",
+    "native": "hud2.tga",
+    "page": 0,
+    "slot": 22,
+    "required": true
+  },
+  {
+    "file": "hud-gauges.png",
+    "kind": "atlas",
+    "native": "hud2.tga",
+    "page": 1,
+    "slot": 23,
+    "required": true
+  },
+  {
+    "file": "hud-reticles.png",
+    "kind": "atlas",
+    "native": "hud2.tga",
+    "page": 2,
+    "slot": 24,
+    "required": false
+  },
+  {
+    "file": "menu-frame-left.png",
+    "kind": "atlas",
+    "native": "testmenu.tga",
+    "page": 0,
+    "slot": 1,
+    "required": false
+  },
+  {
+    "file": "menu-frame-middle.png",
+    "kind": "atlas",
+    "native": "testmenu.tga",
+    "page": 1,
+    "slot": 2,
+    "required": false
+  },
+  {
+    "file": "menu-frame-right.png",
+    "kind": "atlas",
+    "native": "testmenu.tga",
+    "page": 2,
+    "slot": 3,
+    "required": false
+  },
+  {
+    "file": "menu-controls-1.png",
+    "kind": "atlas",
+    "native": "menukey.tga",
+    "page": 0,
+    "slot": 6,
+    "required": false
+  },
+  {
+    "file": "menu-controls-2.png",
+    "kind": "atlas",
+    "native": "menukey.tga",
+    "page": 1,
+    "slot": 7,
+    "required": false
+  },
+  {
+    "file": "menu-background.png",
+    "kind": "atlas",
+    "native": "backgrnd.tga",
+    "page": 0,
+    "slot": 0,
+    "required": false
+  },
+  {
+    "file": "menu-logo-atlas.png",
+    "kind": "atlas",
+    "native": "xllogo.tga",
+    "page": 0,
+    "slot": 25,
+    "required": false
+  },
+  {
+    "file": "menu-banner-logo.png",
+    "kind": "banner",
+    "native": "xllogo.tga",
+    "page": 0,
+    "slot": 25,
+    "required": false
+  },
+  {
+    "file": "notice.png",
+    "kind": "startup",
+    "required": true
+  },
+  {
+    "file": "title.png",
+    "kind": "startup",
+    "required": true
+  }
+]

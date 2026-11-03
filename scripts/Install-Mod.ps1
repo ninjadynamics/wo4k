@@ -1,9 +1,13 @@
-﻿param([string]$GameSource,[string]$PcMusicSource,[string]$PsxMusicSource,[ValidateSet('Pc','Psx','None')][string]$DefaultSoundtrack='Pc',[string]$RequestFile,[string]$StatusFile,[switch]$OriginalAudio,[switch]$SdOnly,[switch]$NoErrorDialog)
+﻿param([string]$GameSource,[string]$PcMusicSource,[string]$PsxMusicSource,[ValidateSet('Pc','Psx','None')][string]$DefaultSoundtrack='Pc',[ValidateSet(1,2,5)][int]$SoundMode=2,[ValidateSet('borderless','exclusive')][string]$FullscreenMode,[string]$RequestFile,[string]$StatusFile,[switch]$OriginalAudio,[switch]$SdOnly,[switch]$NoErrorDialog)
 . (Join-Path $PSScriptRoot 'Diagnostics.ps1')
 $null=Start-WoLog 'install' (Join-Path $PSScriptRoot '..')
 try {
 . (Join-Path $PSScriptRoot 'Sources.ps1')
+. (Join-Path $PSScriptRoot 'Game-Settings.ps1')
 if($RequestFile){$request=Get-Content -Encoding UTF8 -LiteralPath $RequestFile -Raw|ConvertFrom-Json;$GameSource=$request.GameSource;$PcMusicSource=$request.PcMusicSource;$PsxMusicSource=$request.PsxMusicSource;$DefaultSoundtrack=$request.DefaultSoundtrack;$OriginalAudio=-not $request.CleanAudio;$SdOnly=-not $request.HdTextures}
+if($RequestFile -and $request.PSObject.Properties['SoundMode']){if([int]$request.SoundMode -notin 1,2,5){throw 'Invalid audio output mode.'};$SoundMode=[int]$request.SoundMode}
+if($RequestFile -and $request.PSObject.Properties['FullscreenMode']){if([string]$request.FullscreenMode -notin 'borderless','exclusive'){throw 'Invalid fullscreen mode.'};$FullscreenMode=[string]$request.FullscreenMode}
+if(-not $FullscreenMode){$FullscreenMode=Get-ModFullscreenMode (Join-Path $script:ModRoot 'wobble/DDrawCompat-Wipeout2097.ini')}
 function Set-InstallStatus([int]$Percent,[string]$Message,[string]$State='busy') {
     Write-Host $Message
     Write-WoLog 'install_stage' @{percent=$Percent;message=$Message;state=$State}
@@ -72,6 +76,8 @@ $stage=Join-Path $session 'wobble';$target=Join-Path $script:ModRoot 'wobble';$b
         if($prior.default_soundtrack -eq 'None'){$ini=[regex]::Replace($ini,'(?im)^MusicVolume\s*=.*$','MusicVolume=100')}
     }
     [IO.File]::WriteAllText($settings,$ini,[Text.Encoding]::ASCII)
+    Set-ModSoundMode -SettingsPath $settings -SoundMode $SoundMode
+    Set-ModFullscreenMode -SettingsPath (Join-Path $stage 'DDrawCompat-Wipeout2097.ini') -FullscreenMode $FullscreenMode
     Set-InstallStatus 93 'Verifying the completed installation'
     $required=@('Wipeout2097.exe','wohr.dll','ddraw.dll','Common/MENU.DAT','Track01/TRACK.WAD','textures/sd/Pics/Hi-res/HUD2.tga','audio/ENGINES.WAV')
     foreach($name in $required){if(-not [IO.File]::Exists((Get-ModChild $stage $name))){throw "Installation is incomplete: $name"}}

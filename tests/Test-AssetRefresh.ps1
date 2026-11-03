@@ -13,6 +13,7 @@ Write-ModJson (Join-Path $game 'installation.json') @{hd_textures=$true;clean_au
 $sample='ENGINES.WAV';$sound=Join-Path $game ('audio/'+$sample);$cleanHash=Get-ModHash $sound
 $source=Join-Path $game ('audio/source/'+$sample);$sourceHash=Get-ModHash $source
 if($sourceHash -ne (Get-ModHash (Join-Path $OriginalEffectsPath $sample))){throw 'Pristine audio cache differs from input.'}
+$expectedArt=@(Get-ChildItem -LiteralPath (Join-Path $fixture 'assets/hd') -File -Filter '*.png').Count
 $art=Join-Path $fixture 'assets/hd/hud-gauges.png';$artHash=Get-ModHash $art
 $before=(Get-Item -LiteralPath $sound).LastWriteTimeUtc
 foreach($name in @('Wipeout2097.ini','CONFIG.DAT','SAVEGAME.BIN')){[IO.File]::WriteAllText((Join-Path $game $name),'keep my settings and save')}
@@ -23,7 +24,7 @@ $result=& (Join-Path $fixture 'scripts/Refresh-Assets.ps1') -GameRoot $game -Pas
 if($result.art_updated -ne 0 -or $result.audio_updated -ne 1 -or (Get-ModHash $sound) -ne $cleanHash -or (Get-ModHash $art) -ne $artHash){throw 'Launch did not repair corrupted outputs.'}
 [IO.File]::Copy((Join-Path $fixture 'assets/hd/font-and-numbers.png'),(Join-Path $fixture 'assets/hd/hud-gauges.png'),$true)
 $result=& (Join-Path $fixture 'scripts/Refresh-Assets.ps1') -GameRoot $game -PassThru
-if($result.art_checked -ne 4 -or [IO.Directory]::Exists((Join-Path $game 'textures/hd'))){throw 'HD artwork should be read directly with no duplicates.'}
+if($result.art_checked -ne $expectedArt -or [IO.Directory]::Exists((Join-Path $game 'textures/hd'))){throw 'HD artwork should be read directly with no duplicates.'}
 Write-ModJson (Join-Path $game 'installation.json') @{hd_textures=$true;clean_audio=$false;default_soundtrack='Psx'}
 $result=& (Join-Path $fixture 'scripts/Refresh-Assets.ps1') -GameRoot $game -PassThru
 if($result.audio_updated -ne 39 -or (Get-ModHash $sound) -ne $sourceHash){throw 'Original-audio preference was not respected.'}

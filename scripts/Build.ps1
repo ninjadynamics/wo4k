@@ -29,7 +29,7 @@ if($Target -in 'all','release','launchers'){Run-BuildScript 'Build-Launchers.ps1
 if($Target -in 'all','release','patches'){Run-BuildScript 'Build-Patches.ps1'}
 if($Target -in 'all','release'){Run-BuildScript 'Update-Manifests.ps1'}
 if($Target -in 'test','release'){
-    foreach($test in @('Test-Diagnostics.ps1','Test-SourceStatus.ps1','Test-Layout.ps1','Test-Installer.ps1','Test-Updates.ps1')){
+    foreach($test in @('Test-Diagnostics.ps1','Test-SourceStatus.ps1','Test-GameSettings.ps1','Test-HdAssets.ps1','Test-Layout.ps1','Test-Installer.ps1','Test-Updates.ps1')){
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root ('tests/'+$test))
         if($LASTEXITCODE){throw "Test failed: $test"}
     }

@@ -1,4 +1,4 @@
-<img src="assets/ui/wo4k-logo.png" alt="WO4K" width="480">
+﻿<img src="assets/ui/wo4k-logo.png" alt="WO4K" width="480">
 
 WO4K is a modern Windows mod for **WipEout 2097 / XL**, by Ninja Dynamics.
 It adds widescreen rendering, smooth animation, extended track visibility,
@@ -53,11 +53,18 @@ unsupported binaries are rejected before an installation is committed.
    search again. No match leaves a field silently empty; controls have tooltips.
 3. Select the PC game source once. Optionally add a PlayStation soundtrack,
    then choose available PC/PlayStation music or **No music**.
-4. Choose **Install HD artwork** and **Improve audio quality** as desired,
+4. Choose **Audio output** (Mono, Stereo or Dolby Surround),
+   **Fullscreen mode** (Borderless or Exclusive), **Install HD artwork**
+   and **Improve audio quality** as desired,
    then click **Install / repair**.
-5. Click **Play**, or run **Play.exe**. In the original display-selection
-   dialog choose **Direct3D HAL / 16K colours / 640x480**. WO4K renders at your
-   display's resolution and aspect ratio.
+5. Click **Play**, or run **Play.exe**. The original display-selection screen
+   is bypassed; WO4K renders at your display's resolution and aspect ratio.
+
+Change **Audio output** in Setup anytime. It saves automatically for the next
+launch without reinstalling; Stereo is the default.
+**Fullscreen mode** also saves for the next launch without reinstalling.
+Borderless is the default and fills the display without a window border;
+Exclusive uses exclusive fullscreen presentation.
 
 Change soundtracks on the fly in **Options → Audio** when both banks are
 installed. Your choice is saved. The PC bank contains nine songs; the optional
@@ -68,6 +75,29 @@ PNGs in `assets/hd/` to have them picked up at the next launch. Audio outputs ar
 read directly by the renderer. Setup's HD/audio
 preferences are respected. Original effects stay locally in `wobble/audio/source/`,
 so refresh never repeatedly denoises its own output or needs the disc again.
+Play scans `assets/hd/` on every launch and validates every PNG. All eleven
+exported UI filenames are supported: `font-and-numbers`, `hud-gauges`,
+`hud-reticles`, `menu-background`, `menu-frame-left/middle/right`,
+`menu-controls-1/2`, `menu-logo-atlas`, and `menu-banner-logo` (all `.png`).
+`notice.png` and `title.png` retain their startup layouts.
+
+Additional native TGA replacements work without a rebuild: use the original
+name, such as `SKY01.png`, or `HUD2.page0.png` for a zero-based individual page.
+A whole multi-page replacement such as `HUD2.png` retains the original
+horizontal page strip. Native filenames can also mirror `Pics/Hi-res/` under
+`assets/hd/`. Exported semantic names take priority over generic native names;
+`menu-banner-logo.png` overlays only the logo regions of `menu-logo-atlas.png`,
+keeping the atlas's buttons/panels (or their SD originals).
+The HD header is joined in memory and drawn as one rectangle, allowing smooth
+filtering across the original atlas split without a visible seam.
+
+Keep each exported atlas's canvas and element positions. Atlas pages are square,
+power-of-two, 256..8192 pixels; joined banners retain the exported 462:64 ratio.
+Unmapped or invalid PNGs produce a clear error naming the file, rather than
+silently being skipped. Restart Play after changing artwork. The renderer uses
+premultiplied color for filtering/blending, preserving smooth edges and fades;
+your PNG files stay unchanged.
+
 HD PNGs live only in assets/hd; the runtime reads them directly, with no BMP,
 RGBA or PNG copies in Wobble. Play applies layout migrations and removes known
 obsolete mod outputs before every launch, including after Update. Custom files,

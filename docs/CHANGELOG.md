@@ -1,5 +1,20 @@
 # Beta release changes
 
+## 0.1.0-beta.17
+
+- Discover supported HD PNG replacements on each launch, including menu
+  frames, controls, banner/logo artwork, reticles and native texture pages.
+  Read authored PNGs directly and report filenames that cannot be mapped.
+- Remove transparent-edge fringes with premultiplied-alpha rendering and join
+  the menu logo into one draw. Match frame columns, cap edges, highlights and
+  footer dividers to measured artwork pixels while retaining SD fallback.
+- Bypass the original setup controls and event loop. Keep the game window
+  hidden until graphics initialization completes.
+- Add automatically saved Mono/Stereo/Dolby Surround and Borderless/Exclusive
+  choices to Setup; carry selected modes through Install / repair.
+- Extend offline asset/settings checks and native renderer coverage for
+  startup, logo geometry and frame joins across five display shapes.
+
 ## 0.1.0-beta.16
 
 - Record launch, setup, install and update stages and failures locally. Show a

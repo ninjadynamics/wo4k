@@ -61,6 +61,7 @@ static void initialize_race_ui(const WCHAR *settings);
 static void apply_race_preferences(void);
 static void finish_race_ui_effects(void);
 static void ui_hd_finish(void);
+static BOOL ui_hd_frame_page(UINT slot);
 static float credits_motion_y;
 static BYTE *render_entries;
 static BOOL initialize_distance(void);
@@ -142,7 +143,7 @@ static void draw_quad(QuadFn original,float z,const BYTE *p,int blend,float basi
          * left timer, centered indicator, and right race/speed/energy groups. */
         if(!anchor_depth && menu_active()) {
             /* Menu widgets keep their shape about their responsive location.
-             * The two logo halves must share one anchor to keep their seam. */
+             * The header logo and its SD halves share their native anchor. */
             if(*(const WORD *)(p+22)==35) {menu_anchor(141,54);}
             else {menu_anchor((int)(x*320),(int)(y*240));}
         } else if(!anchor_depth) {
@@ -156,11 +157,13 @@ static void draw_quad(QuadFn original,float z,const BYTE *p,int blend,float basi
     menu_motion_dx=previous_motion;
 }
 BOOL wo_render_active(void) {return installed;}
+#include "ui_hd_logo.c"
 static void __cdecl quad(float z,const BYTE *p,int blend) {
     if(is_menu_frame(p))draw_menu_frame(z,p,blend);
     else draw_quad(old_quad,z,p,blend,320,FALSE);
 }
 static void __cdecl scaled_quad(float z,const BYTE *p,int blend) {
+    if(ui_hd_draw_logo(z,p,blend))return;
     BYTE positioned[40];p=audio_layout_quad(p,positioned);
     draw_quad(old_scaled_quad,z,p,blend,640,TRUE);
 }
@@ -326,7 +329,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     *(float *)(game+0x8b190)=projection_x;
     installed=TRUE;
     update_projection();
-    wo_render_event("render_patch_version",26);
+    wo_render_event("render_patch_version",32);
     wo_render_event("render_display_width",width);wo_render_event("render_display_height",height);
     wo_render_event("render_geometry_width_percent",geometry_width);
     initialize_menu();

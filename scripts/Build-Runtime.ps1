@@ -1,5 +1,6 @@
 ﻿param([string]$CompilerDirectory='C:\mingw64\bin',[string]$HeaderDirectory='C:\mingw64\x86_64-w64-mingw32\include')
 $ErrorActionPreference='Stop'
+& (Join-Path $PSScriptRoot 'Build-HdCatalog.ps1')
 $bin = $CompilerDirectory
 $headers = $HeaderDirectory
 $runtimeSource = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../src/runtime'))
@@ -65,6 +66,7 @@ PeekMessageA@20
 TranslateMessage@4
 DispatchMessageA@4
 PostQuitMessage@4
+ShowWindow@8
 '@ | Set-Content -LiteralPath (Join-Path $out 'user32.def') -Encoding Ascii
 @'
 LIBRARY OLE32.dll

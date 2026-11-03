@@ -7,7 +7,8 @@ try {
     Write-WoLog 'stage' $stage
     if(-not [IO.File]::Exists($exe)){throw 'Run Install / repair first to supply your Windows game files.'}
     $stage='Refreshing artwork and audio';Write-WoLog 'stage' $stage
-    & (Join-Path $PSScriptRoot 'scripts/Refresh-Assets.ps1') -GameRoot $game
+    $refresh=& (Join-Path $PSScriptRoot 'scripts/Refresh-Assets.ps1') -GameRoot $game -PassThru
+    Write-WoLog 'artwork' @{checked=$refresh.art_checked;ignored=@($refresh.art_ignored);files=@($refresh.art_files)}
     if($RefreshOnly){Write-WoLog 'complete' 'Assets refreshed without starting the game.';return}
     $stage='Checking game dependencies';Write-WoLog 'stage' $stage
     foreach($name in @('Wipeout2097.exe','wohr.dll','ddraw.dll','wo2097-controller.exe','libiconv-2.dll')){
