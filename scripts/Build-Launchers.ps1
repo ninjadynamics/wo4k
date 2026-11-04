@@ -19,7 +19,7 @@ function Convert-LauncherIcon([string]$Source,[string]$Destination) {
             $bitmap.Save($stream,[Drawing.Imaging.ImageFormat]::Png);$frames.Add($stream.ToArray())
         }finally{$graphics.Dispose();$bitmap.Dispose();$stream.Dispose()}
     }}finally{$image.Dispose()}
-    $stream=[IO.File]::Create($Destination);$writer=New-Object IO.BinaryWriter($stream)
+    $stream=New-Object IO.MemoryStream;$writer=New-Object IO.BinaryWriter($stream)
     try{
         $writer.Write([uint16]0);$writer.Write([uint16]1);$writer.Write([uint16]$sizes.Count)
         $offset=6+16*$sizes.Count
@@ -30,7 +30,16 @@ function Convert-LauncherIcon([string]$Source,[string]$Destination) {
             $offset+=$frames[$i].Length
         }
         foreach($frame in $frames){$writer.Write([byte[]]$frame)}
+        $bytes=$stream.ToArray()
     }finally{$writer.Dispose();$stream.Dispose()}
+    # Setup may retain a read handle to its icon. Reuse identical generated
+    # bytes instead of truncating a file that the running UI is displaying.
+    $same=$false
+    if([IO.File]::Exists($Destination)){
+        $sha=[Security.Cryptography.SHA256]::Create()
+        try{$hash=[BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-','');$same=$hash -eq (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash}finally{$sha.Dispose()}
+    }
+    if(-not $same){[IO.File]::WriteAllBytes($Destination,$bytes)}
 }
 foreach($name in @('Setup','Play')) {
     $icon=Join-Path $root ('assets/icons/'+$name.ToLowerInvariant()+'.ico')

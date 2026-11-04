@@ -1,7 +1,8 @@
-/* Independent GPU textures retain authored resolution and8-bit alpha. */
+﻿/* Independent GPU textures retain authored resolution and8-bit alpha. */
 #include <d3d.h>
+#include "hud_coverage.h"
 typedef void (__cdecl *UiNativeLoadFn)(int,const char *,SHORT,SHORT);
-typedef struct UiHdPage {IDirectDrawSurface *surface;IDirect3DTexture *texture;DWORD handle;UINT width;UiHdFrameArt frame_art;} UiHdPage;
+typedef struct UiHdPage {IDirectDrawSurface *surface;IDirect3DTexture *texture;DWORD handle;UINT width;UiHdFrameArt frame_art;BYTE *hud_coverage;} UiHdPage;
 enum {UI_HD_PAGE_COUNT=256};
 enum {UI_HD_STATE_COUNT=13};
 static UiHdPage ui_hd_pages[UI_HD_PAGE_COUNT];
@@ -67,6 +68,7 @@ static void ui_hd_release(UiHdPage *page) {
     if(page->surface)page->surface->lpVtbl->Release(page->surface);
     page->texture=0;page->surface=0;page->handle=0;page->width=0;
     page->frame_art.valid=FALSE;
+    if(page->hud_coverage)VirtualFree(page->hud_coverage,0,MEM_RELEASE);page->hud_coverage=0;
 }
 static void ui_hd_capture_states(IDirect3DDevice *device) {
     IDirect3DDevice2 *device2=0;ui_hd_extra_states=FALSE;
@@ -132,6 +134,7 @@ static BOOL ui_hd_load(const char *filename,UINT index,UINT pages,UiHdPage *page
     if(!pixels)return FALSE;
     if(startup_name(filename,"testmenu.tga"))ui_hd_measure_frame(pixels,width,index,&page->frame_art);
     BOOL ok=ui_hd_upload(pixels,width,width,page);
+    if(ok && startup_name(filename,"hud2.tga"))page->hud_coverage=hud_coverage_create(pixels,width);
     if(ok && logo){
         UINT w=0,h=0;BYTE *joined=ui_hd_join_logo(pixels,width,&w,&h);
         if(joined){

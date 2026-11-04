@@ -1,6 +1,7 @@
-﻿param([Parameter(Mandatory=$true)][string]$Package,[Parameter(Mandatory=$true)][string]$GameSource,[string]$PublishedRepository=(Join-Path $PSScriptRoot '..'))
+﻿param([Parameter(Mandatory=$true)][string]$Package,[Parameter(Mandatory=$true)][string]$GameSource,[string]$PublishedRepository)
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+if(-not $PublishedRepository){$PublishedRepository=$root}
 $work=Join-Path $root ('.work/release-smoke-'+[guid]::NewGuid().ToString('N'))
 $fixture=Join-Path $work 'installed mod';$stage=Join-Path $work 'update package'
 Add-Type -AssemblyName System.IO.Compression.FileSystem

@@ -1,4 +1,4 @@
-/* Separate high-refresh experiment. Original simulation functions still run
+﻿/* Separate high-refresh experiment. Original simulation functions still run
  * only at30Hz; render matrices interpolate between their completed states.
  * No game pose is overwritten to manufacture an intermediate frame. */
 typedef int (__cdecl *RefreshClockFn)(int);
@@ -349,7 +349,9 @@ static void draw_refresh_stats(void) {
         while(digits)text[length++]=reverse[--digits];
     }
     text[length++]=' ';text[length++]='F';text[length++]='P';text[length++]='S';text[length]=0;
+    hud_layout_begin(TRUE);
     ++hud_depth;center_text(text,160,226,8,0);--hud_depth;
+    hud_layout_finish();
 }
 static void initialize_refresh(const WCHAR *settings) {
     WCHAR enabled[8];

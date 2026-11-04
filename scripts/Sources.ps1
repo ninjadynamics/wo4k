@@ -17,7 +17,7 @@ function Get-ModNativeRoot([string]$Source,[string]$Work) {
     foreach($image in Get-ChildItem -LiteralPath $input -File -Recurse | Where-Object {$_.Extension -in '.mds','.cue','.iso'}) {
         try{return Get-ModNativeRoot $image.FullName (Join-Path $Work ([guid]::NewGuid().ToString('N')))}catch{Write-Verbose $_.Exception.Message}
     }
-    throw 'No supported PC executable found. Supply the original Windows game disc or a supported Wobble folder; a PlayStation disc supplies music only.'
+    throw 'No supported PC executable found. Supply the original Windows game disc or a supported Wobble folder; a PlayStation disc supplies optional artwork and music, not the Windows executable.'
 }
 function Copy-ModGameData([string]$Source,[string]$Destination) {
     foreach($dir in Get-ChildItem -LiteralPath $Source -Directory | Where-Object {$_.Name -match '^(?i)(Common|Track\d{2})$'}) {

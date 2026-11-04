@@ -1,6 +1,11 @@
-﻿param([string]$GameRoot=(Join-Path $PSScriptRoot '../wobble'),[switch]$PassThru)
+﻿param([string]$GameRoot=(Join-Path $PSScriptRoot '../wobble'),[switch]$PassThru,[switch]$SkipReconcile)
 . (Join-Path $PSScriptRoot 'Core.ps1')
-$GameRoot=[IO.Path]::GetFullPath($GameRoot).TrimEnd('\')
+$GameRoot=[IO.Path]::GetFullPath($GameRoot).TrimEnd('')
+if(-not $SkipReconcile){
+    . (Join-Path $PSScriptRoot 'Reconcile-Installation.ps1') -FunctionsOnly -GameRoot $GameRoot -PassThru:$PassThru
+    $check=Invoke-ModReconcile -Root $script:ModRoot -GameRoot $GameRoot
+    if(-not $check.installed){throw 'Run Setup / Install / repair before playing.'}
+}
 foreach($process in @(Get-Process Wipeout2097 -ErrorAction SilentlyContinue)){
     if(-not $process.Path -or $process.Path.StartsWith($GameRoot+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Close the game before refreshing its artwork or sound effects.'}
 }

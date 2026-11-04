@@ -12,6 +12,7 @@ static void apply_race_preferences(void) {
 }
 static void __cdecl detail_keys(void) {
     SHORT *key=(SHORT *)(game+0x66496a);SHORT pressed=*key;
+    if(scene_light_key(pressed)){*key=-1;return;}
     if(pressed==0x29) { /* DirectInput grave/backtick; FPS only. */
         refresh_show_fps=!refresh_show_fps;*key=-1;
         wo_render_event("render_fps_visible",refresh_show_fps);

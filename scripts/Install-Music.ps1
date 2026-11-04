@@ -7,7 +7,13 @@ $toc=[IO.File]::ReadAllText((Join-Path $folder 'tracks.ini'));$count=if($Bank -e
 for($track=2;$track -le $count;$track++) {
     $stem='track{0:D2}' -f $track;$path=Join-Path $folder ($stem+'.wav');if(-not [IO.File]::Exists($path)){$path=Join-Path $folder ($stem+'.mp3')}
     if(-not [IO.File]::Exists($path)){throw "Missing music: $stem"}
-    $target=Get-ModChild $destination ([IO.Path]::GetFileName($path));[WoBeta.Files]::Parent($target);[IO.File]::Copy($path,$target,$true)
+    $target=Get-ModChild $destination ([IO.Path]::GetFileName($path));[WoBeta.Files]::Parent($target)
+    if(-not [IO.File]::Exists($target) -or (Get-ModHash $path) -ne (Get-ModHash $target)){[IO.File]::Copy($path,$target,$true)}
+    # The runtime prefers WAV. Remove a superseded encoding only after its
+    # replacement is installed, otherwise a stale WAV can hide a new MP3.
+    $alternate=Join-Path $destination ($stem+$(if([IO.Path]::GetExtension($path) -ieq '.wav'){'.mp3'}else{'.wav'}))
+    if([IO.File]::Exists($alternate)){[IO.File]::Delete($alternate)}
 }
-[IO.File]::WriteAllText((Get-ModChild $destination 'tracks.ini'),$toc,[Text.Encoding]::ASCII)
+$targetToc=Get-ModChild $destination 'tracks.ini'
+if(-not [IO.File]::Exists($targetToc) -or [IO.File]::ReadAllText($targetToc) -cne $toc){[IO.File]::WriteAllText($targetToc,$toc,[Text.Encoding]::ASCII)}
 Write-Host "Installed $Bank soundtrack ($($count-1) songs)."

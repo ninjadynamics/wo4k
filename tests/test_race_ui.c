@@ -13,6 +13,7 @@ static BOOL test_write(LPCWSTR section,LPCWSTR key,LPCWSTR value,LPCWSTR path){
     (void)section;(void)key;(void)path;++preference_writes;UINT n=0;do{last_preference[n]=value[n];}while(value[n++]);return TRUE;
 }
 #define WritePrivateProfileStringW test_write
+static BOOL scene_light_key(SHORT key){(void)key;return FALSE;}
 #include "../src/runtime/race_ui_patch.c"
 static BYTE config[48];
 static void __cdecl native_keys(void){

@@ -1,4 +1,53 @@
-# Beta release changes
+﻿# Beta release changes
+
+## 0.1.0-beta.18
+
+- Align HUD groups by visible artwork bounds to a uniform 180px inset at
+  3840x2160, scaled with the interface at other resolutions. Center the native
+  four-tile item indicator and its icons as one assembly; align the FPS counter
+  to the same bottom inset. Account for transparent HD padding and SD fallback.
+
+- Persist Setup sources/preferences and reconcile the installation before Play
+  and when Setup opens. Import configured PS1 artwork/OST silently, verify
+  installed outputs, repair damaged/missing data, synchronize runtime changes,
+  and reuse healthy local assets with sources offline. Finish Update with a
+  forced Install / repair even when already current. Cover manual ZIP updates
+  and remove unchanged retired mod files using ownership snapshots, preserving
+  custom artwork, saves and settings.
+
+- Restore per-emitter PS1 additive explosions/flashes and subtractive smoke,
+  including the original EXE's mode0 billboard path. Use one original-size
+  quad per animation sample, retain interpolation, restore neutral128 colour
+  modulation, and place these effects after opaque scenery. Emulate exact
+  subtractive compositing with bounded D3D1 passes; retain native state and
+  vertex-processing pointers. Cover actual native emission/closing code and
+  overlapping, faded, black-backed effects in offscreen GPU regressions.
+- Add a local texture picker with PS1-left/PC-right sliders, individual
+  selectors, filtering, saved choices and complete JSON download. Show all
+  484 mapped textures, including road reconstructions and byte-identical
+  reuse; retain the explicit list of 151 disc-sourced PS1 images.
+- Restore 128x128 roads from the independently paletted original tiles in PC
+  WADs, retaining the richer PS1 colours without requiring a disc. Use the
+  verified native race order when rebuilding all eight tracks' packed sheets.
+- Add optional European PS1 texture import beside soundtrack selection.
+  Prefer PS1 sources unless native bytes were verified identical at project
+  time; install a fixed placement map, retain original TIM/STP source data,
+  and preserve authored HD interface artwork. Data-only PS1 images do not
+  enable or require CD audio. Retain sources across repair and incremental
+  launch without runtime version/quality comparisons.
+- Tighten filtered color-key silhouettes to half coverage, discarding dark
+  black-matte fringe samples around native sprites while retaining masking.
+- Add main-keyboard and numpad +/− controls for 3D shadow lift (0–300%) and
+  Page Up/Page Down for highlights (0–300%, neutral at 100%). Show both values
+  briefly and save Render/ShadowLiftPercent and Render/HighlightsPercent.
+  Restrict adjustments to opaque 3D triangles after material preparation;
+  preserve blended/shared vertices whose RGB also controls legacy opacity,
+  along with menus, HUD and effects. Shadow lift 0% retains original lighting.
+- Reset explicit alpha testing for native 3D execute buffers, including with
+  neutral lighting, while preserving native color-key masking for foliage and
+  billboards. Never disable color keying across the world pass.
+  Insert resets after the original PROCESSVERTICES placeholder so its native
+  closing routine retains a valid pointer; verify with the original x86 code.
 
 ## 0.1.0-beta.17
 

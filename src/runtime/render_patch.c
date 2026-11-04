@@ -1,4 +1,4 @@
-/* Rendering-only widescreen prototype for the hash-verified original PC EXE.
+﻿/* Rendering-only widescreen prototype for the hash-verified original PC EXE.
  * Enabled only by WO2097_RENDER_TEST=1 in the separate test launcher.
  * Original code is called through verified-instruction trampolines; simulation
  * state, AI, input and timing are never replaced here.
@@ -44,6 +44,8 @@ static void refresh_ship_delta(int ship,float *delta);
 #define FLARE_VERTEX_TAG 0x574f474cu
 #define SKY_VERTEX_TAG 0x574f534bu
 #define SPRITE_VERTEX_TAG 0x574f5350u
+#define PS1_ADD_VERTEX_TAG 0x574f4131u
+#define PS1_SUB_VERTEX_TAG 0x574f5332u
 static void fix_queued_matrix(int before,const BYTE *skeleton);
 static void initialize_sprites(void);
 static float ui_panel_phase(void);
@@ -58,6 +60,8 @@ static void hide_game_cursor(void);
 static void initialize_controller(void);
 static void initialize_credits(void);
 static void initialize_race_ui(const WCHAR *settings);
+static void hud_layout_begin(BOOL fps);
+static void hud_layout_finish(void);
 static void apply_race_preferences(void);
 static void finish_race_ui_effects(void);
 static void ui_hd_finish(void);
@@ -94,6 +98,7 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 }
 #include "hud_text.c"
 #include "menu_patch.c"
+#include "scene_lighting.c"
 #include "shadow_patch.c"
 #include "backdrop_patch.c"
 #include "rotation_patch.c"
@@ -110,6 +115,7 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 #include "ui_hd.c"
 #include "credits_patch.c"
 #include "sprite_patch.c"
+#include "hud_layout.c"
 static void adjust(TLVertex *v) {
     v->x+=*(float *)(game+0xaf0b4)*hud_message_motion_x/320;
     v->y+=*(float *)(game+0xc8630)*credits_motion_y/240;
@@ -123,6 +129,7 @@ static void adjust(TLVertex *v) {
     float width=*(float *)(game+0xaf0b4),height=*(float *)(game+0xc8630);
     v->x=v->x*ui_x+width*anchor_x*(1-ui_x);
     v->y=v->y*ui_y+height*anchor_y*(1-ui_y);
+    hud_layout_vertex(v);
 }
 static void __cdecl vertex(TLVertex *v,int x,int y,float z,UINT r,UINT g,UINT b) {
     old_vertex(v,x,y,z,r,g,b);adjust(v);
@@ -152,7 +159,10 @@ static void draw_quad(QuadFn original,float z,const BYTE *p,int blend,float basi
         }
         ++ui_depth;
     }
+    UINT previous_group=hud_layout_group,first=hud_layout_count;
+    hud_layout_group=(original==old_quad || original==old_scaled_quad)?hud_layout_classify(p):HUD_NONE;
     original(z,p,blend);
+    hud_layout_quad(p,first);hud_layout_group=previous_group;
     anchor_x=previous_x;anchor_y=previous_y;ui_depth=previous_depth;
     menu_motion_dx=previous_motion;
 }
@@ -175,7 +185,9 @@ static void __cdecl hud(void *ships,int choice,void *config,void *score) {
     DWORD saved_hud_frame=*(DWORD *)(game+0x875a8);
     BYTE saved_rear_cycle=game[0x8bb90];
     if(refresh_active) {*(DWORD *)(game+0x875a8)=ui_ticks;game[0x8bb90]=(BYTE)(ui_ticks%20);}
+    hud_layout_begin(FALSE);
     ++hud_depth;old_hud(ships,choice,config,score);--hud_depth;
+    hud_layout_finish();
     *(DWORD *)(game+0x875a8)=saved_hud_frame;
     game[0x8bb90]=saved_rear_cycle;
     static UINT frames;
@@ -188,6 +200,7 @@ static void __cdecl hud(void *ships,int choice,void *config,void *score) {
         wo_render_event("render_scenery_visible",scenery_visible);
     }
     draw_refresh_stats();
+    draw_scene_light_status();
 }
 
 /* Compose the original LOCAL transforms using floats. The game's original
@@ -329,10 +342,11 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     *(float *)(game+0x8b190)=projection_x;
     installed=TRUE;
     update_projection();
-    wo_render_event("render_patch_version",32);
+    wo_render_event("render_patch_version",40);
     wo_render_event("render_display_width",width);wo_render_event("render_display_height",height);
     wo_render_event("render_geometry_width_percent",geometry_width);
     initialize_menu();
+    initialize_scene_lighting(settings);
     initialize_shadows(settings);
     initialize_exhaust(settings);
     initialize_rotations(settings);
@@ -343,6 +357,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     initialize_audio_menu();
     initialize_startup_art(root,(UINT)width,(UINT)height);
     initialize_ui_hd(root);
+    initialize_hud_layout();
     if(refresh_active)simulation_active=wo_sim_initialize(image);
 }
 

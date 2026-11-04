@@ -11,7 +11,10 @@ if($folder){
 }
 $descriptors=if([IO.Directory]::Exists($source)){@(Get-ChildItem -LiteralPath $source -File -Recurse | Where-Object {$_.Extension -in '.mds','.cue'} | Select-Object -ExpandProperty FullName)}else{@($source)}
 $wanted=if($Bank -eq 'Pc'){9}else{11};$chosen=@()
-foreach($descriptor in $descriptors){$tracks=@(Get-ModDiscTracks $descriptor);if(@($tracks|Where-Object Audio).Count -eq $wanted){$chosen=$tracks;break}}
+foreach($descriptor in $descriptors){
+    if($AllowMissing -and [IO.Path]::GetExtension($descriptor) -ieq '.bin' -and -not [IO.File]::Exists([IO.Path]::ChangeExtension($descriptor,'.cue'))){continue}
+    $tracks=@(Get-ModDiscTracks $descriptor);if(@($tracks|Where-Object Audio).Count -eq $wanted){$chosen=$tracks;break}
+}
 if(-not $chosen.Count -and $AllowMissing){return $null}
 if(-not $chosen.Count){throw "No $Bank CD audio found. Use a matching MDS/MDF or CUE/BIN set, its ZIP, or an existing music folder. A data-only ISO has no CD audio."}
 $toc=New-Object Collections.Generic.List[string];$toc.Add('[CD]');$toc.Add('Tracks='+$chosen.Count);$toc.Add('')

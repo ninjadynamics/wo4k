@@ -6,7 +6,7 @@ try {
 if([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA'){throw 'Start Setup.exe, or run powershell.exe -STA -File Setup.ps1.'}
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Windows.Forms
 . (Join-Path $PSScriptRoot 'scripts/Core.ps1')
-. (Join-Path $PSScriptRoot 'scripts/Game-Settings.ps1')
+. (Join-Path $PSScriptRoot 'scripts/Configuration.ps1')
 . (Join-Path $PSScriptRoot 'scripts/Links.ps1')
 . (Join-Path $PSScriptRoot 'scripts/Source-Status.ps1')
 # Import only function definitions; no filesystem search on the UI thread.
@@ -60,11 +60,11 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
     <Button x:Name="GameBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select a PC source file or folder."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16" ToolTip="Browse for a game archive, disc image or existing folder."/></Button>
     <Button x:Name="GameMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search common local folders again for supported Windows game files."><TextBlock x:Name="GameWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for the Windows game source."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
    </Grid>
-   <TextBlock Text="PLAYSTATION SOUNDTRACK · OPTIONAL" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Optional. Adds the11-song PlayStation soundtrack alongside the PC soundtrack."/>
+   <TextBlock Text="PLAYSTATION GAME · OPTIONAL" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Adds original PlayStation artwork from the European 2097 disc, plus its soundtrack when CD audio is included. A data-only image supplies artwork without music."/>
    <Grid Margin="0,5,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/></Grid.ColumnDefinitions>
-    <TextBox x:Name="PsxPath" ToolTip="Optional PS1 game ZIP, CUE/BIN set or existing PlayStation music folder. The PS1 game cannot replace the Windows game data."/>
-    <Button x:Name="PsxBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select the optional PlayStation music source."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16" ToolTip="Browse for PlayStation disc audio."/></Button>
-    <Button x:Name="PsxMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search again for an optional PlayStation soundtrack source."><TextBlock x:Name="PsxWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for PlayStation music."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
+    <TextBox x:Name="PsxPath" ToolTip="Optional European PS1 game ZIP, ISO or CUE/BIN set for original textures and sprites. An existing PlayStation music folder supplies music only. Windows game files are still required."/>
+    <Button x:Name="PsxBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select the optional PlayStation game or music source."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16" ToolTip="Browse for PlayStation artwork and disc audio."/></Button>
+    <Button x:Name="PsxMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search again for an optional PlayStation game or soundtrack source."><TextBlock x:Name="PsxWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for PlayStation artwork and music."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
    </Grid>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
     <TextBlock Text="Default soundtrack" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="The music bank selected on first launch. You can switch soundtracks later in the game's audio options."/>
@@ -148,12 +148,27 @@ $script:update=$window.FindName('UpdateButton');$script:sourceLink=$window.FindN
 $script:audioOutput=$window.FindName('AudioOutput')
 $script:fullscreenMode=$window.FindName('FullscreenMode')
 $script:scan=$null;$script:worker=$null;$script:scanMode='All';$script:scanResult='';$script:workerStatus='';$script:psxVerified=$false
-$script:restorePsxDefault=$false;$script:soundtrackTouched=$false;$script:gameVerified=$false;$script:sourceError=$false
+$script:restoringConfiguration=$true
+$script:savedConfiguration=Get-ModConfiguration $PSScriptRoot
+$script:restorePsxDefault=$script:savedConfiguration.DefaultSoundtrack -eq 'Psx';$script:soundtrackTouched=$true;$script:gameVerified=$false;$script:sourceError=$false
 $priorSettings=Join-Path $PSScriptRoot 'wobble/Wipeout2097.ini'
-if(Test-Path -LiteralPath $priorSettings){$script:restorePsxDefault=[IO.File]::ReadAllText($priorSettings) -match '(?im)^Soundtrack\s*=\s*1\s*$'}
-$script:audioOutput.SelectedIndex=[Array]::IndexOf([int[]]@(1,2,5),(Get-ModSoundMode $priorSettings))
 $priorGraphics=Join-Path $PSScriptRoot 'wobble/DDrawCompat-Wipeout2097.ini'
-$script:fullscreenMode.SelectedIndex=[Array]::IndexOf([string[]]@('borderless','exclusive'),(Get-ModFullscreenMode $priorGraphics))
+$script:fields.Game.Text=$script:savedConfiguration.GameSource;$script:fields.Psx.Text=$script:savedConfiguration.PsxMusicSource
+$script:combo.SelectedIndex=[Array]::IndexOf([string[]]@('Pc','Psx','None'),$script:savedConfiguration.DefaultSoundtrack)
+$script:audioOutput.SelectedIndex=[Array]::IndexOf([int[]]@(1,2,5),$script:savedConfiguration.SoundMode)
+$script:fullscreenMode.SelectedIndex=[Array]::IndexOf([string[]]@('borderless','exclusive'),$script:savedConfiguration.FullscreenMode)
+$window.FindName('HdTextures').IsChecked=$script:savedConfiguration.HdTextures;$window.FindName('CleanAudio').IsChecked=$script:savedConfiguration.CleanAudio
+function Save-SetupPreferences {
+    if($ValidateUi -or $PreviewPath -or $script:restoringConfiguration){return}
+    $configuration=[pscustomobject]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource=$script:savedConfiguration.PcMusicSource;PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=@('Pc','Psx','None')[$script:combo.SelectedIndex];HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked;SoundMode=@(1,2,5)[$script:audioOutput.SelectedIndex];FullscreenMode=@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex]}
+    $script:savedConfiguration=Save-ModConfiguration $configuration $PSScriptRoot
+}
+function Start-InstallationCheck {
+    if($script:worker -or $script:scan){return}
+    $script:workerKind='installation check';$script:workerStatus=Join-Path $PSScriptRoot ('.work/check-status-'+[guid]::NewGuid().ToString('N')+'.json');[WoBeta.Files]::Parent($script:workerStatus)
+    $script:status.Text='Checking the configured installation...';Set-GuiState Installing
+    $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Reconcile-Installation.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru
+}
 function Refresh-LinkControls {
     $release=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'release.url') Release
     $source=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'source.url') Source
@@ -173,7 +188,7 @@ function Set-GuiState([string]$State) {
         $script:wands[$kind].ToolTip=$script:magic[$kind].ToolTip
         if($State -eq 'Searching'){$a=New-Object Windows.Media.Animation.DoubleAnimation(0,360,(New-Object Windows.Duration([TimeSpan]::FromSeconds(1.4))));$a.RepeatBehavior=[Windows.Media.Animation.RepeatBehavior]::Forever;$script:wands[$kind].RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty,$a)}else{$script:wands[$kind].RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty,$null)}
         $script:fields[$kind].IsEnabled=-not $locked;$script:browse[$kind].IsEnabled=-not $locked
-        $script:fields[$kind].ToolTip=if($locked){'Setup is busy. This source field is locked until it finishes.'}elseif($kind -eq 'Game'){'PC ZIP/disc image or the small 11 MB PC version. Included PC music is extracted automatically. The small version works without music or with optional PlayStation music.'}else{'Optional PlayStation soundtrack ZIP/disc image or extracted music folder.'}
+        $script:fields[$kind].ToolTip=if($locked){'Setup is busy. This source field is locked until it finishes.'}elseif($kind -eq 'Game'){'PC ZIP/disc image or the small 11 MB PC version. Included PC music is extracted automatically. The small version works without music or with optional PlayStation music.'}else{'Optional European PlayStation disc for original artwork and any included CD audio, or an extracted music folder.'}
         $script:browse[$kind].ToolTip=if($locked){'Setup is busy. Source selection is temporarily unavailable.'}else{'Choose a '+$kind+' source file or folder.'}
     }
     $script:install.IsEnabled=$State -eq 'Idle';$script:play.IsEnabled=($State -eq 'Idle' -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/Wipeout2097.exe')))
@@ -195,15 +210,17 @@ function Update-SourceMessage {
 }
 function Update-PsxChoice {
     $pcInfo=Get-ModSourceInfo $script:fields.Game.Text.Trim()
-    $script:gameVerified=[bool]$pcInfo.Game; $pcAvailable=[bool]$pcInfo.Pc;$window.FindName('PcChoice').IsEnabled=$pcAvailable
+    $script:gameVerified=[bool]$pcInfo.Game; $pcAvailable=[bool]$pcInfo.Pc -or (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/music/pc/tracks.ini'));$window.FindName('PcChoice').IsEnabled=$pcAvailable
     $window.FindName('PcChoice').ToolTip=if($pcAvailable){'PC music found in the selected game source.'}else{'This PC source has no detected music. Choose No music or add a PlayStation soundtrack.'}
     $path=$script:fields.Psx.Text.Trim();$script:psxVerified=$false
     if($path){$info=Get-ModSourceInfo $path;$script:psxVerified=[bool]$info.Psx}
-    $script:psxChoice.IsEnabled=$script:psxVerified
-    $script:psxChoice.ToolTip=if($script:psxVerified){'Verified PlayStation source available. Choose it as the initial soundtrack.'}else{'Add a valid PlayStation music source to enable this option.'}
-    if($script:restorePsxDefault -and $script:psxVerified){$script:combo.SelectedIndex=1;$script:restorePsxDefault=$false}
-    elseif(-not $script:soundtrackTouched -or ($script:combo.SelectedIndex -eq 0 -and -not $pcAvailable) -or ($script:combo.SelectedIndex -eq 1 -and -not $script:psxVerified)){$script:combo.SelectedIndex=if($pcAvailable){0}elseif($script:psxVerified){1}else{2}}
+    $psxAudio=($script:psxVerified -and [bool]$info.PsxMusic) -or (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/music/psx/tracks.ini'))
+    $script:psxChoice.IsEnabled=$psxAudio
+    $script:psxChoice.ToolTip=if($psxAudio){'Verified PlayStation audio available. Choose it as the initial soundtrack.'}else{'A data-only PlayStation image supplies artwork. Add CD audio to enable its soundtrack.'}
+    if($script:restorePsxDefault -and $psxAudio){$script:combo.SelectedIndex=1;$script:restorePsxDefault=$false}
+    elseif(-not $script:soundtrackTouched -or ($script:combo.SelectedIndex -eq 0 -and -not $pcAvailable) -or ($script:combo.SelectedIndex -eq 1 -and -not $psxAudio)){$script:combo.SelectedIndex=if($pcAvailable){0}elseif($psxAudio){1}else{2}}
     Update-SourceMessage
+    Save-SetupPreferences
 }
 function Start-SourceDiscovery([string]$Kind='All') {
     if($script:scan -or $script:worker){return}
@@ -230,9 +247,10 @@ foreach($kind in @('Game','Psx')) {
     $script:fields[$kind].Add_LostKeyboardFocus({Update-PsxChoice})
     $script:fields[$kind].Add_TextChanged({$script:sourceError=$false;$sourceTimer.Stop();$sourceTimer.Start()})
 }
-$script:combo.Add_DropDownClosed({$script:restorePsxDefault=$false;$script:soundtrackTouched=$true})
+$script:combo.Add_DropDownClosed({$script:restorePsxDefault=$false;$script:soundtrackTouched=$true;Save-SetupPreferences})
 $script:audioOutput.Add_SelectionChanged({
     if($ValidateUi -or $PreviewPath -or $script:audioOutput.SelectedIndex -lt 0){return}
+    Save-SetupPreferences
     if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/Wipeout2097.exe')){
         Set-ModSoundMode -SettingsPath $priorSettings -SoundMode (@(1,2,5)[$script:audioOutput.SelectedIndex])
         $script:status.Text='Audio output saved for the next launch.';$script:status.ToolTip=$script:status.Text
@@ -241,23 +259,25 @@ $script:audioOutput.Add_SelectionChanged({
 $script:sourceLink.Add_Click({$url=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'source.url') Source;if($url){Start-Process -FilePath $url|Out-Null}else{Refresh-LinkControls}})
 $script:fullscreenMode.Add_SelectionChanged({
     if($ValidateUi -or $PreviewPath -or $script:fullscreenMode.SelectedIndex -lt 0){return}
+    Save-SetupPreferences
     if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/Wipeout2097.exe')){
         Set-ModFullscreenMode -SettingsPath $priorGraphics -FullscreenMode (@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex])
         $script:status.Text='Fullscreen mode saved for the next launch.';$script:status.ToolTip=$script:status.Text
     }
 })
+foreach($name in @('HdTextures','CleanAudio')){$window.FindName($name).Add_Click({Save-SetupPreferences})}
 $script:update.Add_Click({
-    if($script:worker -or $script:scan){return};Refresh-LinkControls;if(-not $script:update.IsEnabled){return}
+    if($script:worker -or $script:scan){return};Refresh-LinkControls;if(-not $script:update.IsEnabled){return};Save-SetupPreferences
     $script:workerKind='update';$script:workerStatus=Join-Path $PSScriptRoot ('.work/update-status-'+[guid]::NewGuid().ToString('N')+'.json');[WoBeta.Files]::Parent($script:workerStatus)
     $script:status.Text='Starting update…';Set-GuiState Updating
     try{$script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Update-Mod.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru}catch{Complete-WoFailure $_ 'Starting the updater failed' -StatusFile $script:workerStatus;$script:status.Text=$_.Exception.Message;Set-GuiState Idle}
 })
-$script:play.Add_Click({Start-Process -FilePath (Join-Path $PSScriptRoot 'Play.exe') -WorkingDirectory $PSScriptRoot|Out-Null})
+$script:play.Add_Click({Save-SetupPreferences;Start-Process -FilePath (Join-Path $PSScriptRoot 'Play.exe') -WorkingDirectory $PSScriptRoot|Out-Null})
 $script:install.Add_Click({
-    if($script:worker -or $script:scan){return};Update-PsxChoice
+    if($script:worker -or $script:scan){return};Update-PsxChoice;Save-SetupPreferences
     if(-not $script:fields.Game.Text.Trim()){$script:status.Text='Choose your Windows game source to continue.';$script:status.ToolTip=$script:status.Text;return}
     $id=[guid]::NewGuid().ToString('N');$request=Join-Path $PSScriptRoot ('.work/request-'+$id+'.json');$script:workerStatus=Join-Path $PSScriptRoot ('.work/status-'+$id+'.json')
-    Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource='';PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked;SoundMode=@(1,2,5)[$script:audioOutput.SelectedIndex];FullscreenMode=@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex]})
+    Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource=$script:savedConfiguration.PcMusicSource;PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked;SoundMode=@(1,2,5)[$script:audioOutput.SelectedIndex];FullscreenMode=@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex]})
     $script:sourceError=$false;Update-SourceMessage;$script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
     $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru
 })
@@ -278,7 +298,8 @@ $timer.Add_Tick({
     }
 })
 $window.Add_Activated({Refresh-LinkControls})
-$window.Add_Closing({param($sender,$event)if($script:worker){$event.Cancel=$true;$script:status.Text='Please wait for setup to finish before closing.'}else{$sourceTimer.Stop();$timer.Stop();if($script:scan -and -not $script:scan.HasExited){$script:scan.Kill()}}})
+$window.Add_Closing({param($sender,$event)Save-SetupPreferences;if($script:worker){$event.Cancel=$true;$script:status.Text='Please wait for setup to finish before closing.'}else{$sourceTimer.Stop();$timer.Stop();if($script:scan -and -not $script:scan.HasExited){$script:scan.Kill()}}})
+$script:restoringConfiguration=$false
 Set-GuiState $PreviewState
 if($ValidateUi -or $PreviewPath) {
     if($script:audioOutput.Items.Count -ne 3 -or $script:audioOutput.SelectedIndex -lt 0){throw 'Audio output must expose Mono, Stereo and Dolby Surround and restore a valid selection.'}
@@ -310,6 +331,6 @@ $dispatcher.add_UnhandledException({
     if(-not $script:worker){Set-GuiState Idle}
     $eventArgs.Handled=$true
 })
-$timer.Start();$window.Add_ContentRendered({if($env:WO4K_READY_MARKER){[IO.File]::WriteAllText($env:WO4K_READY_MARKER,'ready');$env:WO4K_READY_MARKER=$null;$env:WO4K_ERROR_MARKER=$null};Start-SourceDiscovery All});$window.ShowDialog()|Out-Null
+$timer.Start();$window.Add_ContentRendered({if($env:WO4K_READY_MARKER){[IO.File]::WriteAllText($env:WO4K_READY_MARKER,'ready');$env:WO4K_READY_MARKER=$null;$env:WO4K_ERROR_MARKER=$null};if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/installation.json')){Start-InstallationCheck}else{Start-SourceDiscovery All}});$window.ShowDialog()|Out-Null
 
 } catch {Complete-WoFailure $_ 'Setup failed' -NoDialog:$ValidateUi;throw}

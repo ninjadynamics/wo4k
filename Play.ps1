@@ -5,7 +5,6 @@ $log=Start-WoLog 'play' $PSScriptRoot
 $game=Join-Path $PSScriptRoot 'wobble';$exe=Join-Path $game 'Wipeout2097.exe';$stage='Checking the installation';$child=$null
 try {
     Write-WoLog 'stage' $stage
-    if(-not [IO.File]::Exists($exe)){throw 'Run Install / repair first to supply your Windows game files.'}
     $stage='Refreshing artwork and audio';Write-WoLog 'stage' $stage
     $refresh=& (Join-Path $PSScriptRoot 'scripts/Refresh-Assets.ps1') -GameRoot $game -PassThru
     Write-WoLog 'artwork' @{checked=$refresh.art_checked;ignored=@($refresh.art_ignored);files=@($refresh.art_files)}

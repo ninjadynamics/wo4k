@@ -11,6 +11,7 @@ static UINT sprite_copy_used;
 static DWORD sprite_copy_frame=0xffffffffu;
 static BOOL sprites_active;
 static float sprite_opacity=1;
+static UINT explosion_submission_depth;
 static BYTE explosion_previous[32*24];
 static BOOL explosion_history;
 static DWORD explosion_history_frame;
@@ -50,25 +51,46 @@ static void __cdecl effect_triangle(float z,const BYTE *p,int blend) {
         ++reticle_depth;old_effect_triangle(z,p,blend);--reticle_depth;
     } else old_effect_triangle(z,p,blend);
 }
+/* Verified native DrawExplode uses 24-byte records and omits their blend word
+ * (offset18) from its 32-byte billboard. Reassociate only this draw's output,
+ * including the exact camera/ship translation and per-emitter depth offset.
+ * Mode0 is the supported EXE's normal submission, not an opaque-material flag. */
+static UINT ps1_billboard_blend(const BYTE *quad,UINT *next_emitter) {
+    BYTE *camera=*(BYTE **)(game+0x665110);
+    BYTE *position=camera?*(BYTE **)camera:0;
+    if(!position)return 0;
+    const SHORT *q=(const SHORT *)quad;
+    for(UINT i=*next_emitter;i<32;++i){
+        const BYTE *effect=game+0x665be0+i*24;
+        SHORT life=*(const SHORT *)(effect+20),flash=*(const SHORT *)(effect+16);
+        UINT blend=*(const WORD *)(effect+18);
+        if(life<=0 || !((flash==1 && life<15) || (flash==0 && life<17)) || (blend!=1 && blend!=2))continue;
+        if(quad[12]!=effect[13] || quad[13]!=effect[14] || quad[14]!=effect[15])continue;
+        LONG p[3];for(UINT axis=0;axis<3;++axis)p[axis]=*(const LONG *)(effect+axis*4)+*(const LONG *)(position+0x14+axis*4);
+        SHORT ship=*(const SHORT *)(effect+22);
+        if(ship>=0){
+            BYTE *ships=*(BYTE **)(game+0x518030);if(!ships || ship>=12)continue;
+            for(UINT axis=0;axis<3;++axis)p[axis]+=*(const LONG *)(ships+ship*240+0x40+axis*4);
+        }
+        if(q[0]==(SHORT)p[0] && q[1]==(SHORT)p[1] && q[2]==(SHORT)(p[2]-(LONG)i)){*next_emitter=i+1;return blend;}
+    }
+    return 0;
+}
 static BOOL soft_sprite_submission(BYTE *s,void *v,int n,void *t,void *quads,int count,int mode) {
     (void)v;
-    if(!sprites_active || !refresh_active || !refresh_race || !*(DWORD *)(game+0x8c98c) || n || !mode || !quads || count<1 || count>64 || *(UINT *)(game+0x53f19c)>4096-12)return FALSE;
+    if(!sprites_active || !explosion_submission_depth || n || !quads || count<1 || count>32 || *(UINT *)(game+0x53f19c)>=4096)return FALSE;
     if(sprite_copy_frame!=refresh_frame) {sprite_copy_frame=refresh_frame;sprite_copy_used=0;}
-    UINT size=count*32*12;if(size>sizeof(sprite_copies)-sprite_copy_used)return FALSE;
-    BYTE *all=sprite_copies+sprite_copy_used;sprite_copy_used+=size;
-    for(UINT layer=0;layer<12;++layer) {
-        BYTE *out=all+layer*count*32;copy(out,quads,count*32);
-        float scale=1+0.10f*layer/11;
-        for(int i=0;i<count;++i) {
-            BYTE *q=out+i*32;SHORT *d=(SHORT *)q;
-            float h=d[9]*d[11]/256.0f;
-            d[1]+=(SHORT)(h*(scale-1)*.5f);
-            d[8]=(SHORT)(d[8]*scale);d[9]=(SHORT)(d[9]*scale);
-            d[3]=0x5753;q[15]=(BYTE)((UINT)(sprite_opacity*252*(layer+1)/12+.5f)-(UINT)(sprite_opacity*252*layer/12+.5f));
-        }
-        int before=*(int *)(game+0x53f19c);
-        old_render_skeleton(s,0,0,t,out,count,mode);fix_queued_matrix(before,s);
+    UINT size=count*32;if(size>sizeof(sprite_copies)-sprite_copy_used)return FALSE;
+    BYTE *out=sprite_copies+sprite_copy_used;sprite_copy_used+=size;copy(out,quads,size);
+    UINT next_emitter=0;
+    for(int i=0;i<count;++i){
+        BYTE *q=out+i*32;UINT blend=ps1_billboard_blend(q,&next_emitter);
+        if(blend){*(WORD *)(q+6)=(WORD)(blend==1?0x5751:0x5752);q[15]=(BYTE)(sprite_opacity*255+.5f);}
     }
+    /* One original-size quad per animation sample. Concentric expansions
+     * changed the silhouette and accumulated a dark matte around smoke. */
+    int before=*(int *)(game+0x53f19c);
+    old_render_skeleton(s,0,0,t,out,count,mode);fix_queued_matrix(before,s);
     return TRUE;
 }
 /* Native billboards rotate only around world Y. Construct the camera-facing
@@ -87,8 +109,16 @@ static void correct_billboards(LitVertex *v,int count,const BYTE *quads,const fl
             float *p=&v[q*4+corner].x;
             for(UINT axis=0;axis<3;++axis)p[axis]=s[axis]/4096.0f+x*right[axis]+y*up[axis];
             if(s[3]==0x5753) {
-                v[q*4+corner].color=(v[q*4+corner].color&0xffffff)|((DWORD)quads[q*32+15]<<24);
+                v[q*4+corner].color=hd_premultiply_color((v[q*4+corner].color&0xffffff)|((DWORD)quads[q*32+15]<<24));
                 v[q*4+corner].reserved=SPRITE_VERTEX_TAG;
+            }
+            if(s[3]==0x5751 || s[3]==0x5752){
+                const BYTE *source=quads+q*32;DWORD color=(DWORD)source[15]<<24;
+                /* PS1 modulation has neutral128; native PC vertex RGB uses
+                 * neutral255. These emitters use channel values <=128. */
+                for(UINT c=0;c<3;++c){UINT value=source[12+c]*2;if(value>255)value=255;color|=value<<(16-c*8);}
+                v[q*4+corner].color=hd_premultiply_color(color);
+                v[q*4+corner].reserved=s[3]==0x5751?PS1_ADD_VERTEX_TAG:PS1_SUB_VERTEX_TAG;
             }
         }
     }
@@ -100,11 +130,12 @@ static void __cdecl billboards(int count,const BYTE *q,const float *m) {
 }
 static void __cdecl update_explosions(void) {if(!refresh_active)old_update_explosions();}
 static void __cdecl update_flares(void) {if(!refresh_active)old_update_flares();}
+static void call_native_explosions(void){++explosion_submission_depth;old_draw_explosions();--explosion_submission_depth;}
 static void __cdecl draw_explosions(void) {
     BYTE *live=game+0x665be0;BYTE saved[32*24];
     if(explosion_history && refresh_frame<explosion_history_frame) {explosion_history=FALSE;flare_history=FALSE;}
     explosion_history_frame=refresh_frame;
-    if(*(DWORD *)(game+0x89cb0)) {old_draw_explosions();return;}
+    if(*(DWORD *)(game+0x89cb0)) {call_native_explosions();return;}
     const UINT angles[2]={0x899ec,0x899f8};
     for(UINT i=0;i<2;++i) {
         DWORD *angle=(DWORD *)(game+angles[i]);
@@ -120,7 +151,7 @@ static void __cdecl draw_explosions(void) {
         flare_drawn[i]=*angle;
     }
     flare_history=TRUE;
-    if(!explosion_history || *(DWORD *)(game+0x89cb0)) {old_draw_explosions();return;}
+    if(!explosion_history || *(DWORD *)(game+0x89cb0)) {call_native_explosions();return;}
     copy(saved,live,sizeof(saved));
     interpolate_effect_positions(live,saved);
     /* Both texture samples share the current emitter/camera placement. Only
@@ -130,14 +161,14 @@ static void __cdecl draw_explosions(void) {
         if(same_explosion(a,b))*(SHORT *)(b+20)=*(SHORT *)(a+20);
         else *(SHORT *)(b+20)=0;
     }
-    sprite_opacity=1-(float)ui_phase;old_draw_explosions();
+    sprite_opacity=1-(float)ui_phase;call_native_explosions();
     copy(live,saved,sizeof(saved));
     interpolate_effect_positions(live,saved);
     /* New effects have no previous frame, so retain their full opacity. */
     for(UINT i=0;i<32;++i)if(!same_explosion(explosion_previous+i*24,live+i*24))*(SHORT *)(live+i*24+20)=0;
-    sprite_opacity=(float)ui_phase;old_draw_explosions();copy(live,saved,sizeof(saved));
+    sprite_opacity=(float)ui_phase;call_native_explosions();copy(live,saved,sizeof(saved));
     for(UINT i=0;i<32;++i)if(same_explosion(explosion_previous+i*24,live+i*24))*(SHORT *)(live+i*24+20)=0;
-    sprite_opacity=1;old_draw_explosions();copy(live,saved,sizeof(saved));
+    sprite_opacity=1;call_native_explosions();copy(live,saved,sizeof(saved));
 }
 
 static void initialize_sprites(void) {

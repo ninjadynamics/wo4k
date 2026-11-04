@@ -1,7 +1,7 @@
 ﻿param([Parameter(Mandatory=$true)][string]$OutputFile,[string[]]$SearchRoot,[int]$MaxSeconds=12)
 . (Join-Path $PSScriptRoot 'Sources.ps1')
 function Get-ModSourceInfo([string]$Path) {
-    $result=[ordered]@{Game='';Pc='';Psx=''}
+    $result=[ordered]@{Game='';Pc='';Psx='';PsxMusic=$false;PsxData=$false}
     try {
         $full=[IO.Path]::GetFullPath($Path)
         $manifest=Get-Content -Encoding UTF8 -LiteralPath (Join-Path $script:ModRoot 'manifests/patches.json') -Raw|ConvertFrom-Json
@@ -9,7 +9,7 @@ function Get-ModSourceInfo([string]$Path) {
         if([IO.Directory]::Exists($full)) {
             foreach($name in @('Wipeout2.exe','Wipeout2097.exe','D3D.EXE','Wipeout2_HighTest.exe')){$exe=Join-Path $full $name;if([IO.File]::Exists($exe) -and (Get-ModHash $exe) -in $hashes){$result.Game=$full;break}}
             $pc=Find-ModMusicFolder $full Pc;if($pc){$result.Pc=$pc}
-            $psx=Find-ModMusicFolder $full Psx;if($psx){$result.Psx=$psx}
+            $psx=Find-ModMusicFolder $full Psx;if($psx){$result.Psx=$psx;$result.PsxMusic=$true}
         } elseif([IO.File]::Exists($full)) {
             $ext=[IO.Path]::GetExtension($full).ToLowerInvariant()
             if($ext -eq '.zip') {
@@ -17,16 +17,19 @@ function Get-ModSourceInfo([string]$Path) {
                 try {
                     foreach($entry in $zip.Entries) {
                         if($entry.Name -match '^(?i)(Wipeout2|D3D)\.exe$' -and $entry.Length -lt 3MB){$s=$entry.Open();$m=New-Object IO.MemoryStream;try{$s.CopyTo($m);if([WoBeta.Files]::Hash($m.ToArray()) -in $hashes){$result.Game=$full}}finally{$s.Dispose();$m.Dispose()}}
-                        if($entry.Name -like '*.cue' -and $entry.Length -lt 1MB){$s=$entry.Open();$reader=New-Object IO.StreamReader($s);try{$cue=$reader.ReadToEnd();$audio=[regex]::Matches($cue,'(?im)^\s*TRACK\s+\d+\s+AUDIO').Count;if($audio -eq 11){$result.Psx=$full}elseif($audio -eq 9){$result.Pc=$full;$result.Game=$full}}finally{$reader.Dispose();$s.Dispose()}}
+                        if($entry.Name -like '*.cue' -and $entry.Length -lt 1MB){$s=$entry.Open();$reader=New-Object IO.StreamReader($s);try{$cue=$reader.ReadToEnd();$audio=[regex]::Matches($cue,'(?im)^\s*TRACK\s+\d+\s+AUDIO').Count;if($audio -eq 11){$result.Psx=$full;$result.PsxMusic=$true}elseif($audio -eq 9){$result.Pc=$full;$result.Game=$full}}finally{$reader.Dispose();$s.Dispose()}}
                         if($entry.Name -like '*.mds' -and $entry.Length -lt 1MB){$s=$entry.Open();$m=New-Object IO.MemoryStream;try{$s.CopyTo($m);if([WoBeta.Files]::Hash($m.ToArray()) -eq $manifest.pc_mds_sha256){$result.Game=$full;$result.Pc=$full}}finally{$s.Dispose();$m.Dispose()}}
                     }
                 }finally{$zip.Dispose()}
             } elseif($ext -in '.mds','.mdf','.cue','.bin','.iso') {
-                $tracks=@(Get-ModDiscTracks $full);$audio=@($tracks|Where-Object Audio).Count
-                if($audio -eq 9){$result.Pc=$full}elseif($audio -eq 11){$result.Psx=$full}
+                $tracks=@();if($ext -ne '.bin' -or [IO.File]::Exists([IO.Path]::ChangeExtension($full,'.cue'))){$tracks=@(Get-ModDiscTracks $full)};$audio=@($tracks|Where-Object Audio).Count
+                if($audio -eq 9){$result.Pc=$full}elseif($audio -eq 11){$result.Psx=$full;$result.PsxMusic=$true}
                 $data=@($tracks|Where-Object {-not $_.Audio});$image=$full;[long]$offset=0
                 if($data.Count){$image=$data[0].Image;$offset=$data[0].Offset}
-                if($ext -eq '.iso' -or $data.Count){$disc=New-Object WoBeta.Disc($image,$offset);try{foreach($entry in $disc.Entries){if(-not $entry.Directory -and $entry.Path -match '^(?i)(D3D|Wipeout2)\.exe$' -and $entry.Length -lt 3MB){if([WoBeta.Files]::Hash($disc.Read($entry.Lba,$entry.Length)) -in $hashes){$result.Game=$full}}}}finally{$disc.Dispose()}}
+                if($ext -in '.iso','.bin' -or $data.Count){$disc=New-Object WoBeta.Disc($image,$offset);try{foreach($entry in $disc.Entries){
+                    if(-not $entry.Directory -and $entry.Path -match '^(?i)(D3D|Wipeout2)\.exe$' -and $entry.Length -lt 3MB){if([WoBeta.Files]::Hash($disc.Read($entry.Lba,$entry.Length)) -in $hashes){$result.Game=$full}}
+                    if(-not $entry.Directory -and $entry.Path -ieq 'SYSTEM.CNF' -and $entry.Length -lt 4096 -and [Text.Encoding]::ASCII.GetString($disc.Read($entry.Lba,$entry.Length)) -match '(?i)SLES[_-]003\.27'){$result.Psx=$full;$result.PsxData=$true}
+                }}finally{$disc.Dispose()}}
             }
         }
     }catch{ } # Discovery is deliberately silent, including inaccessible paths.
@@ -44,7 +47,7 @@ while($queue.Count -and $clock.Elapsed.TotalSeconds -lt $MaxSeconds -and $visite
     if($node.Path -like '*\.work\*' -or $node.Path -like '*\backups\*' -or $node.Path -like '*\.git\*'){continue}
     $info=Get-ModSourceInfo $node.Path
     foreach($kind in @('Game','Pc','Psx')){if(-not $found[$kind] -and $info.$kind){$found[$kind]=$info.$kind}}
-    foreach($file in @(Get-ChildItem -LiteralPath $node.Path -File -ErrorAction SilentlyContinue | Where-Object {$_.Name -match '(?i)(wipeout|wobble|wo2097)' -and $_.Extension -in '.zip','.iso','.mds','.cue'})) {
+    foreach($file in @(Get-ChildItem -LiteralPath $node.Path -File -ErrorAction SilentlyContinue | Where-Object {$_.Name -match '(?i)(wipeout|wobble|wo2097)' -and $_.Extension -in '.zip','.iso','.mds','.cue','.bin'})) {
         $info=Get-ModSourceInfo $file.FullName;foreach($kind in @('Game','Pc','Psx')){if(-not $found[$kind] -and $info.$kind){$found[$kind]=$info.$kind}}
         if($found.Game -and $found.Pc -and $found.Psx){break}
     }

@@ -4,6 +4,7 @@ $root=$script:ModRoot;$fixture=Join-Path $root ('.work/asset-test-'+[guid]::NewG
 [IO.Directory]::CreateDirectory($game)|Out-Null
 try{
 foreach($folder in @('scripts','manifests','assets/hd')){Copy-ModTree (Join-Path $root $folder) (Join-Path $fixture $folder)}
+[IO.File]::WriteAllText((Join-Path $fixture 'scripts/Reconcile-Installation.ps1'),'param([switch]$FunctionsOnly,[string]$GameRoot,[switch]$PassThru);function Invoke-ModReconcile { [pscustomobject]@{installed=$true} }')
 $processor=Join-Path $fixture 'runtime/audio-clean.exe';[WoBeta.Files]::Parent($processor);[IO.File]::Copy((Join-Path $root 'runtime/audio-clean.exe'),$processor)
 [IO.File]::Copy((Join-Path $root 'Play.ps1'),(Join-Path $fixture 'Play.ps1'))
 [IO.File]::WriteAllText((Join-Path $game 'Wipeout2097.exe'),'not an executable: RefreshOnly must never launch this')

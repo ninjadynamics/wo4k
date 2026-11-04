@@ -4,6 +4,7 @@ if(-not $FunctionsOnly){$null=Start-WoLog 'update' (Join-Path $PSScriptRoot '..'
 try {
 . (Join-Path $PSScriptRoot 'Core.ps1')
 . (Join-Path $PSScriptRoot 'Links.ps1')
+. (Join-Path $PSScriptRoot 'Cleanup-ManagedFiles.ps1')
 function Set-UpdateStatus([int]$Percent,[string]$Message,[string]$State='busy') {
     Write-Host $Message
     Write-WoLog 'update_stage' @{percent=$Percent;message=$Message;state=$State}
@@ -139,6 +140,7 @@ function Install-ModUpdate([string]$Root,[string]$Stage,$Inventory,[string]$Sess
         if($exists){$handle=[IO.File]::Open($target,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None);$handle.Dispose();$copy=Get-ModChild $backup $entry.relative;Assert-ModUpdateLocalPath $Root $copy;[WoBeta.Files]::Parent($copy);[IO.File]::Copy($target,$copy,$false)}
         $changes.Add([pscustomobject]@{entry=$entry;target=$target;existed=$exists})
     }
+    Save-ModReleaseOwnership $Root
     $applied=New-Object Collections.Generic.List[object]
     try {
         foreach($change in $changes){
@@ -153,6 +155,20 @@ function Install-ModUpdate([string]$Root,[string]$Stage,$Inventory,[string]$Sess
     }
     return $changes.Count
 }
+function Complete-ModUpdate([string]$Root,[string]$Stage,$Inventory,[string]$Session,[string]$RepairStatusFile){
+    $current=Join-Path $Root 'release-files.json';$install=$true
+    if([IO.File]::Exists($current)){$previous=Get-Content -LiteralPath $current -Encoding UTF8 -Raw|ConvertFrom-Json;$install=(Compare-ModReleaseVersion $Inventory.version $previous.version) -ge 0}
+    if($install){
+        Set-UpdateStatus 75 'Installing the update; keeping your game files and preferences...'
+        $null=Install-ModUpdate $Root $Stage $Inventory $Session
+    }
+    Set-UpdateStatus 85 'Running Install / repair for the saved configuration...'
+    # Use freshly installed definitions even when the version is unchanged.
+    $repairArgs=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $Root 'scripts/Reconcile-Installation.ps1'),'-ForceRepair','-NoErrorDialog')
+    if($RepairStatusFile){$repairArgs+=@('-StatusFile',$RepairStatusFile)}
+    & $script:ModPowerShell @repairArgs | Out-Host
+    if($LASTEXITCODE){throw 'Update was installed, but Install / repair failed. Restore unavailable source paths in Setup and try Install / repair again.'}
+}
 if($FunctionsOnly){return}
 $session=Join-Path $script:ModRoot ('.work/update-'+[guid]::NewGuid().ToString('N').Substring(0,16))
     $url=Get-ModConfiguredUrl (Join-Path $script:ModRoot 'release.url') Release
@@ -166,11 +182,12 @@ $session=Join-Path $script:ModRoot ('.work/update-'+[guid]::NewGuid().ToString('
     if($expected -and (Get-ModHash $zip) -ne $expected){throw 'Downloaded ZIP checksum failed.'}
     Set-UpdateStatus 55 'Verifying the release package…'
     $stage=Join-Path $session 'package';$inventory=Read-ModUpdatePackage $zip $stage
-    $current=Join-Path $script:ModRoot 'release-files.json'
-    if([IO.File]::Exists($current)){$previous=Get-Content -LiteralPath $current -Encoding UTF8 -Raw|ConvertFrom-Json;if((Compare-ModReleaseVersion $inventory.version $previous.version) -le 0){Set-UpdateStatus 100 ('You already have the latest release ('+$previous.version+').') complete;return}}
-    Set-UpdateStatus 75 'Installing the update; keeping your game files and preferences…'
-    $count=Install-ModUpdate $script:ModRoot $stage $inventory $session
-    Set-UpdateStatus 100 ('Updated to '+$inventory.version+'. Reopen Setup to load the updated interface.') complete
+    Complete-ModUpdate $script:ModRoot $stage $inventory $session $StatusFile
+    $owned=[IO.Path]::GetFullPath($session);$prefix=[IO.Path]::GetFullPath((Join-Path $script:ModRoot '.work')).TrimEnd('\')+'\update-'
+    if(-not $owned.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe update cleanup target.'}
+    Assert-ModManagedPath $script:ModRoot $owned
+    if([IO.Directory]::Exists($owned)){[IO.Directory]::Delete($owned,$true)}
+    Set-UpdateStatus 100 'Update checked and Install / repair completed. Reopen Setup to load any interface changes.' complete
 } catch {
     if(-not $FunctionsOnly){Complete-WoFailure $_ 'Update failed' -StatusFile $StatusFile -NoDialog:$NoErrorDialog}
     throw

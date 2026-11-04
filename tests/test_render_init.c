@@ -1,4 +1,4 @@
-/* Run the production renderer's entire hook initialization against a mapped,
+﻿/* Run the production renderer's entire hook initialization against a mapped,
  * privately owned game image. No process/GPU/user setting is changed. */
 #include "../src/runtime/render_patch.c"
 static UINT race_ui_event=99;
@@ -46,7 +46,11 @@ static void fixture_logo_poly(BYTE *p,BOOL second){
 }
 #include "test_menu_frame.c"
 #include "test_menu_art_alignment.c"
+#include "test_hud_layout.c"
 #include "test_startup_launch.c"
+#include "test_scene_lighting.c"
+#include "test_native_transform_finish.c"
+#include "test_world_material_gpu.c"
 void wo_render_event(const char *name,DWORD value){
     const char *wanted="render_race_ui_clock";while(*name && *name==*wanted){++name;++wanted;}if(!*name && !*wanted)race_ui_event=value;
 }
@@ -61,7 +65,26 @@ BOOL wo_sim_initialize(BYTE *image){(void)image;return FALSE;}
 void wo_sim_reset(void){}BOOL wo_sim_half_tick(void){return FALSE;}BOOL wo_sim_wants_half_tick(void){return FALSE;}
 void wo_sim_latch_input(void){}void wo_sim_restore_input(void){}DWORD wo_sim_extra_serial(void){return 0;}
 void wo_sim_trail_shift(int ship,float *out){(void)ship;out[0]=out[1]=out[2]=0;}
+static LONG WINAPI fixture_exception(EXCEPTION_POINTERS *fault){
+    if(fault->ExceptionRecord->ExceptionCode!=EXCEPTION_ACCESS_VIOLATION)return EXCEPTION_CONTINUE_SEARCH;
+    WCHAR path[MAX_PATH];UINT n=GetEnvironmentVariableW(L"WO_TEST_SETTINGS",path,MAX_PATH);
+    if(n && n<MAX_PATH-8){const WCHAR *suffix=L".fault";while((*((WCHAR *)path+n++)=*suffix++)){}
+        HANDLE out=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,0,CREATE_ALWAYS,0,0);
+        DWORD values[10]={fault->ExceptionRecord->ExceptionCode,(DWORD)(UINT_PTR)fault->ExceptionRecord->ExceptionAddress,
+            fault->ContextRecord->Eip,fault->ContextRecord->Esp,fault->ContextRecord->Eax,fault->ContextRecord->Ecx,
+            fault->ContextRecord->Edx,fault->ContextRecord->Esi,fault->ContextRecord->Edi,fault->ContextRecord->Ebp},written;
+        if(out!=INVALID_HANDLE_VALUE){WriteFile(out,values,sizeof(values),&written,0);CloseHandle(out);}
+    }
+    ExitProcess(249);return EXCEPTION_CONTINUE_SEARCH;
+}
 void __stdcall test_entry(void){
+    typedef UINT (WINAPI *ErrorModeFn)(UINT);
+    ErrorModeFn errors=(ErrorModeFn)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"SetErrorMode");
+    if(errors)errors(0x8003);
+    typedef PVOID (WINAPI *ExceptionFn)(ULONG,PVECTORED_EXCEPTION_HANDLER);
+    ExceptionFn exceptions=(ExceptionFn)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"AddVectoredExceptionHandler");
+    if(exceptions)exceptions(1,fixture_exception);
+    test_world_material_gpu();
     BYTE *image=VirtualAlloc(0,0x7ee000,MEM_COMMIT|MEM_RESERVE,PAGE_EXECUTE_READWRITE);if(!image)ExitProcess(5);
     WCHAR root[MAX_PATH],path[MAX_PATH];
     UINT length=GetEnvironmentVariableW(L"WO_TEST_GAME_ROOT",root,MAX_PATH);
@@ -131,6 +154,10 @@ void __stdcall test_entry(void){
     if(refresh_show_fps || *(SHORT *)(image+0x66496a)!=-1 || GetPrivateProfileIntW(L"Render",L"ShowFPS",99,race_ui_settings)!=0)ExitProcess(17);
     *(SHORT *)(image+0x66496a)=0x3b;((RefreshVoidFn)(image+0x283f0))();
     if(observed_native_key!=0x3b || refresh_show_fps)ExitProcess(18);
+    test_scene_lighting(image,race_ui_settings);
+    test_native_transform_finish(image);
+    test_sprite_fades();
+    test_ps1_native_emitters(image);
     /* Follow the actual patched race CALL target; emulate each native win.
      * Native flags and played markers must stay untouched by our wrapper. */
     if(!old_movie_race || image[0x2fb3b]!=0xe8 || image+0x2fb40+*(LONG *)(image+0x2fb3c)!=(BYTE *)movie_race)ExitProcess(28);
@@ -268,6 +295,8 @@ void __stdcall test_entry(void){
     *(BYTE **)(image+0x87038)=native_vertices;
     *(SHORT *)(image+0x65add8)=*(SHORT *)(image+0x65adda)=0;
     *(int *)(image+0x8c9d4)=0;*(DWORD *)(image+0x8c98c)=0;
+    *(float *)(image+0xaf0b4)=640;*(float *)(image+0xc8630)=480;
+    test_hud_layout(image,native_vertices);
     *(float *)(image+0xaf0b4)=640;*(float *)(image+0xc8630)=480;
     const float aspect_x[]={.75f,1,4.0f/7,.375f,1},aspect_y[]={1,1,1,1,.5625f};
     title_active=TRUE;

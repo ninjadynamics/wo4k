@@ -36,12 +36,19 @@ users can download it manually from https://github.com/ninjadynamics/wo4k/releas
 Attach the distributable ZIP and its .zip.sha256 sidecar; automatic source
 archives do not contain the packaged inventory.
 
-Versions use SemVer, including beta numbers. An equal or older release does
-not replace the current installation. Changed mod files and installed runtime
+Versions use SemVer, including beta numbers. An older release does not replace
+the current installation. An equal release restores damaged packaged files and
+runs Install / repair again, making Update a repair fail-safe. Changed mod files and installed runtime
 files are backed up under `backups/update-*`. A failed copy rolls back files
 already replaced. URL configuration, audio/music, saves, settings and original
 game data are retained. Installed HD artwork is regenerated from new artwork
-only when HD artwork was enabled. Close the game before updating.
+only when HD artwork was enabled. Setup retains source paths and preferences
+in `.state/setup.json`. After an update, a fresh worker runs Install / repair
+for that saved configuration. Play and Setup also reconcile local runtime,
+texture and audio files after manually extracting a release ZIP over the mod.
+Unchanged retired mod files are removed using the previous release inventory;
+modified files, saves and unrelated local content are preserved.
+Close the game before updating.
 
 Updates keep the supported patched game executable. If a future release
 requires a different game executable, the updater leaves the installation

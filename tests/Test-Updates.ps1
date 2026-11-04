@@ -61,6 +61,17 @@ $fresh=Join-Path $work 'fresh mod';[IO.Directory]::CreateDirectory($fresh)|Out-N
 Install-ModUpdate $fresh $verified $inventory $work|Out-Null
 Assert-Result ([IO.File]::Exists((Join-Path $fresh 'release.url')) -and [IO.File]::Exists((Join-Path $fresh 'source.url'))) 'Missing URL templates were not installed.'
 
+# Pressing Update must force install/repair even with the same release.
+$repairScript=Join-Path $fixture 'scripts/Reconcile-Installation.ps1'
+[IO.File]::WriteAllText($repairScript,'param([switch]$ForceRepair,[switch]$NoErrorDialog,[string]$StatusFile);if(-not $ForceRepair){exit 7};[IO.File]::WriteAllText((Join-Path $PSScriptRoot "../repair-ran.txt"),"forced")')
+[IO.File]::WriteAllText((Join-Path $fixture 'Setup.ps1'),'damaged setup')
+Complete-ModUpdate $fixture $verified $inventory $work ''
+Assert-Result ([IO.File]::ReadAllText((Join-Path $fixture 'Setup.ps1')) -eq 'new setup') 'An already-current Update did not repair damaged packaged files.'
+Assert-Result ([IO.File]::ReadAllText((Join-Path $fixture 'repair-ran.txt')) -eq 'forced') 'An already-current Update skipped install/repair.'
+[IO.File]::WriteAllText($repairScript,'param([switch]$ForceRepair,[switch]$NoErrorDialog,[string]$StatusFile);exit 9')
+$failed=$false;try{Complete-ModUpdate $fixture $verified $inventory $work ''}catch{$failed=$true}
+Assert-Result $failed 'Update swallowed an install/repair failure.'
+
 # A late copy failure must roll back all files already replaced.
 [IO.File]::WriteAllText((Join-Path $verified 'Setup.ps1'),'next setup')
 $rollback=Join-Path $work 'rollback';[IO.Directory]::CreateDirectory($rollback)|Out-Null;[IO.File]::WriteAllText((Join-Path $rollback 'Setup.ps1'),'retained setup')

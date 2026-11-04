@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WO4K · Texture choices</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Texture choices home">WO<span>4K</span><i>ASSET LAB</i></a>
+    <div class="header-status" id="header-status"></div>
+    <button class="export" id="export" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg>Export selection <span>.json</span></button>
+  </header>
+  <main id="top">
+    <section class="intro">
+      <div class="eyebrow">PC × PLAYSTATION</div>
+      <h1>Your textures.<br><span>Your call.</span></h1>
+      <p>Drag across each image: <strong>PS1 on the left, PC on the right.</strong> Choose the version you want to keep, then export your selections as JSON.</p>
+      <div class="summary" id="summary"></div>
+      <p class="fine">Road comparisons include the richer PS1 colours recovered from PC data. Other previews show original texture pixels; in-game blending is not simulated. Your choices save in this browser. Export the JSON and send it back to apply them to the game.</p>
+    </section>
+    <section class="toolbar" aria-label="Filter textures">
+      <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" id="search" placeholder="Find a track, texture or frame…" aria-label="Find a texture"></label>
+      <select id="group" aria-label="Texture category"><option value="">All textures</option></select>
+      <label class="changed"><input type="checkbox" id="changed">Changed choices only</label>
+      <button class="reset" id="reset" type="button">Reset choices</button>
+    </section>
+    <div class="results"><span id="result-count"></span><span><b class="ps1-dot"></b>PS1 <b class="pc-dot"></b>PC</span></div>
+    <section class="grid" id="textures" aria-label="Texture comparisons"></section>
+    <p class="empty" id="empty" hidden>No textures match these filters.</p>
+    <p class="notice" id="notice" role="status" aria-live="polite"></p>
+  </main>
+  <!-- CATALOG -->
+  <script src="app.js"></script>
+</body>
+</html>

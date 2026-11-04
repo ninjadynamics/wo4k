@@ -91,6 +91,7 @@ static BOOL entry_budget(const BYTE *entry,UINT *vertices,UINT *triangles) {
         UINT set=*(const UINT *)(sprites+j*32+8);
         if(set>=sets)return FALSE;
         triangles[set]+=2;
+        if(*(const WORD *)(sprites+j*32+6)==0x5752)*vertices+=4;
     }
     return TRUE;
 }
@@ -104,6 +105,10 @@ static UINT render_stage(const BYTE *entry) {
     const void *vertices=*(const void *const *)(entry+0x48);
     if(backdrop_count && vertices==backdrop_vertices)return 0;
     if(*(UINT *)(entry+0x54))return 3;
+    UINT count=*(UINT *)(entry+0x40);const BYTE *sprites=*(const BYTE *const *)(entry+0x44);
+    if(sprites && count<=32)for(UINT i=0;i<count;++i){
+        WORD tag=*(const WORD *)(sprites+i*32+6);if(tag==0x5751 || tag==0x5752)return 3;
+    }
     if(shadows_active && vertices==shadow_vertices)return 2;
     return 1;
 }
@@ -118,7 +123,7 @@ static void order_render_effects(UINT total) {
 static void __cdecl render_queue(void) {
     if(!distance_active) {old_render_queue();return;}
     UINT total=*(UINT *)(game+0x53f19c),start=0;
-    if(exhaust_active && total<=DISTANCE_QUEUE_CAPACITY)order_render_effects(total);
+    if((exhaust_active || sprites_active) && total<=DISTANCE_QUEUE_CAPACITY)order_render_effects(total);
     DWORD fade_before=*(DWORD *)(game+0x8b2d0);
     if(!total) {
         retain_current_matrices();old_render_queue();have_matrices=TRUE;return;
@@ -130,7 +135,7 @@ static void __cdecl render_queue(void) {
             /* Opaque geometry must finish before shadow and additive-effect
              * batches. Disabling effect depth writes alone cannot provide
              * correct compositing when later opaque batches overdraw them. */
-            if(exhaust_active && end>start && render_stage(distance_queue+end*96)!=render_stage(distance_queue+start*96))break;
+            if((exhaust_active || sprites_active) && end>start && render_stage(distance_queue+end*96)!=render_stage(distance_queue+start*96))break;
             UINT add_vertices,add_triangles[32];BOOL fits=TRUE;
             if(!entry_budget(distance_queue+end*96,&add_vertices,add_triangles))break;
             if(vertices+add_vertices>6500)fits=FALSE;

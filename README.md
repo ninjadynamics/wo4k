@@ -21,7 +21,17 @@ Git. Ready-to-use ZIP packages and their SHA-256 checksums belong in
 - Rendering at high refresh rates, interpolated animation, crossfaded sprite
   animation and smooth menus, menu models and credits.
 - Extended track visibility and corrected effect placement/transparency.
+- PS1 blend choices for shared explosions/flashes (additive) and smoke
+  (subtractive), with original sprite silhouettes and smooth animation.
+- During a race, press **+ / −** (main keyboard or numpad) to adjust shadow
+  lift in the 3D lighting. Each tap changes it by 5%, from 0% (original) to
+  300%. **Page Up / Page Down** adjusts highlights from 0–300%, with 100%
+  retaining their original level. A brief readout shows both saved values.
+  Menus, HUD and blended materials retain their original colors/transparency.
 - HD fonts, HUD, notice and title artwork, with original SD assets retained.
+- Restore full-colour road materials from original tiles already in the PC
+  data. An optional European PS1 disc adds original texture/sprite sources;
+  selection follows a fixed, project-audited map with byte-identical PC reuse.
 - SDL3 gamepad support, including DualSense over USB or Bluetooth.
 - PC music plus an optional PlayStation soundtrack, switchable during play.
 - Local sound-effect noise reduction at the original 22.05 kHz sample rate,
@@ -35,8 +45,10 @@ required. Supply one PC ZIP/disc image, or the small **11 MB PC version**.
 Setup extracts any PC music included with that source automatically.
 
 Music is optional. The small version can run with sound effects only, or with
-an optional PlayStation soundtrack. A PS1 source supplies music only and cannot
-replace the Windows game files. There is no separate PC soundtrack field.
+an optional PlayStation soundtrack. The European PS1 disc (SLES-00327) also
+supplies original artwork. A data-only ISO works for artwork without music;
+PS1 data cannot replace the Windows executable. There is no separate PC
+soundtrack field. See [native texture selection](docs/NATIVE-TEXTURES.md).
 
 Setup accepts game folders, ZIP archives and supported ISO, MDS/MDF or CUE/BIN
 images. Keep paired disc files together. Data-only ISOs and small PC downloads
@@ -51,7 +63,7 @@ unsupported binaries are rejected before an installation is committed.
 2. Open **Setup.exe**. It searches common local folders in the background.
    Use the browse button to select a file/folder or the animated ✨ button to
    search again. No match leaves a field silently empty; controls have tooltips.
-3. Select the PC game source once. Optionally add a PlayStation soundtrack,
+3. Select the PC game source once. Optionally add a PlayStation game source,
    then choose available PC/PlayStation music or **No music**.
 4. Choose **Audio output** (Mono, Stereo or Dolby Surround),
    **Fullscreen mode** (Borderless or Exclusive), **Install HD artwork**
@@ -75,6 +87,15 @@ PNGs in `assets/hd/` to have them picked up at the next launch. Audio outputs ar
 read directly by the renderer. Setup's HD/audio
 preferences are respected. Original effects stay locally in `wobble/audio/source/`,
 so refresh never repeatedly denoises its own output or needs the disc again.
+Native road/PS1 improvements are built into the packed SD sheets during setup
+and retained locally. Setup saves source paths and preferences in `.state/setup.json`.
+Before launching, Play checks the configured installation, synchronizes updated
+runtime files, imports missing PS1 artwork/music, and repairs missing or damaged
+outputs. Setup runs the same check when opened. Healthy installed assets and
+cached PS1 artwork remain usable when the original disc is offline; restoring
+missing music or PC data may require the configured source again.
+Texture choices are fixed at project time; launch checks verify installed output
+integrity without comparing PC and PS1 quality.
 Play scans `assets/hd/` on every launch and validates every PNG. All eleven
 exported UI filenames are supported: `font-and-numbers`, `hud-gauges`,
 `hud-reticles`, `menu-background`, `menu-frame-left/middle/right`,
@@ -158,6 +179,11 @@ Full trails are the default. FPS visibility and trail selection are remembered.
 The **GitHub** logo opens this source repository. **Update** uses Windows
 `curl.exe` to download and verify a newer release, backing up changed files and
 preserving installed game data, audio, saves, preferences and URL configuration.
+It finishes with **Install / repair**, even when the latest release is already
+installed. Downloading a release ZIP and overwriting the mod folder is also
+supported: the next Play or Setup launch reconciles the installation locally.
+Both launchers remove retired, unchanged mod-owned files and empty directories
+using the previous release inventory. Modified/custom files and saves are kept.
 Close the game before updating; reopen Setup afterward to load interface changes.
 It does not check for updates or download anything automatically at startup.
 

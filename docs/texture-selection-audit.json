@@ -1,0 +1,3204 @@
+{
+  "archive_byte_audit": [
+    {
+      "file": "COMMON/ALCOL.CMP",
+      "selection": "ps1",
+      "sha256": "586be8d8332643ce780cb4e6a1e154a4ab74999fb39ecc3bd48f73d7b3844216",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/DRFONTS.CMP",
+      "selection": "ps1",
+      "sha256": "beac2bb4626e8614b7fc2f55943eac9218f1b752e3b33e31cab9dfe37b4eaf86",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/EFFECTS.CMP",
+      "selection": "ps1",
+      "sha256": "2e58a0e1909a4da79fde73b0b4714995919bd300b914d539726ce7bf512ecb10",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/LIGHT.CMP",
+      "selection": "ps1",
+      "sha256": "4544e3be77a47814bb9855a3689e5de483928910cab2edd142ceec5a35f62b01",
+      "pc_sha256": "f7120591db7f5f52c4bbd1ac0490437723c9c524293df5577b7d4c6fe71f9fa3"
+    },
+    {
+      "file": "COMMON/MINE.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "265b51079f19544565870497f80c269a0dd3e72e4324be1cd28685de99ca6f86",
+      "pc_sha256": "265b51079f19544565870497f80c269a0dd3e72e4324be1cd28685de99ca6f86"
+    },
+    {
+      "file": "COMMON/PBAR.CMP",
+      "selection": "ps1",
+      "sha256": "c678eaec0701f12277a07a7cbf9ddff0b85e5df74a85c7750a8833c04a9ee1e9",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/PTEST.CMP",
+      "selection": "ps1",
+      "sha256": "10e08477515cf534ae46a8463ddbb37b11e6d01d66a53d3c9b6027164b9318ac",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/RESCU.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "6710baca64716cfa5de2dcff53bdfb04a0bfbaf5d0f2f12f7e2f8741719278f1",
+      "pc_sha256": "6710baca64716cfa5de2dcff53bdfb04a0bfbaf5d0f2f12f7e2f8741719278f1"
+    },
+    {
+      "file": "COMMON/RINGT.CMP",
+      "selection": "ps1",
+      "sha256": "79624d2fa7629cee04935e76a64d47ce853e21492c6a31788b175d737e610885",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/SROID.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "03e7fb34866f1fc6df763b2b9620a91f8e2401a5cc9c20df48ee0658172463b4",
+      "pc_sha256": "03e7fb34866f1fc6df763b2b9620a91f8e2401a5cc9c20df48ee0658172463b4"
+    },
+    {
+      "file": "COMMON/TERRY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "411e8975742f04a627f03fc17f077ff467f574e0609cbb94d041a5aa8e27b699",
+      "pc_sha256": "411e8975742f04a627f03fc17f077ff467f574e0609cbb94d041a5aa8e27b699"
+    },
+    {
+      "file": "COMMON/TRAIN.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "3863abd16ca667be0605ff00790c65529bb68f2dccb20f88b92e231f503d840d",
+      "pc_sha256": "3863abd16ca667be0605ff00790c65529bb68f2dccb20f88b92e231f503d840d"
+    },
+    {
+      "file": "COMMON/WEPICON.CMP",
+      "selection": "ps1",
+      "sha256": "9178079be13490aa08eb69f46eb5c18874a7b0f16a6eddb02eca305d9a44a9e6",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/WICONS.CMP",
+      "selection": "ps1",
+      "sha256": "b0846f76cdeb01a325941d79ac47f3012213ed2b49bec2004fcb35b70239a22d",
+      "pc_sha256": null
+    },
+    {
+      "file": "COMMON/WIERD.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "9ac417de6e30381397c28f6e50eb2343aa62bf5f22fd54db14474169891bb60c",
+      "pc_sha256": "9ac417de6e30381397c28f6e50eb2343aa62bf5f22fd54db14474169891bb60c"
+    },
+    {
+      "file": "COMMON/WRECK.CMP",
+      "selection": "ps1",
+      "sha256": "73c2f5b64840dc17f209e04717adc874389e0d8098711b6a7a60d437810edb0d",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/ALPHARED.CMP",
+      "selection": "ps1",
+      "sha256": "0feff88927630b1010336d3f404c9d5a2b6ae8a0439b87f75832951dacfa7b70",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/BETA.TIM",
+      "selection": "ps1",
+      "sha256": "f487bdf098cde07b203f67c498989c07d6afe6ede30e7e9cb9bbb9e5876cf51e",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/BETARED.CMP",
+      "selection": "ps1",
+      "sha256": "e415d2306ff5ca08b75ac776bb186ab4322313ff40ff6869e2b89738fa93b31a",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/BIRD.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "a4aba27b8fd37b4c8e0b0c86ac0ff3e90a8fb3dca0e995a46ecc2508cc36287b",
+      "pc_sha256": "a4aba27b8fd37b4c8e0b0c86ac0ff3e90a8fb3dca0e995a46ecc2508cc36287b"
+    },
+    {
+      "file": "TEXTURES/BUG.TIM",
+      "selection": "ps1",
+      "sha256": "8b849883428e77c22cc3072cfbc45b046c8319797989d797c862650e1d994bd6",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/BUTTON.CMP",
+      "selection": "ps1",
+      "sha256": "80c576e8afab2529de545aa85bc27711557c30aee0925c9b20ebb499cb9f8574",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/BUTTONS.CMP",
+      "selection": "ps1",
+      "sha256": "6c65403a89732e6d81bbf93221946a05e9fc17ce520fb58a39fc4a1370ea5d21",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/CAMERA.TIM",
+      "selection": "ps1",
+      "sha256": "676e0659c40e49f6e0f66879f840f42afb3732f6a118179ea6effb550bde8fe6",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/CDROID.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "441f5425b21ea626a11ddde83af68c431f2fd058023745622dcbf233334ec2b9",
+      "pc_sha256": "441f5425b21ea626a11ddde83af68c431f2fd058023745622dcbf233334ec2b9"
+    },
+    {
+      "file": "TEXTURES/CHNGTRK.TIM",
+      "selection": "ps1",
+      "sha256": "571e4a73fe5055c6b681dd725f6195ff44ee11c17915b215aafe7952216faef7",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/CHROME.TIM",
+      "selection": "ps1",
+      "sha256": "b0cdc987815113c4445e618d2479c6993f978d4e54b733f0f8f301dc823579de",
+      "pc_sha256": "e6ad32729617a5402541dd7bd87d38da49f4a965841d699acc5df59744b07e9c"
+    },
+    {
+      "file": "TEXTURES/COPY2097.TIM",
+      "selection": "ps1",
+      "sha256": "77979ae0e110f6e71c599daa1b4c6bd7534ee8266bc7e43a8bc33265b61bf332",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/DPA.TIM",
+      "selection": "ps1",
+      "sha256": "f8e58f356efe5ba647aee2f5b2d03bc38d5cf6aaa953bcc27fd0cb8b573680c4",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/DRFONTS.CMP",
+      "selection": "ps1",
+      "sha256": "ed2f23d8efc33a66fe0363759a0b8f528d8ce9b5055668bc66ad9a1ef48f2204",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/E3PIC.TIM",
+      "selection": "ps1",
+      "sha256": "60f5f41f7bbe2c1f76bf9820b8868773f7f66888fc59387850ef3e2e692cf5ff",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/EMPTY.TIM",
+      "selection": "ps1",
+      "sha256": "79fa212660cf960c6c8e952746d7c0ca478fff65db0fcabddace613db3849eb7",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/ENERGY.TIM",
+      "selection": "ps1",
+      "sha256": "55495d542f2a867c71d19ed8bd67be80fd909341e88cf1b7839db143e2e6c60f",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/ETARED.CMP",
+      "selection": "ps1",
+      "sha256": "25b56c93e4e598f5309b047835fd5968397b37609c49a247c675d6bbb75019cf",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/EXPLODE.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "7c3d23cd84520fa9153c1e376c5a6b016dbcf6def1754afa0a49757ecde777d3",
+      "pc_sha256": "7c3d23cd84520fa9153c1e376c5a6b016dbcf6def1754afa0a49757ecde777d3"
+    },
+    {
+      "file": "TEXTURES/FIRE.CMP",
+      "selection": "ps1",
+      "sha256": "896488a7233b4b69e5b547d655a3f823b8583d16b3f3e164fd5d06dcfd2a27b9",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/ICON.TIM",
+      "selection": "ps1",
+      "sha256": "c944531dc0dad80d0bc7b4d4d5419bbb1f8d757facb4cd95843d314a80d9d1f4",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/INUBUTT.CMP",
+      "selection": "ps1",
+      "sha256": "6fdf2e283457b39bc9d7b7759b6dacbe7fb5285d803b77a0b19e22f236d237ae",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/INUBUTTO.TIM",
+      "selection": "ps1",
+      "sha256": "fd7492a25ab6fe19bdcc8e2f2383e6d7519d75b4477a1063f4f8fd05bd072b79",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/INUBUTTS.TIM",
+      "selection": "ps1",
+      "sha256": "d7a95c63776c637be999626968e8e857ed1aff43b026c7c51f294a6d5b438149",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/INUBUTTT.TIM",
+      "selection": "ps1",
+      "sha256": "6cb2457c2a9707b9fce0fba446fb8839405f7605c356379d89f42db453d5205b",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/INUBUTTX.TIM",
+      "selection": "ps1",
+      "sha256": "accb9de72d9d77b866e737b113ec47964cfbc1023a422227c2a641a3e436b0ca",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/LEGALJAP.TIM",
+      "selection": "ps1",
+      "sha256": "527b7742a70876ee4773a3d7fe6de4b608e6f6f7d0b55105a58d87c010882ad9",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/LEGALNTS.TIM",
+      "selection": "ps1",
+      "sha256": "72762dab2cbb408e02f0f3c5743f5f3dd4e2867e8a4d8157589963a23175eced",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/LEGALPAL.TIM",
+      "selection": "ps1",
+      "sha256": "5a31d02567ac5728a9f2876489ee3b4f5e2644cc930f86a170df0fe4a42580a2",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/LINK.TIM",
+      "selection": "ps1",
+      "sha256": "84edbffdc73a0033b268ecd8af09191160047585411fa3736748d322660835ad",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/LNDONOFF.TIM",
+      "selection": "ps1",
+      "sha256": "1e39665e2313040ddaf03f0ed89a1a13e8124b048cd8ba2a8892755dd6ff6aee",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/LUCKY.TIM",
+      "selection": "ps1",
+      "sha256": "4d74bbdab830098191df5144c0c15906ed39cf264b571370d34d0b7f63269729",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/MENUPIC.TIM",
+      "selection": "ps1",
+      "sha256": "0fa3d020ecdb29e0e969bfaad8f915d9a2999429bee6bea11d870d01a2b89ac5",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/MENUTIMP.CMP",
+      "selection": "ps1",
+      "sha256": "4b29f9b4e62da28f4151f6232cd1d5f6a56396990add9ba05b3c94d989d5cffb",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/MENUTIMS.CMP",
+      "selection": "ps1",
+      "sha256": "53b6d4c8ab59f2e9c3a8b8c90abfedcdd434ca3c46e237221352b5be9459bedb",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/NURED.CMP",
+      "selection": "ps1",
+      "sha256": "e84a7af00e2bdf48fdfec450900f8105bced2c7170e265a8094043144d9dc36f",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/PALTITLE.TIM",
+      "selection": "ps1",
+      "sha256": "47878cde882cb26cf32b781b66e4961b01b9722034bf684dcba1f11dee7c449a",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/PILOT.TIM",
+      "selection": "ps1",
+      "sha256": "c6698fac068bffe4b6df9db441471b78e19a4a2c0809677e89145fd6057d1f93",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/RACEBUTT.CMP",
+      "selection": "ps1",
+      "sha256": "48300e4f2a0fd4f03755ab5a9455fb5dd2acb3c07f8e2f3263f31e2b07f586c0",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/RADIUS.TIM",
+      "selection": "ps1",
+      "sha256": "c39c8429c32276d73ef5db4225c281bca792a09c79776a7e0b01af90f4a179c5",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/RCOPYXL.TIM",
+      "selection": "ps1",
+      "sha256": "fca0a03c890459a6e5687a4ca24ebf27bb09344d0025a0baeb040367fcc7d410",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/REDBNTSC.TIM",
+      "selection": "ps1",
+      "sha256": "5a736ee110080fe42164e499c738edf36ad7ab1d309a736294bd1f9fea50ad3c",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/REDBPAL.TIM",
+      "selection": "ps1",
+      "sha256": "1c7ca278f58165e1a5adbedebaefbc44181ddf9f5cf584b86a7f6a93269cc3e7",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/REVS.TIM",
+      "selection": "ps1",
+      "sha256": "8b952952d0af64f9251b8df2630784bc0564ed95f603f28edfbe6716322c94b9",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/RHORED.CMP",
+      "selection": "ps1",
+      "sha256": "f9dfc4a7e2ce2eccc386b0fbbb128ecfb3eb78ff0dc62535ad4cd7f7a2f4bb23",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/RSTARTXL.TIM",
+      "selection": "ps1",
+      "sha256": "4dccc09ac0a23d13e17a758552c530466c859fdd5b3bb4a61d7c0b96bc79b409",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SAVE.TIM",
+      "selection": "ps1",
+      "sha256": "4b284049d396c62becd5ff45cb1a1c52d99d553d6282626a792cab19f17137db",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SCE_LOGO.TIM",
+      "selection": "ps1",
+      "sha256": "828d23ebb819fcba10b2d1f58d2ff46b936fdb059398c4fd48af30c87d14b7e6",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SHAD1.TIM",
+      "selection": "ps1",
+      "sha256": "7708674543b539ef1d45d6d4871c6627fd8d38c5a95dc9fa06978729cc096f9f",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SHAD2.TIM",
+      "selection": "ps1",
+      "sha256": "56f5fbceb84478cd254b37c5ba0b1e19a5f16b424a6a490c89ef6bca4a3b869d",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SHAD3.TIM",
+      "selection": "ps1",
+      "sha256": "d2cdbf4075e984bda2ec567d4d1ba8de3a6134a35090d7c44ae09e7b2c00a064",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SHAD4.TIM",
+      "selection": "ps1",
+      "sha256": "e690cb6a272f0d2070fbdff88af4f830e000c5c3e5d02af3ca52c4061a214593",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SHADOW1.TIM",
+      "selection": "pc_byte_identical",
+      "sha256": "a4b550c9f9e3b68bd69db5996a2f5e0d468ce33c2507808bf4880594d50d9a94",
+      "pc_sha256": "a4b550c9f9e3b68bd69db5996a2f5e0d468ce33c2507808bf4880594d50d9a94"
+    },
+    {
+      "file": "TEXTURES/SHADOW2.TIM",
+      "selection": "pc_byte_identical",
+      "sha256": "338e8d10a5284041ad688ba20fb6237b39a293c01dbd505fdc76da3688ca5639",
+      "pc_sha256": "338e8d10a5284041ad688ba20fb6237b39a293c01dbd505fdc76da3688ca5639"
+    },
+    {
+      "file": "TEXTURES/SHIP.TIM",
+      "selection": "ps1",
+      "sha256": "00064e68a9315874f782e43eeab63ce7dc1a69bcbadfb2f72c391baa48d8feda",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SILLY1.TIM",
+      "selection": "pc_byte_identical",
+      "sha256": "cc8a74e3aaa6c42dac38740f2a44c73776fbda40fceb866d6e4890038f5c1667",
+      "pc_sha256": "cc8a74e3aaa6c42dac38740f2a44c73776fbda40fceb866d6e4890038f5c1667"
+    },
+    {
+      "file": "TEXTURES/SILLY2.TIM",
+      "selection": "pc_byte_identical",
+      "sha256": "9291b1d22927b8614542e199e3ece2932a737b6327a673952409a12b2e53ef99",
+      "pc_sha256": "9291b1d22927b8614542e199e3ece2932a737b6327a673952409a12b2e53ef99"
+    },
+    {
+      "file": "TEXTURES/SKYONOFF.TIM",
+      "selection": "ps1",
+      "sha256": "65b78cb960acf3d944a24aeff80133ace786fc6d0b3ba5b9182a9eebee4b68dd",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/SMOKE.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "1f86b1f2c3605403dd47fbe91d4afa7d8cac72e894771d873edf94dbdcb5f9f9",
+      "pc_sha256": "1f86b1f2c3605403dd47fbe91d4afa7d8cac72e894771d873edf94dbdcb5f9f9"
+    },
+    {
+      "file": "TEXTURES/SPBILE2.TIM",
+      "selection": "ps1",
+      "sha256": "85f4c523d8af46b5be33755966bf9d06be5cb04c52b32e85a30997a7fd2e82cc",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/STARTPAL.TIM",
+      "selection": "ps1",
+      "sha256": "c08e4f99f10c981cd5f69b4d8d7d2869ad7d80f04ba9d55bf83ea98c121aee1a",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/TARGET2.TIM",
+      "selection": "ps1",
+      "sha256": "759acbedb97af68f290227a8b7606e559b0367a22869fe4921904e8635a190ad",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/THETARED.CMP",
+      "selection": "ps1",
+      "sha256": "b2de73f1d1dac567f3b69c76a4983f17d04adfac911e9f9a8d6c7476598497ec",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/THRUST.TIM",
+      "selection": "ps1",
+      "sha256": "a9c0b376f48806136b752bac4067f34ab440f192b0b7a07184bd26168a9da49b",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/TRAKVIEW.TIM",
+      "selection": "ps1",
+      "sha256": "f38a73c68d8e0d9964ec83c7eb6117804e6504a4d1be151eae66dba1a20a2506",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/TRANSTRK.TIM",
+      "selection": "ps1",
+      "sha256": "6f5ae0bc61a86624e13ce95beed8d9972e658f20c225e51e1736ab6c76214d50",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/UPSILRED.CMP",
+      "selection": "ps1",
+      "sha256": "cb6636eab1fdbb8449bf7e0994a357e0dcb28dbc805e17735fd8e1239a366a7b",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/VRAM.TIM",
+      "selection": "ps1",
+      "sha256": "dc1ead5320396830b2695baaccca7eb18e4bff128440c6d305bc3bd6ef171e14",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/WARNING.TIM",
+      "selection": "ps1",
+      "sha256": "64b0790b4bd924864f2dcc8a77baafc9514b4cffe688b2fe6d925303b9f9dec3",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/WEPICON.CMP",
+      "selection": "ps1",
+      "sha256": "c7b44f29e9a3d1d2316a45ab9582cd8fa7af800a541367862475d321b7e2583a",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/WIPTITLE.TIM",
+      "selection": "ps1",
+      "sha256": "2b62a58d0c25cf1d0227533068b1f77403b0eae7645778a6dbc6f341a2b18faf",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/WOFONT.TIM",
+      "selection": "ps1",
+      "sha256": "ad7a56ec5e2b647b73430a238543183c8bed55ed87a65f127e40dbf278ea3cf7",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/WOSTART.TIM",
+      "selection": "ps1",
+      "sha256": "4147ebfe9665739204b62b9842a4b617efbf40701fa66ad6fd241b7803b5ac57",
+      "pc_sha256": null
+    },
+    {
+      "file": "TEXTURES/ZETARED.CMP",
+      "selection": "ps1",
+      "sha256": "c00e712d831ffcce68e44d9878e5fe2bee4d13b892c0324f087b322b91f71700",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK01/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "21765149cc017f6ace98620c100c3fc59854021e00715a81bba1a980a309659a",
+      "pc_sha256": "21765149cc017f6ace98620c100c3fc59854021e00715a81bba1a980a309659a"
+    },
+    {
+      "file": "TRACK01/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "ae5819f1ad4993403956c858d15e1a96a33fb9a436093e8d912ddf25e391f9c8",
+      "pc_sha256": "83d4dde529d8d735170cbf901fe6ab42f1e20bbab7c1e5cde4ec1675a7abcf1c"
+    },
+    {
+      "file": "TRACK01/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "e08051f83ff792d0aaf418b5e6054f045080daf1782283229936ae690e3a70ee",
+      "pc_sha256": "e08051f83ff792d0aaf418b5e6054f045080daf1782283229936ae690e3a70ee"
+    },
+    {
+      "file": "TRACK01/TRACK.CMP",
+      "selection": "ps1",
+      "sha256": "7c72c4358837881db4931fcfebee0635eb26c679d64df2b376b05d6b174ad67c",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK02/LIBBAK.CMP",
+      "selection": "ps1",
+      "sha256": "f5b03575fb54f985f3cf33e68e87b4d606ebaca5013c03fdd61eeecde4829652",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK02/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "11662b5caff85b834ac487bdee4bdc3516c3049ccb0a9240b27f898edfdcecb0",
+      "pc_sha256": "11662b5caff85b834ac487bdee4bdc3516c3049ccb0a9240b27f898edfdcecb0"
+    },
+    {
+      "file": "TRACK02/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "364f1a9b6f24ef433be0409ca89612e9096f55d2daab260f70ea64fdc2b31f01",
+      "pc_sha256": "08990a8cee139b95aefd0e429cc224943ee7b9b599d0742df4a261b612e31116"
+    },
+    {
+      "file": "TRACK02/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "906e7025b24b144f9dc7c90b25679c506431a78a1b2431b7a39b957499878e2b",
+      "pc_sha256": "906e7025b24b144f9dc7c90b25679c506431a78a1b2431b7a39b957499878e2b"
+    },
+    {
+      "file": "TRACK04/LIBRARY.CMP",
+      "selection": "ps1",
+      "sha256": "21765149cc017f6ace98620c100c3fc59854021e00715a81bba1a980a309659a",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK04/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "a626e8eb7cf8f0e7aa64495c78a15063f32bd7a20bc1e693382fbc331c4fc666",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK04/SKY.CMP",
+      "selection": "ps1",
+      "sha256": "459ee411a9253c6365d176e09177c41bba9cd1fbfe1c9b255c2b412b33f04bf6",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK04/TRACK.CMP",
+      "selection": "ps1",
+      "sha256": "7c72c4358837881db4931fcfebee0635eb26c679d64df2b376b05d6b174ad67c",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK06/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "57392933666a8bfff2bfbf0c4ed09679a647688a8adb7dd4403a99b37c15102f",
+      "pc_sha256": "57392933666a8bfff2bfbf0c4ed09679a647688a8adb7dd4403a99b37c15102f"
+    },
+    {
+      "file": "TRACK06/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "ca299d83b9bfe230a5f6bf951a0d5e5c130abdef2322399d0917f738df0ec09c",
+      "pc_sha256": "e37403db67daf61a31004ad71a8fd84ba93c0e987ce830ef7d9f056d574433b0"
+    },
+    {
+      "file": "TRACK06/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "d56050583a1a72ef7366b2a466a15e9edfbac804f9d3c30772876ba8c0e5c044",
+      "pc_sha256": "d56050583a1a72ef7366b2a466a15e9edfbac804f9d3c30772876ba8c0e5c044"
+    },
+    {
+      "file": "TRACK06/TRACK.CMP",
+      "selection": "ps1",
+      "sha256": "7c72c4358837881db4931fcfebee0635eb26c679d64df2b376b05d6b174ad67c",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK07/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "d7d3e527bfd6f0e54db7a44473b2cd718f32567cc27ee3a8c90e6441d5369caf",
+      "pc_sha256": "d7d3e527bfd6f0e54db7a44473b2cd718f32567cc27ee3a8c90e6441d5369caf"
+    },
+    {
+      "file": "TRACK07/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "365d8ba367a828de0929dfa610bdcaf4eb6f95829fab5ce0c9fcbe9054522eaf",
+      "pc_sha256": "a2c0b87a7b8018f54a50a14ed8e140091624c9d3c1d3654cc58f00706304e90d"
+    },
+    {
+      "file": "TRACK07/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "cd09516c8fc7333d360783f021d4d8fa91a3592bd5e8f4487ea6833efb750762",
+      "pc_sha256": "cd09516c8fc7333d360783f021d4d8fa91a3592bd5e8f4487ea6833efb750762"
+    },
+    {
+      "file": "TRACK07/TRACK.CMP",
+      "selection": "ps1",
+      "sha256": "7c72c4358837881db4931fcfebee0635eb26c679d64df2b376b05d6b174ad67c",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK08/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "6eab7d2a725b6059024591b2efb8029c5e753ac6c572363d4719fbaff8e9d128",
+      "pc_sha256": "6eab7d2a725b6059024591b2efb8029c5e753ac6c572363d4719fbaff8e9d128"
+    },
+    {
+      "file": "TRACK08/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "c7be25284f58756aa86b86f5b017943b591de6e76722fd74a316a105b6566381",
+      "pc_sha256": "67ab4f6878eadf74005f8416102e4ba5ad2ad6f0c7f3601de4680cd955c37877"
+    },
+    {
+      "file": "TRACK08/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "ac0f0ace8dc6d7960747ee4e010b7bdfab0c9314fc75e8636f3290de90b5de72",
+      "pc_sha256": "ac0f0ace8dc6d7960747ee4e010b7bdfab0c9314fc75e8636f3290de90b5de72"
+    },
+    {
+      "file": "TRACK13/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "7b581a889c162b0aa598d04b804a61751e6384f28471f55490b2efafb020fffd",
+      "pc_sha256": "7b581a889c162b0aa598d04b804a61751e6384f28471f55490b2efafb020fffd"
+    },
+    {
+      "file": "TRACK13/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "d11074277300cfd9956a588d065b884267c376d020c76cb04d169ace1cfc3863",
+      "pc_sha256": "c9deb801dd94c698d719aadc5f987100a01045172dd470214606a0db3c876f49"
+    },
+    {
+      "file": "TRACK13/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "2927eb480547bf0be65d4a25b05fe49c30403cad86a7e3845bd34e1a30376bd7",
+      "pc_sha256": "2927eb480547bf0be65d4a25b05fe49c30403cad86a7e3845bd34e1a30376bd7"
+    },
+    {
+      "file": "TRACK13/TRACK.CMP",
+      "selection": "ps1",
+      "sha256": "7c72c4358837881db4931fcfebee0635eb26c679d64df2b376b05d6b174ad67c",
+      "pc_sha256": null
+    },
+    {
+      "file": "TRACK17/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "15a9c548fc5df513bba8669cbec6269e608495c5c3911f5f152e474641591d3e",
+      "pc_sha256": "15a9c548fc5df513bba8669cbec6269e608495c5c3911f5f152e474641591d3e"
+    },
+    {
+      "file": "TRACK17/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "37547a9091513861e9b532d8ea66804fa6fa92a777b437df04867b0332eafbd3",
+      "pc_sha256": "e15e0cac27e9aa39bf5a306a92509eb3f5c13a2fd2ca697dec6c7e4792c59064"
+    },
+    {
+      "file": "TRACK17/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "3a57f0240b6bf7712821c129835dfcbaade405640c293a9b0196016ba5ac2a02",
+      "pc_sha256": "3a57f0240b6bf7712821c129835dfcbaade405640c293a9b0196016ba5ac2a02"
+    },
+    {
+      "file": "TRACK20/LIBRARY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "dd91d8d047337a179a8f27cb629b065030fe9118c6de912349ca53d26101efea",
+      "pc_sha256": "dd91d8d047337a179a8f27cb629b065030fe9118c6de912349ca53d26101efea"
+    },
+    {
+      "file": "TRACK20/SCENE.CMP",
+      "selection": "ps1",
+      "sha256": "e2c15ec60affa788d128cba89ccdb925669f2ed8f0962785ad61c32cc54ec985",
+      "pc_sha256": "bfde3cd6f23e10512cc437ae56271a70ae1878ca09f9e04bd1ca8cc6da4e145a"
+    },
+    {
+      "file": "TRACK20/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "sha256": "db106119132deb294bf6cdd30e9a7c7c5a29c49e962a1e1088c118c55c0615f7",
+      "pc_sha256": "db106119132deb294bf6cdd30e9a7c7c5a29c49e962a1e1088c118c55c0615f7"
+    }
+  ],
+  "selection": [
+    {
+      "source": "TRACK01/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 12
+    },
+    {
+      "source": "TRACK02/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 14
+    },
+    {
+      "source": "TRACK06/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 15
+    },
+    {
+      "source": "TRACK07/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 14
+    },
+    {
+      "source": "TRACK08/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 14
+    },
+    {
+      "source": "TRACK13/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 14
+    },
+    {
+      "source": "TRACK17/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 13
+    },
+    {
+      "source": "TRACK20/LIBRARY.CMP + LIBRARY.TTF",
+      "selection": "pc_byte_identical",
+      "road_materials": 15
+    },
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/DRFONTS.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/EFFECTS.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/LIGHT.CMP",
+      "selection": "ps1",
+      "native_placements": 8
+    },
+    {
+      "source": "COMMON/MINE.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 4
+    },
+    {
+      "source": "COMMON/PBAR.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/PTEST.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/RESCU.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 60
+    },
+    {
+      "source": "COMMON/RINGT.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/SROID.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 18
+    },
+    {
+      "source": "COMMON/TERRY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 110
+    },
+    {
+      "source": "COMMON/TRAIN.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 4
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "COMMON/WIERD.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 92
+    },
+    {
+      "source": "COMMON/WRECK.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/ALPHARED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/BETA.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/BETARED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/BIRD.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 64
+    },
+    {
+      "source": "TEXTURES/BUG.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/CAMERA.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/CDROID.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 12
+    },
+    {
+      "source": "TEXTURES/CHNGTRK.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/CHROME.TIM",
+      "selection": "ps1",
+      "native_placements": 2
+    },
+    {
+      "source": "TEXTURES/COPY2097.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/DPA.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/E3PIC.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/EMPTY.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/ENERGY.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/ETARED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/EXPLODE.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 64
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/ICON.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/INUBUTTO.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/INUBUTTS.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/INUBUTTT.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/INUBUTTX.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/LEGALJAP.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/LEGALNTS.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/LEGALPAL.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/LINK.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/LNDONOFF.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/LUCKY.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/MENUPIC.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/NURED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/PALTITLE.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/PILOT.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/RACEBUTT.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/RADIUS.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/RCOPYXL.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/REDBNTSC.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/REDBPAL.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/REVS.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/RHORED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/RSTARTXL.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SAVE.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SCE_LOGO.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SHAD1.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SHAD2.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SHAD3.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SHAD4.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SHADOW1.TIM",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SHADOW2.TIM",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SHIP.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SILLY1.TIM",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SILLY2.TIM",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SKYONOFF.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/SMOKE.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 48
+    },
+    {
+      "source": "TEXTURES/SPBILE2.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/STARTPAL.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/TARGET2.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/THETARED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/THRUST.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/TRAKVIEW.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/TRANSTRK.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/UPSILRED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/VRAM.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/WARNING.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/WIPTITLE.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/WOFONT.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/WOSTART.TIM",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TEXTURES/ZETARED.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TRACK01/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 82
+    },
+    {
+      "source": "TRACK01/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TRACK02/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 76
+    },
+    {
+      "source": "TRACK02/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 2
+    },
+    {
+      "source": "TRACK04/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TRACK04/SKY.CMP",
+      "selection": "ps1",
+      "native_placements": 0
+    },
+    {
+      "source": "TRACK06/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 54
+    },
+    {
+      "source": "TRACK06/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 2
+    },
+    {
+      "source": "TRACK07/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 52
+    },
+    {
+      "source": "TRACK07/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 2
+    },
+    {
+      "source": "TRACK08/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 48
+    },
+    {
+      "source": "TRACK08/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TRACK13/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 36
+    },
+    {
+      "source": "TRACK13/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TRACK17/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 28
+    },
+    {
+      "source": "TRACK17/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 0
+    },
+    {
+      "source": "TRACK20/SCENE.CMP",
+      "selection": "ps1",
+      "native_placements": 40
+    },
+    {
+      "source": "TRACK20/SKY.CMP",
+      "selection": "pc_byte_identical",
+      "native_placements": 2
+    }
+  ],
+  "native_placements": 1168,
+  "not_located_in_pc_atlases": [
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "frame": 0,
+      "size": [
+        96,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "frame": 1,
+      "size": [
+        96,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "frame": 2,
+      "size": [
+        96,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "frame": 3,
+      "size": [
+        96,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "frame": 4,
+      "size": [
+        96,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "frame": 5,
+      "size": [
+        96,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/ALCOL.CMP",
+      "frame": 6,
+      "size": [
+        96,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/DRFONTS.CMP",
+      "frame": 0,
+      "size": [
+        212,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/DRFONTS.CMP",
+      "frame": 1,
+      "size": [
+        208,
+        36
+      ]
+    },
+    {
+      "source": "COMMON/DRFONTS.CMP",
+      "frame": 2,
+      "size": [
+        216,
+        16
+      ]
+    },
+    {
+      "source": "COMMON/EFFECTS.CMP",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/EFFECTS.CMP",
+      "frame": 1,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/EFFECTS.CMP",
+      "frame": 2,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/EFFECTS.CMP",
+      "frame": 3,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/EFFECTS.CMP",
+      "frame": 4,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/EFFECTS.CMP",
+      "frame": 5,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/PBAR.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "COMMON/PTEST.CMP",
+      "frame": 0,
+      "size": [
+        84,
+        64
+      ]
+    },
+    {
+      "source": "COMMON/RINGT.CMP",
+      "frame": 0,
+      "size": [
+        8,
+        9
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 0,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 1,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 2,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 3,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 4,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 5,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 6,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 7,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 8,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 9,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 10,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 11,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WEPICON.CMP",
+      "frame": 12,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 1,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 2,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 3,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 4,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 5,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 6,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 7,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WICONS.CMP",
+      "frame": 8,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "COMMON/WIERD.CMP",
+      "frame": 39,
+      "size": [
+        40,
+        24
+      ]
+    },
+    {
+      "source": "COMMON/WRECK.CMP",
+      "frame": 0,
+      "size": [
+        48,
+        24
+      ]
+    },
+    {
+      "source": "COMMON/WRECK.CMP",
+      "frame": 1,
+      "size": [
+        48,
+        40
+      ]
+    },
+    {
+      "source": "COMMON/WRECK.CMP",
+      "frame": 2,
+      "size": [
+        16,
+        56
+      ]
+    },
+    {
+      "source": "COMMON/WRECK.CMP",
+      "frame": 3,
+      "size": [
+        56,
+        16
+      ]
+    },
+    {
+      "source": "COMMON/WRECK.CMP",
+      "frame": 4,
+      "size": [
+        16,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/ALPHARED.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TEXTURES/ALPHARED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/BETA.TIM",
+      "frame": 0,
+      "size": [
+        168,
+        189
+      ]
+    },
+    {
+      "source": "TEXTURES/BETARED.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TEXTURES/BETARED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/BUG.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 1,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 2,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 3,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 4,
+      "size": [
+        16,
+        8
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 5,
+      "size": [
+        16,
+        8
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 6,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 7,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 8,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTON.CMP",
+      "frame": 9,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 0,
+      "size": [
+        60,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 1,
+      "size": [
+        56,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 2,
+      "size": [
+        52,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 3,
+      "size": [
+        112,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 4,
+      "size": [
+        120,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 5,
+      "size": [
+        60,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 6,
+      "size": [
+        56,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 7,
+      "size": [
+        52,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 8,
+      "size": [
+        116,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 9,
+      "size": [
+        120,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 12,
+      "size": [
+        52,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 13,
+      "size": [
+        72,
+        18
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 14,
+      "size": [
+        72,
+        18
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 15,
+      "size": [
+        12,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 16,
+      "size": [
+        12,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 18,
+      "size": [
+        76,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/BUTTONS.CMP",
+      "frame": 19,
+      "size": [
+        76,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/CAMERA.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/CHNGTRK.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/COPY2097.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/DPA.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 0,
+      "size": [
+        212,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 1,
+      "size": [
+        208,
+        36
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 2,
+      "size": [
+        216,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 3,
+      "size": [
+        24,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 4,
+      "size": [
+        8,
+        8
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 5,
+      "size": [
+        20,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 6,
+      "size": [
+        20,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 7,
+      "size": [
+        24,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 8,
+      "size": [
+        24,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/DRFONTS.CMP",
+      "frame": 9,
+      "size": [
+        12,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/E3PIC.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/EMPTY.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/ENERGY.TIM",
+      "frame": 0,
+      "size": [
+        96,
+        22
+      ]
+    },
+    {
+      "source": "TEXTURES/ETARED.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TEXTURES/ETARED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 0,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 1,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 2,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 3,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 4,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 5,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 6,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 7,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 8,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 9,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 10,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/FIRE.CMP",
+      "frame": 11,
+      "size": [
+        32,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/ICON.TIM",
+      "frame": 0,
+      "size": [
+        48,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 1,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 2,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 3,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 4,
+      "size": [
+        16,
+        8
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 5,
+      "size": [
+        16,
+        8
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 6,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 7,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 8,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTT.CMP",
+      "frame": 9,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTTO.TIM",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTTS.TIM",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTTT.TIM",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/INUBUTTX.TIM",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/LEGALJAP.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/LEGALNTS.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/LEGALPAL.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/LINK.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/LNDONOFF.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/LUCKY.TIM",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUPIC.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 0,
+      "size": [
+        288,
+        184
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 1,
+      "size": [
+        184,
+        24
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 2,
+      "size": [
+        24,
+        24
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 3,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 4,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 5,
+      "size": [
+        320,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 6,
+      "size": [
+        232,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 7,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMP.CMP",
+      "frame": 8,
+      "size": [
+        256,
+        21
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 0,
+      "size": [
+        288,
+        184
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 1,
+      "size": [
+        184,
+        24
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 2,
+      "size": [
+        24,
+        24
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 3,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 4,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 5,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 6,
+      "size": [
+        232,
+        30
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 7,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/MENUTIMS.CMP",
+      "frame": 8,
+      "size": [
+        256,
+        21
+      ]
+    },
+    {
+      "source": "TEXTURES/NURED.CMP",
+      "frame": 0,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/NURED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/PALTITLE.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/PILOT.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/RACEBUTT.CMP",
+      "frame": 0,
+      "size": [
+        76,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/RACEBUTT.CMP",
+      "frame": 1,
+      "size": [
+        76,
+        12
+      ]
+    },
+    {
+      "source": "TEXTURES/RADIUS.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/RCOPYXL.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/REDBNTSC.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/REDBPAL.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/REVS.TIM",
+      "frame": 0,
+      "size": [
+        96,
+        22
+      ]
+    },
+    {
+      "source": "TEXTURES/RHORED.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TEXTURES/RHORED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/RSTARTXL.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/SAVE.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/SCE_LOGO.TIM",
+      "frame": 0,
+      "size": [
+        640,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/SHAD1.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/SHAD2.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/SHAD3.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/SHAD4.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/SHADOW1.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        112
+      ]
+    },
+    {
+      "source": "TEXTURES/SHADOW2.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        112
+      ]
+    },
+    {
+      "source": "TEXTURES/SHIP.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/SILLY1.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        112
+      ]
+    },
+    {
+      "source": "TEXTURES/SILLY2.TIM",
+      "frame": 0,
+      "size": [
+        128,
+        112
+      ]
+    },
+    {
+      "source": "TEXTURES/SKYONOFF.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/SMOKE.CMP",
+      "frame": 2,
+      "size": [
+        32,
+        96
+      ]
+    },
+    {
+      "source": "TEXTURES/SPBILE2.TIM",
+      "frame": 0,
+      "size": [
+        112,
+        64
+      ]
+    },
+    {
+      "source": "TEXTURES/STARTPAL.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/TARGET2.TIM",
+      "frame": 0,
+      "size": [
+        16,
+        16
+      ]
+    },
+    {
+      "source": "TEXTURES/THETARED.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TEXTURES/THETARED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/THRUST.TIM",
+      "frame": 0,
+      "size": [
+        96,
+        22
+      ]
+    },
+    {
+      "source": "TEXTURES/TRAKVIEW.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/TRANSTRK.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/UPSILRED.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TEXTURES/UPSILRED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/VRAM.TIM",
+      "frame": 0,
+      "size": [
+        32,
+        32
+      ]
+    },
+    {
+      "source": "TEXTURES/WARNING.TIM",
+      "frame": 0,
+      "size": [
+        640,
+        256
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 0,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 1,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 2,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 3,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 4,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 5,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 6,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 7,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 8,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 9,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 10,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 11,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 12,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WEPICON.CMP",
+      "frame": 13,
+      "size": [
+        48,
+        48
+      ]
+    },
+    {
+      "source": "TEXTURES/WIPTITLE.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/WOFONT.TIM",
+      "frame": 0,
+      "size": [
+        80,
+        24
+      ]
+    },
+    {
+      "source": "TEXTURES/WOSTART.TIM",
+      "frame": 0,
+      "size": [
+        320,
+        240
+      ]
+    },
+    {
+      "source": "TEXTURES/ZETARED.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TEXTURES/ZETARED.CMP",
+      "frame": 1,
+      "size": [
+        64,
+        32
+      ]
+    },
+    {
+      "source": "TRACK01/SCENE.CMP",
+      "frame": 3,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK01/SCENE.CMP",
+      "frame": 10,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TRACK01/SCENE.CMP",
+      "frame": 35,
+      "size": [
+        8,
+        8
+      ]
+    },
+    {
+      "source": "TRACK01/SKY.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TRACK02/SCENE.CMP",
+      "frame": 4,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK02/SCENE.CMP",
+      "frame": 7,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK02/SCENE.CMP",
+      "frame": 16,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK04/SKY.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        218
+      ]
+    },
+    {
+      "source": "TRACK06/SCENE.CMP",
+      "frame": 4,
+      "size": [
+        100,
+        25
+      ]
+    },
+    {
+      "source": "TRACK06/SCENE.CMP",
+      "frame": 6,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK06/SCENE.CMP",
+      "frame": 9,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK06/SCENE.CMP",
+      "frame": 26,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TRACK06/SCENE.CMP",
+      "frame": 32,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK07/SCENE.CMP",
+      "frame": 4,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK07/SCENE.CMP",
+      "frame": 28,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK08/SKY.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        218
+      ]
+    },
+    {
+      "source": "TRACK13/SCENE.CMP",
+      "frame": 19,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK13/SKY.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        218
+      ]
+    },
+    {
+      "source": "TRACK17/SCENE.CMP",
+      "frame": 5,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TRACK17/SCENE.CMP",
+      "frame": 12,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK17/SCENE.CMP",
+      "frame": 22,
+      "size": [
+        64,
+        64
+      ]
+    },
+    {
+      "source": "TRACK17/SKY.CMP",
+      "frame": 0,
+      "size": [
+        128,
+        218
+      ]
+    },
+    {
+      "source": "TRACK20/SCENE.CMP",
+      "frame": 9,
+      "size": [
+        8,
+        8
+      ]
+    },
+    {
+      "source": "TRACK20/SCENE.CMP",
+      "frame": 10,
+      "size": [
+        128,
+        128
+      ]
+    },
+    {
+      "source": "TRACK20/SCENE.CMP",
+      "frame": 11,
+      "size": [
+        128,
+        96
+      ]
+    }
+  ],
+  "byte_verification": {
+    "pc_region_sources_verified_byte_for_byte": 508,
+    "distinct_reused_ps1_tim_frames": 222,
+    "road_libraries_and_layouts_verified_byte_for_byte": 16
+  }
+}
