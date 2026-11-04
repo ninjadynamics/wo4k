@@ -9,6 +9,7 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
 . (Join-Path $PSScriptRoot 'scripts/Configuration.ps1')
 . (Join-Path $PSScriptRoot 'scripts/Links.ps1')
 . (Join-Path $PSScriptRoot 'scripts/Source-Status.ps1')
+. (Join-Path $PSScriptRoot 'scripts/Ui-Helpers.ps1')
 # Import only function definitions; no filesystem search on the UI thread.
 . (Join-Path $PSScriptRoot 'scripts/Discover-Sources.ps1') -OutputFile (Join-Path $PSScriptRoot '.work/unused.json')
 [xml]$xaml=@'
@@ -94,8 +95,8 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
    <CheckBox x:Name="CleanAudio" Content="Improve audio quality" IsChecked="True" ToolTip="Reduce noise in your original 22 kHz sound effects while preserving their volume. Audio is processed locally from your game files."/>
   </StackPanel>
   <StackPanel Grid.Row="3" Margin="0,18,0,0">
-   <ProgressBar x:Name="Progress" Height="4" Minimum="0" Maximum="100" Value="0" Foreground="#66DBD0" Background="#243149" ToolTip="Current discovery or installation progress. A moving bar means work is continuing in the background."/>
-   <TextBlock x:Name="Status" Text="Please provide the path(s) to your WipeOut 2097 / XL game files." Foreground="#9FB0CA" FontSize="12" Margin="0,8,0,13" ToolTip="Current setup state. Missing auto-search results are left empty without warnings."/>
+   <TextBlock x:Name="Status" Text="Please provide the path(s) to your WipeOut 2097 / XL game files." Foreground="#9FB0CA" FontSize="12" Margin="0,0,0,8" ToolTip="Current operation and its result. Failure details identify what needs attention; technical information stays in the diagnostic log."/>
+   <ProgressBar x:Name="Progress" Height="2" Margin="0,0,0,28" Minimum="0" Maximum="100" Value="0" Foreground="#66DBD0" Background="#243149" ToolTip="Current discovery or installation progress. A moving bar means work is continuing in the background."/>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/><ColumnDefinition Width="100"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
     <Grid>
      <TextBlock Text="Portable · No CD mounting" VerticalAlignment="Bottom" Margin="0,0,0,7" Foreground="#7385A1" FontSize="12" ToolTip="Installs into the wobble folder beside Setup. No registry installation, disc mounting, or fixed drive path."/>
@@ -111,7 +112,7 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
 '@
 $window=[Windows.Markup.XamlReader]::Load((New-Object Xml.XmlNodeReader $xaml))
 $setupIcon=Join-Path $PSScriptRoot 'assets/icons/setup.ico'
-if([IO.File]::Exists($setupIcon)){$window.Icon=[Windows.Media.Imaging.BitmapFrame]::Create((New-Object Uri($setupIcon,[UriKind]::Absolute)))} 
+if([IO.File]::Exists($setupIcon)){$window.Icon=Read-ModUiBitmap $setupIcon}
 foreach($item in @(@('Wo4kLogo','wo4k-logo-app.png'),@('GithubLogo','github.png'),@('NinjaLogo','ninja-logo.png'))){
     $path=Join-Path $PSScriptRoot ('assets/ui/'+$item[1])
     if([IO.File]::Exists($path)){
@@ -148,6 +149,7 @@ $script:update=$window.FindName('UpdateButton');$script:sourceLink=$window.FindN
 $script:audioOutput=$window.FindName('AudioOutput')
 $script:fullscreenMode=$window.FindName('FullscreenMode')
 $script:scan=$null;$script:worker=$null;$script:scanMode='All';$script:scanResult='';$script:workerStatus='';$script:psxVerified=$false
+$script:issueMessage='';$script:installedReady=$false
 $script:restoringConfiguration=$true
 $script:savedConfiguration=Get-ModConfiguration $PSScriptRoot
 $script:restorePsxDefault=$script:savedConfiguration.DefaultSoundtrack -eq 'Psx';$script:soundtrackTouched=$true;$script:gameVerified=$false;$script:sourceError=$false
@@ -167,7 +169,7 @@ function Start-InstallationCheck {
     if($script:worker -or $script:scan){return}
     $script:workerKind='installation check';$script:workerStatus=Join-Path $PSScriptRoot ('.work/check-status-'+[guid]::NewGuid().ToString('N')+'.json');[WoBeta.Files]::Parent($script:workerStatus)
     $script:status.Text='Checking the configured installation...';Set-GuiState Installing
-    $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Reconcile-Installation.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru
+    $script:worker=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Reconcile-Installation.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -ErrorLog ($script:WoLogPath+'.worker.log')
 }
 function Refresh-LinkControls {
     $release=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'release.url') Release
@@ -204,9 +206,8 @@ function Set-GuiState([string]$State) {
     if($State -eq 'Idle'){Update-SourceMessage}
 }
 function Update-SourceMessage {
-    $message=Get-ModSourceMessage $script:fields.Game.Text.Trim() $script:fields.Psx.Text.Trim() ([bool]$script:gameVerified) ([bool]$script:psxVerified) ([bool]$script:sourceError)
+    $message=Get-ModSourceMessage $script:fields.Game.Text.Trim() $script:fields.Psx.Text.Trim() ([bool]$script:gameVerified) ([bool]$script:psxVerified) ([bool]$script:sourceError) $script:issueMessage $script:installedReady
     $window.FindName('SourceHint').Text=$message;$window.FindName('SourceHint').ToolTip=$message
-    if($script:guiState -eq 'Idle'){$script:status.Text=$message;$script:status.ToolTip=$message}
 }
 function Update-PsxChoice {
     $pcInfo=Get-ModSourceInfo $script:fields.Game.Text.Trim()
@@ -227,7 +228,7 @@ function Start-SourceDiscovery([string]$Kind='All') {
     $script:scanMode=$Kind;$script:scanResult=Join-Path $PSScriptRoot ('.work/discovery-'+[guid]::NewGuid().ToString('N')+'.json')
     [WoBeta.Files]::Parent($script:scanResult)
     $script:status.Text='Looking for your game files…';Set-GuiState Searching
-    $script:scan=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Discover-Sources.ps1')+'"'),'-OutputFile',('"'+$script:scanResult+'"')) -PassThru
+    $script:scan=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Discover-Sources.ps1')+'"'),'-OutputFile',('"'+$script:scanResult+'"'))
 }
 $sourceTimer=New-Object Windows.Threading.DispatcherTimer;$sourceTimer.Interval=[TimeSpan]::FromMilliseconds(400);$sourceTimer.Add_Tick({$sourceTimer.Stop();Update-PsxChoice})
 foreach($kind in @('Game','Psx')) {
@@ -245,7 +246,7 @@ foreach($kind in @('Game','Psx')) {
         }$menu.PlacementTarget=$sender;$menu.IsOpen=$true
     })
     $script:fields[$kind].Add_LostKeyboardFocus({Update-PsxChoice})
-    $script:fields[$kind].Add_TextChanged({$script:sourceError=$false;$sourceTimer.Stop();$sourceTimer.Start()})
+    $script:fields[$kind].Add_TextChanged({$script:sourceError=$false;$script:issueMessage='';$script:installedReady=$false;$sourceTimer.Stop();$sourceTimer.Start()})
 }
 $script:combo.Add_DropDownClosed({$script:restorePsxDefault=$false;$script:soundtrackTouched=$true;Save-SetupPreferences})
 $script:audioOutput.Add_SelectionChanged({
@@ -269,8 +270,8 @@ foreach($name in @('HdTextures','CleanAudio')){$window.FindName($name).Add_Click
 $script:update.Add_Click({
     if($script:worker -or $script:scan){return};Refresh-LinkControls;if(-not $script:update.IsEnabled){return};Save-SetupPreferences
     $script:workerKind='update';$script:workerStatus=Join-Path $PSScriptRoot ('.work/update-status-'+[guid]::NewGuid().ToString('N')+'.json');[WoBeta.Files]::Parent($script:workerStatus)
-    $script:status.Text='Starting update…';Set-GuiState Updating
-    try{$script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Update-Mod.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru}catch{Complete-WoFailure $_ 'Starting the updater failed' -StatusFile $script:workerStatus;$script:status.Text=$_.Exception.Message;Set-GuiState Idle}
+    $script:issueMessage='';$script:sourceError=$false;Update-SourceMessage;$script:status.Text='Starting update…';Set-GuiState Updating
+    try{$script:worker=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Update-Mod.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -ErrorLog ($script:WoLogPath+'.worker.log')}catch{Complete-WoFailure $_ 'Starting the updater failed' -StatusFile $script:workerStatus;$script:sourceError=$true;$script:issueMessage=Get-WoFailureMessage $_ 'Starting the updater';$script:status.Text=$script:issueMessage;Set-GuiState Idle}
 })
 $script:play.Add_Click({Save-SetupPreferences;Start-Process -FilePath (Join-Path $PSScriptRoot 'Play.exe') -WorkingDirectory $PSScriptRoot|Out-Null})
 $script:install.Add_Click({
@@ -278,8 +279,8 @@ $script:install.Add_Click({
     if(-not $script:fields.Game.Text.Trim()){$script:status.Text='Choose your Windows game source to continue.';$script:status.ToolTip=$script:status.Text;return}
     $id=[guid]::NewGuid().ToString('N');$request=Join-Path $PSScriptRoot ('.work/request-'+$id+'.json');$script:workerStatus=Join-Path $PSScriptRoot ('.work/status-'+$id+'.json')
     Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource=$script:savedConfiguration.PcMusicSource;PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked;SoundMode=@(1,2,5)[$script:audioOutput.SelectedIndex];FullscreenMode=@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex]})
-    $script:sourceError=$false;Update-SourceMessage;$script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
-    $script:worker=Start-Process -FilePath $script:ModPowerShell -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -RedirectStandardError ($script:WoLogPath+'.worker.log') -PassThru
+    $script:sourceError=$false;$script:issueMessage='';Update-SourceMessage;$script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
+    $script:worker=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -ErrorLog ($script:WoLogPath+'.worker.log')
 })
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(300)
 $timer.Add_Tick({
@@ -288,13 +289,23 @@ $timer.Add_Tick({
         $script:scan.Dispose();$script:scan=$null;Update-PsxChoice;Set-GuiState Idle
     }
     if($script:worker){
-        if(Test-Path -LiteralPath $script:workerStatus){try{$s=Get-Content -Encoding UTF8 -LiteralPath $script:workerStatus -Raw|ConvertFrom-Json;$script:status.Text=$s.message;$script:status.ToolTip=$s.message;$script:progress.Value=$s.percent;if($s.state -eq 'error'){$script:sourceError=$true;Update-SourceMessage}}catch{}}
-        if($script:worker.HasExited){$script:worker.WaitForExit();if($script:worker.ExitCode -ne 0 -and $script:status.Text -like 'Starting*'){$script:status.Text='The '+$script:workerKind+' could not finish. Check the configuration and try again.'};if($script:worker.ExitCode -ne 0){
-            $script:sourceError=$true;$reported=$false
-            if(Test-Path -LiteralPath $script:workerStatus){try{$state=Get-Content -LiteralPath $script:workerStatus -Encoding UTF8 -Raw|ConvertFrom-Json;if($state.PSObject.Properties['error_shown']){$reported=[bool]$state.error_shown}}catch{}}
-            Write-WoLog 'worker_exit' @{operation=$script:workerKind;code=$script:worker.ExitCode}
-            if(-not $reported){$null=Show-WoFailure ('The '+$script:workerKind+' failed. See the log and its worker error file.')}
-        }else{$script:sourceError=$false};$script:worker.Dispose();$script:worker=$null;Set-GuiState Idle}
+        if(Test-Path -LiteralPath $script:workerStatus){try{
+            $state=Get-Content -Encoding UTF8 -LiteralPath $script:workerStatus -Raw|ConvertFrom-Json
+            $script:status.Text=$state.message;$script:status.ToolTip=$state.message;$script:progress.Value=$state.percent
+            if($state.state -eq 'error'){$script:sourceError=$true;$script:issueMessage=Get-WoFailureMessage ([string]$state.message) $script:workerKind;$script:status.Text=$script:issueMessage;Update-SourceMessage}
+        }catch{}}
+        if($script:worker.HasExited){
+            $result=Get-ModUiWorkerResult $script:worker $script:workerStatus $script:workerKind
+            Write-WoLog 'worker_exit' @{operation=$script:workerKind;code=$result.exit_code;state=$result.state;success=$result.success}
+            $script:sourceError=-not $result.success;$script:issueMessage=if($result.success){''}else{$result.message}
+            $script:installedReady=$result.success -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/installation.json'))
+            $script:status.Text=$result.message;$script:status.ToolTip=$result.message
+            if(-not $result.success -and -not $result.error_shown){
+                $failureLog=if($result.log_path){$result.log_path}else{$script:WoLogPath}
+                $null=Show-WoFailure $result.message -LogPath $failureLog
+            }
+            $script:worker.Dispose();$script:worker=$null;if($result.success){Update-PsxChoice};Set-GuiState Idle
+        }
     }
 })
 $window.Add_Activated({Refresh-LinkControls})
@@ -306,6 +317,8 @@ if($ValidateUi -or $PreviewPath) {
     if($script:audioOutput.IsEnabled -ne ($PreviewState -ne 'Updating')){throw 'Audio output must lock during updates.'}
     if($script:fullscreenMode.Items.Count -ne 2 -or $script:fullscreenMode.SelectedIndex -lt 0){throw 'Fullscreen mode must expose Borderless and Exclusive and restore the saved selection.'}
     if($script:fullscreenMode.IsEnabled -ne ($PreviewState -ne 'Updating')){throw 'Fullscreen mode must lock during updates.'}
+    $footer=$script:progress.Parent
+    if($script:progress.Height -gt 2 -or $footer.Children.IndexOf($script:status) -ge $footer.Children.IndexOf($script:progress)){throw 'Operation text must precede a thin progress line.'}
     foreach($kind in @('Game','Psx')) {
         if($PreviewState -eq 'Searching' -and ($script:magic[$kind].IsEnabled -or -not $script:wands[$kind].RenderTransform.HasAnimatedProperties)){throw 'Searching must animate and disable every magic button.'}
         if($PreviewState -eq 'Idle' -and -not $script:magic[$kind].IsEnabled){throw 'Idle magic buttons must be clickable.'}
@@ -327,7 +340,9 @@ $dispatcher=[Windows.Threading.Dispatcher]::CurrentDispatcher
 $dispatcher.add_UnhandledException({
     param($sender,$eventArgs)
     Write-WoLog 'ui_failure' @{message=$eventArgs.Exception.Message;exception=$eventArgs.Exception.GetType().FullName}
-    $null=Show-WoFailure $eventArgs.Exception.Message
+    $record=New-Object Management.Automation.ErrorRecord($eventArgs.Exception,'SetupUiFailure',[Management.Automation.ErrorCategory]::NotSpecified,$null)
+    $script:sourceError=$true;$script:issueMessage=Get-WoFailureMessage $record 'Setup';$script:status.Text=$script:issueMessage;Update-SourceMessage
+    $null=Show-WoFailure $script:issueMessage
     if(-not $script:worker){Set-GuiState Idle}
     $eventArgs.Handled=$true
 })

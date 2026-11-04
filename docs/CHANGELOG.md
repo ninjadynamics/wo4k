@@ -1,5 +1,15 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.19
+
+- Release Setup's icon file after loading it so Update can replace the icon
+  while the window remains open. Keep native worker handles alive and honor
+  successful completion receipts instead of treating missing exit codes as
+  failures. Preserve specific failure explanations in the banner and operation
+  line; keep exception chains and paths in diagnostic logs. Distinguish missing
+  original source media from damaged installed game data. Place operation text
+  above a thinner progress line.
+
 ## 0.1.0-beta.18
 
 - Align HUD groups by visible artwork bounds to a uniform 180px inset at

@@ -71,13 +71,72 @@ function Show-WoFailure([string]$Message,[string]$LogPath=$script:WoLogPath,[swi
         return $true
     }catch{return $false}
 }
+# User-facing explanations stay separate from the complete exception chain
+# written by Write-WoFailure. Never label every worker error as corrupt data.
+function Get-WoFailureMessage($Record,[string]$Stage) {
+    $message=if($Record -is [string]){$Record}else{[string]$Record.Exception.Message}
+    $sharing=$false;$denied=$false
+    if($Record -isnot [string]){
+        for($cause=$Record.Exception;$cause;$cause=$cause.InnerException){
+            if(($cause.HResult -band 65535) -eq 32){$sharing=$true}
+            if(($cause.HResult -band 65535) -eq 5){$denied=$true}
+        }
+    }
+    if($message -match '^(One or more .*missing or damaged\.|Windows blocked changes|Update could not replace|The original Windows game source could not|The selected soundtrack is missing|The downloaded update is incomplete|The update could not be downloaded|An HD artwork file could not|A required game component is missing|Setup could not finish)'){return $message}
+    if($sharing -or $message -match 'being used by another process|sharing violation|still open'){
+        return 'Update could not replace a file that is still open. Close other Setup and game windows, reopen Setup, then try Update again.'
+    }
+    if($denied -or $message -match 'access.*denied|UnauthorizedAccess'){
+        return 'Windows blocked changes to the mod folder. Check its permissions and Windows Security, then try again.'
+    }
+    if($message -match '(?i)track.*(texture|atlas)|texture.*(corrupt|damaged|missing)|PlayStation texture cache|native texture|packed.*sheet|\.TGA|\.CMP|\.TIM'){
+        return 'One or more track or sprite textures are missing or damaged. Restore the configured game sources and run Install / repair.'
+    }
+    if($message -match '(?i)TRACK\d+[/\\]TRACK\.WAD|track files'){
+        return 'One or more track files are missing or damaged. Select your original Windows game source and run Install / repair.'
+    }
+    if($message -match '(?i)sound effect|sound-effect|audio/source|audio bank'){
+        return 'One or more sound effects are missing or damaged. Select your original Windows game source and run Install / repair.'
+    }
+    if($message -match '(?i)soundtrack|CD audio|Missing music|music source'){
+        return 'The selected soundtrack is missing or incomplete. Restore its disc or music folder, or choose No music in Setup.'
+    }
+    if($message -match '(?i)Windows game needs repair|source is unavailable|supported PC executable|Windows game data|Windows game source|Select the Windows game source'){
+        return 'The original Windows game source could not be found or verified. Choose the PC game ZIP, disc or folder and run Install / repair.'
+    }
+    if($message -match '(?i)PlayStation artwork|PlayStation texture data|European.*disc'){
+        return 'The PlayStation artwork source could not be read. Choose the European WipEout 2097 disc, or clear the optional PlayStation source.'
+    }
+    if($message -match '(?i)PNG|artwork|Cannot map|page number'){
+        return 'An HD artwork file could not be loaded. Check the PNG files in assets/hd, then try again.'
+    }
+    if($message -match '(?i)checksum|ZIP|inventory|release package|package.*(invalid|incomplete)|Updated file verification'){
+        return 'The downloaded update is incomplete or damaged. Try Update again.'
+    }
+    if($message -match '(?i)curl|download|network|connect|TLS|certificate'){
+        return 'The update could not be downloaded. Check your internet connection and try Update again.'
+    }
+    if($message -match '(?i)Missing .*\.(dll|exe)|required.*DLL|runtime component'){
+        return 'A required game component is missing or damaged. Run Update or Install / repair; also check Windows Security for a quarantined file.'
+    }
+    if($message -match '(?i)The game exited with code|game crashed'){
+        return 'The game stopped unexpectedly. Restart it; if it happens again, share the diagnostic log.'
+    }
+    if($Stage -match '(?i)Starting the game'){
+        return 'The game could not be started. Run Install / repair and check Windows Security for blocked game files.'
+    }
+    if($Stage -match '(?i)update'){return 'The update could not be completed. Reopen Setup and try Update again; details are saved in the log.'}
+    return 'Setup could not finish checking or repairing the installation. Run Install / repair; details are saved in the log.'
+}
 function Complete-WoFailure($Record,[string]$Stage,[string]$StatusFile,[switch]$NoDialog) {
     Write-WoFailure $Record $Stage
-    $shown=Show-WoFailure ($Stage+': '+$Record.Exception.Message) -NoDialog:$NoDialog
-    if($StatusFile){try{
-        $status=[ordered]@{percent=0;state='error';message=(Protect-WoLogText $Record.Exception.Message);log_path=$script:WoLogPath;error_shown=$shown}
-        [IO.File]::WriteAllText($StatusFile,(ConvertTo-Json $status),(New-Object Text.UTF8Encoding($false)))
-    }catch{}}
+    $explanation=Get-WoFailureMessage $Record $Stage
+    $status=[ordered]@{percent=0;state='error';message=$explanation;log_path=$script:WoLogPath;error_shown=$false}
+    # Show the same explanation in Setup immediately, even while its worker's
+    # dialog is open. Update popup ownership before the worker exits.
+    if($StatusFile){try{[IO.File]::WriteAllText($StatusFile,(ConvertTo-Json $status),(New-Object Text.UTF8Encoding($false)))}catch{}}
+    $status.error_shown=Show-WoFailure $explanation -NoDialog:$NoDialog
+    if($StatusFile){try{[IO.File]::WriteAllText($StatusFile,(ConvertTo-Json $status),(New-Object Text.UTF8Encoding($false)))}catch{}}
 }
 function Get-WoExitDescription([int]$Code) {
     $hex='0x'+[BitConverter]::ToUInt32([BitConverter]::GetBytes($Code),0).ToString('X8')
