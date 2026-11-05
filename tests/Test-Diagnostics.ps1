@@ -45,6 +45,11 @@ try {
     Save-WoGameLogs $nativeGame
     $tails=@(Get-Content -LiteralPath $log|ForEach-Object {ConvertFrom-Json $_}|Where-Object event -eq game_log_tail)
     Assert ($tails.Count -eq 3) 'Failure/finally collection duplicated native/video evidence.'
+    # The CreateFileA adapter redirects Debug.txt outside wobble.
+    [IO.File]::WriteAllText((Join-Path $work 'logs/game-debug.txt'),'Native file-open failure fixture')
+    Save-WoGameLogs $nativeGame
+    Assert ([IO.File]::Exists([IO.Path]::ChangeExtension($log,'game-debug.txt'))) 'Redirected native debug log was not collected.'
+    Assert (([IO.File]::ReadAllText($log)).Contains('Native file-open failure fixture')) 'Pasted Play log omits redirected native debug details.'
     # Event Viewer evidence is restricted to this executable AND child PID.
     function Get-WinEvent($FilterHashtable,$MaxEvents,$ErrorAction){
         foreach($eventPid in @('0x99','0x42')){

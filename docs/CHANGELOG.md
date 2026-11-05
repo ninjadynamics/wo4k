@@ -1,5 +1,13 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.23
+
+- Collect the native game's redirected logs/game-debug.txt beside the main
+  Play report and embed its tail, including missing-file details previously
+  omitted by the collector. Retain current-session filtering and version labels.
+- Update the native path regression for the current texture layout; verify
+  actual asset reads after relocation into folders with spaces and Unicode.
+
 ## 0.1.0-beta.22
 
 - Add eleven more contributor-edited scene textures for tracks 06, 08, 17 and

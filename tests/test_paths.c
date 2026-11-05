@@ -5,13 +5,13 @@ static void bytes(BYTE *to,const BYTE *from,UINT n){while(n--)*to++=*from++;}
 static BOOL same(const char *a,const char *b){while(*a && *a==*b){++a;++b;}return *a==*b;}
 void __stdcall test_entry(void) {
     WCHAR root[MAX_PATH];if(!GetEnvironmentVariableW(L"WO_TEST_GAME_ROOT",root,MAX_PATH)||!SetCurrentDirectoryW(root))ExitProcess(1);
-    const char *in[]={".\\Sound\\ENGINES.WAV","Pics\\Hi-res\\HUD2.tga",".\\Blitsurf\\Hi-res\\RSTARTXL.PPM",".\\Textures\\EXPLODE.CMP","Common\\CNTRL.CMP","Track01\\TRACKTEX.CMP","Track01\\TRACK.WAD","textures\\hd\\hud-gauges.rgba",
+    const char *in[]={".\\Sound\\ENGINES.WAV","Pics\\Hi-res\\HUD2.tga",".\\Blitsurf\\Hi-res\\RSTARTXL.PPM",".\\Textures\\EXPLODE.CMP","Common\\CNTRL.CMP","Track01\\TRACKTEX.CMP","Track01\\TRACK.WAD","textures\\sd\\Pics\\Hi-res\\HUD2.tga",
         ".\\\\sound\\shp2shp.wav",".\\\\pics\\hi-res\\HUD2.tga",".//Sound/ENGINES.WAV",".\\.\\\\Sound\\ENGINES.WAV"};
-    const char *out[]={"audio\\ENGINES.WAV","textures\\sd\\Pics\\Hi-res\\HUD2.tga","textures\\sd\\Blitsurf\\Hi-res\\RSTARTXL.PPM","textures\\sd\\Textures\\EXPLODE.CMP","textures\\sd\\Common\\CNTRL.CMP","textures\\sd\\Track01\\TRACKTEX.CMP","Track01\\TRACK.WAD","textures\\hd\\hud-gauges.rgba",
+    const char *out[]={"audio\\ENGINES.WAV","textures\\sd\\Pics\\Hi-res\\HUD2.tga","textures\\sd\\Blitsurf\\Hi-res\\RSTARTXL.PPM","textures\\sd\\Textures\\EXPLODE.CMP","textures\\sd\\Common\\CNTRL.CMP","textures\\sd\\Track01\\TRACKTEX.CMP","Track01\\TRACK.WAD","textures\\sd\\Pics\\Hi-res\\HUD2.tga",
         "audio\\shp2shp.wav","textures\\sd\\pics\\hi-res\\HUD2.tga","audio\\ENGINES.WAV","audio\\ENGINES.WAV"};
     const UINT count=sizeof(in)/sizeof(in[0]);
     for(UINT i=0;i<count;++i){char buffer[512];if(!same(wo_path(in[i],buffer,sizeof(buffer)),out[i]))ExitProcess(2);}
-    const char *unchanged[]={"C:\\sound\\ENGINES.WAV","\\\\server\\sound\\ENGINES.WAV","\\sound\\ENGINES.WAV","..\\sound\\ENGINES.WAV"};
+    const char *unchanged[]={"C:\\sound\\ENGINES.WAV","\\\\server\\sound\\ENGINES.WAV","\\sound\\ENGINES.WAV","..\\sound\\ENGINES.WAV","textures\\hd\\custom.png"};
     for(UINT i=0;i<sizeof(unchanged)/sizeof(unchanged[0]);++i){char buffer[512];if(wo_path(unchanged[i],buffer,sizeof(buffer))!=unchanged[i])ExitProcess(20+i);}
     HANDLE file=CreateFileW(L"Wipeout2097.exe",GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);if(file==INVALID_HANDLE_VALUE)ExitProcess(3);
     LARGE_INTEGER size;if(!GetFileSizeEx(file,&size)||size.QuadPart>2000000)ExitProcess(4);

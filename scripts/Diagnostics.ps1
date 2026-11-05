@@ -228,7 +228,7 @@ function Save-WoGameLogs([string]$GameRoot) {
     # The native runtime writes beside the mod, not inside wobble. These
     # breadcrumbs include video_started/video_exit_code and renderer progress.
     $parent=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($GameRoot).TrimEnd('\'))
-    foreach($name in @('game.log','game-crash.log')){$sources+=@{name=$name;path=(Join-Path $parent ('logs/'+$name));current_session=$true}}
+    foreach($name in @('game.log','game-crash.log','game-debug.txt')){$sources+=@{name=$name;path=(Join-Path $parent ('logs/'+$name));current_session=$true}}
     foreach($name in @('video-intro.log','video-xtro1.log','video-xtro2.log','video-xtro3.log','video-xtro4.log','video-error.log')){
         $sources+=@{name=$name;path=(Join-Path $script:WoLogRoot ('logs/'+$name));current_session=$true}
     }
