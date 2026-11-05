@@ -69,3 +69,64 @@ The native `raceTracks[]` order is **01, 08, 13, 20, 02, 17, 06, 07**, matching
 `NRACE01` through `NRACE08`. Sorted track directory numbers are not sheet
 numbers. This order was verified in the supported executable and against
 native texture placements.
+
+For a local batch-upscaling workspace, export the complete installed selection:
+
+```powershell
+python tools/Export-UpscaleTextures.py --game-root wobble --output exports/upscale-textures
+```
+
+This maintainer tool requires Pillow/numpy and a complete installed PS1 selection.
+It puts editable, original-resolution PNGs in one flat `textures/` folder, with
+`manifest.json`, `README.txt` and an immutable `baseline.zip` beside it. Existing
+HD atlas pages are excluded. Mapped textures, separate authored road mip levels
+and remaining PC atlas sections retain every uncovered native RGB pixel. Equal
+high/low-resolution consumers share an image only after decoded equality checks.
+The manifest records every destination rectangle, source choice, mip level,
+original dimensions and hashes; the ZIP retains original PNGs and native sheets.
+
+Overwrite only the editable PNGs, preserving filenames, aspect ratios, full
+canvases and orientation. Native black pixels remain RGB: transparency and effect
+blending depend on the draw, so global black-to-alpha conversion is inappropriate.
+The exporter verifies the installed receipt and exact pixel reconstruction, never
+rewrites game/HD files, and refuses to overwrite an existing workspace. Exported
+individual images need packing into HD pages after visual approval; they are not
+direct `assets/hd` replacements. All exported original game artwork stays ignored
+by Git and is excluded from releases.
+
+`manifests/hd-textures.json` registers all 576 usable exported texture filenames
+as `kind: "region"` entries, alongside the existing UI aliases. Each entry gives
+its original dimensions and every native sheet/page rectangle. The three legacy
+`screen0` screenshot sections are marked as reference images, not installable
+texture slots. No original game image pixels are included in the manifest.
+The fifteen current edited signs, logos and lucky
+cats are in `assets/hd/` at half their edited export dimensions (2x native).
+The two cat billboards use alpha cutouts from their edge-connected near-black
+matte; faint background grain is removed while enclosed dark details stay opaque.
+The original full-size edited PNGs stay in the local export workspace.
+
+Drop a matching exported PNG directly into `assets/hd/` and launch Play. The
+filename alone selects the texture. Source resolution, aspect ratio and PNG
+hashes are not used to choose a slot. PNGs may have arbitrary dimensions and
+are never resized or rewritten on disk. Preserve the original logical layout
+if you want the same in-game proportions; the existing UV rectangle is filled.
+
+During normal artwork refresh, Play writes an atomic, incremental active index
+at `wobble/textures/hd-regions.bin`, containing only present PNGs and their
+manifest placements. New filenames and manifest mappings require no runtime
+rebuild. Edited PNGs load afresh; removing one restores its native artwork on
+the next launch. Invalid input leaves the previous index intact and is reported
+before launch. PNG alpha is detected automatically; fully opaque images retain
+native black-key semantics. An optional `alpha_mode` of `png` or `black-key`
+overrides the default `auto` for a manifest entry.
+
+At native texture
+load time, the runtime composes only registered regions over the installed
+PC/PS1 sheet; neighboring native artwork is retained without xBRZ processing.
+Individual regions, native pages, strips and UI aliases accept rectangular and
+non-power-of-two PNGs. Only internal GPU storage uses square power-of-two pages;
+the renderer handles that conversion without imposing it on source files.
+Existing UI artwork takes its
+usual path. World rendering retains native depth, RGB blending and fades, with
+separate keyed/opaque uploads so black cutouts do not make opaque surfaces
+transparent. Missing optional region artwork falls back to the native sheet.

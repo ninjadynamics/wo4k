@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "source": "User-supplied deband.zip",
+  "archive_sha256": "3bab6345132b6ab0034f58cec68f904472e4cab721c16ac7b7036684812b60cf",
+  "archive_directory": "deband_c",
+  "imported_files": [
+    {"file": "deband.c", "sha256": "5870bcc2547e9cc0daa16ebe2a88ce46f6e408bde23cd9c0bf5ff43c91d9564e"},
+    {"file": "Makefile", "sha256": "9ea6b0466e8d99482e4db3fc80dee912e4c392e8edcfff583d7bdcf38aa4659e"},
+    {"file": "README.md", "sha256": "2745b5cde0bc323a3b7a7409eb571c21e76ac82e5bf1033606c980deed27d408"}
+  ],
+  "source_changes": "Windows FFmpeg subprocesses use an explicit STARTUPINFOEX handle allowlist (output pipe and NUL only), preventing inherited temporary PNG handles from blocking concurrent workers' atomic renames. The debanding algorithm and defaults are unchanged. Windows build helper, dependency lock and regression fixtures added separately.",
+  "locally_patched_source_sha256": "78051765602d44932f97ecd32a411f5caa256c0e70d6cbe90a729a50ca79b725",
+  "scope": "Maintainer tool only; not a game runtime dependency or release payload."
+}

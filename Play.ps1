@@ -23,17 +23,24 @@ try {
     $config=if([IO.File]::Exists($graphics)){[IO.File]::ReadAllText($graphics)}else{''}
     if($config -match '(?im)^LogLevel\s*='){$config=[regex]::Replace($config,'(?im)^LogLevel\s*=.*$','LogLevel = info')}else{$config+="`r`nLogLevel = info`r`n"}
     [IO.File]::WriteAllText($graphics,$config,[Text.Encoding]::ASCII)
+    Write-WoGameConfiguration $game
     $stage='Starting the game';Write-WoLog 'stage' $stage
     $watch=[Diagnostics.Stopwatch]::StartNew()
     $start=New-Object Diagnostics.ProcessStartInfo
     $start.FileName=$exe;$start.WorkingDirectory=$game;$start.UseShellExecute=$false
     $child=New-Object Diagnostics.Process;$child.StartInfo=$start
+    $startedUtc=[DateTime]::UtcNow
     if(-not $child.Start()){throw 'Windows could not start the game.'}
-    Write-WoLog 'game_started' 'Waiting for the game to exit.'
-    $child.WaitForExit();$code=$child.ExitCode;$watch.Stop()
+    Write-WoLog 'game_started' @{pid=$child.Id;process_bits=32;message='Waiting for the game to exit.'}
+    $sample=0
+    while(-not $child.WaitForExit(2000)){
+        Write-WoProcessSnapshot $child -Modules:($sample -eq 0 -or $sample%15 -eq 0)
+        $sample++
+    }
+    $code=$child.ExitCode;$watch.Stop()
     Write-WoLog 'game_exit' @{code=$code;hex=('0x'+[BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$code),0).ToString('X8'));seconds=[Math]::Round($watch.Elapsed.TotalSeconds,2)}
     if($null -eq $code){throw 'Windows did not return a game exit status.'}
-    if($code -ne 0){throw (Get-WoExitDescription $code)}
+    if($code -ne 0){Save-WoWindowsCrashEvent $child.Id $startedUtc;throw (Get-WoExitDescription $code)}
     Write-WoLog 'complete' 'The game exited normally.'
 } catch {
     Save-WoGameLogs $game

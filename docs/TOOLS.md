@@ -22,7 +22,8 @@ mounting tools or separate image decoder is needed.
 ```
 
 HD runtime replacements currently support font-and-numbers.png, hud-gauges.png,
-notice.png and title.png. Font/gauges are square power-of-two pages. The notice
+notice.png and title.png. Source PNG dimensions are unrestricted by the native
+page size; internal GPU pages are normalized by the renderer. The notice
 is fit without distortion; title artwork is fit vertically and cropped at the
 sides. Every PNG pixel/alpha byte is retained in the runtime upload.
 
@@ -61,7 +62,26 @@ existing outputs and only regenerate changed/damaged assets. They also detect
 changes to the audio processor or artwork packer. `-PassThru` returns update
 counts. Setup's HD/original-audio preferences are retained during every refresh.
 
+In a source checkout, double-click `assets/hd/trim.cmd` with FFmpeg on
+PATH. It processes PNGs beside the script, verifies decoded pixels/alpha and bit
+depth, preserves PNG color-profile chunks, and replaces only smaller outputs.
+Editing metadata is removed. Animated PNGs are skipped. Use `--no-pause` from a
+terminal to suppress the final keypress prompt.
+This maintainer script is kept in Git and excluded from game release ZIPs.
+
 HD artwork lives only in assets/hd. Install-Textures.ps1 validates these PNGs;
 the runtime decodes them directly. Play runs Repair-Layout.ps1 on every launch.
 Install-Videos.ps1 optionally uses ffmpeg from PATH to create and validate MP4s,
 removing MPEG intermediates only after success and temporary outputs on failure.
+
+## Maintainer texture debander
+
+The user-supplied C debanding utility is in `tools/deband/`. Build it with
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/deband/Build.ps1`.
+Its Windows executable is `tools/deband/deband.exe`; `-h` shows the available
+options. Use `-o` with a separate output directory to retain the source images.
+FFmpeg is preferred when installed, with a native C fallback. Build dependencies,
+local fixes and fixture checks are documented in
+[the local tool instructions](../tools/deband/LOCAL.md).
+The executable, dependencies and processed artwork remain ignored, and this
+maintainer tool is excluded from game releases.

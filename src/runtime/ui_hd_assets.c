@@ -41,16 +41,22 @@ static DWORD hd_premultiply_color(DWORD color) {
     for(UINT shift=0;shift<24;shift+=8)result|=((((color>>shift)&255)*a+127)/255)<<shift;
     return result;
 }
+static UINT hd_page_size(UINT desired){UINT size=256;while(size<desired && size<8192)size*=2;return size;}
 static BYTE *hd_square_png(const WCHAR *path,UINT page,UINT pages,BOOL strip,UINT *size) {
     UINT w=0,h=0;BYTE *pixels=read_art_png(path,&w,&h);
     if(!pixels)return 0;
-    if(h<256 || h>8192 || (h&(h-1)) || w!=h*(strip?pages:1) || (strip && page>=pages)){VirtualFree(pixels,0,MEM_RELEASE);wo_render_event("ui_hd_invalid_dimensions",page);return 0;}
-    if(strip && pages>1){
-        BYTE *crop=VirtualAlloc(0,h*h*4,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
-        if(crop)for(UINT y=0;y<h;++y)copy(crop+y*h*4,pixels+(y*w+page*h)*4,h*4);
+    if(!pages || (strip && page>=pages)){VirtualFree(pixels,0,MEM_RELEASE);return 0;}
+    UINT parts=strip?pages:1,desired=(w+parts-1)/parts;
+    if(h>desired)desired=h;UINT target=hd_page_size(desired);
+    if(w!=target || h!=target || parts>1){
+        BYTE *crop=VirtualAlloc(0,target*target*4,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
+        if(crop)for(UINT y=0;y<target;++y)for(UINT x=0;x<target;++x){
+            UINT sx=((strip?page:0)*w+x*w/target)/parts,sy=y*h/target;
+            copy(crop+(y*target+x)*4,pixels+(sy*w+sx)*4,4);
+        }
         VirtualFree(pixels,0,MEM_RELEASE);pixels=crop;
     }
-    *size=h;return pixels;
+    *size=target;return pixels;
 }
 static BYTE *hd_sd_logo(UINT width) {
     WCHAR path[MAX_PATH];path[0]=0;
@@ -71,8 +77,10 @@ done:
     if(raw)VirtualFree(raw,0,MEM_RELEASE);CloseHandle(file);return pixels;
 }
 static BYTE *hd_logo_overlay(BYTE *base,UINT *size,const BYTE *banner,UINT bw,UINT bh) {
-    if(!bw || bw*64!=bh*462 || bh<64 || bh>2048 || (bh&(bh-1)))return base;
-    UINT width=*size>bh*4?*size:bh*4;
+    if(!bw || !bh)return base;
+    UINT desired=bh*4,horizontal=(bw*256+461)/462;
+    if(horizontal>desired)desired=horizontal;
+    UINT width=hd_page_size(desired);if(base && *size>width)width=*size;
     if(!base)base=hd_sd_logo(width);
     else if(*size!=width){
         BYTE *grown=VirtualAlloc(0,width*width*4,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
@@ -90,6 +98,7 @@ static BYTE *hd_logo_overlay(BYTE *base,UINT *size,const BYTE *banner,UINT bw,UI
     }
     return base;
 }
+#include "hd_regions.c"
 static BYTE *hd_asset_pixels(const char *filename,UINT page,UINT pages,UINT *width) {
     WCHAR path[MAX_PATH];BOOL strip=FALSE;BYTE *pixels=0;
     if(hd_find(filename,page,path,&strip))pixels=hd_square_png(path,page,pages,strip,width);
@@ -97,6 +106,7 @@ static BYTE *hd_asset_pixels(const char *filename,UINT page,UINT pages,UINT *wid
         UINT w=0,h=0;BYTE *banner=read_art_png(path,&w,&h);
         if(banner){pixels=hd_logo_overlay(pixels,width,banner,w,h);VirtualFree(banner,0,MEM_RELEASE);}
     }
-    if(pixels)hd_premultiply(pixels,*width**width);
+    pixels=hd_compose_regions(filename,page,pages,pixels,width);
+    if(pixels && !hd_world_name(filename))hd_premultiply(pixels,*width**width);
     return pixels;
 }

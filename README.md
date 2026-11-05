@@ -110,6 +110,15 @@ exported UI filenames are supported: `font-and-numbers`, `hud-gauges`,
 `menu-controls-1/2`, `menu-logo-atlas`, and `menu-banner-logo` (all `.png`).
 `notice.png` and `title.png` retain their startup layouts.
 
+Individual texture edits are matched **by filename only** against
+`manifests/hd-textures.json`, which covers all 576 usable exported textures.
+Drop a matching PNG into `assets/hd/` and Play automatically registers it on
+the next launch; no executable rebuild is needed. Resolution and aspect ratio
+are up to you, and source PNGs stay unchanged. The renderer fits the image into
+the original texture region. Removing the PNG restores the native artwork on
+the next launch. The three exported `screen0` screenshot references are not
+runtime texture slots.
+
 Additional native TGA replacements work without a rebuild: use the original
 name, such as `SKY01.png`, or `HUD2.page0.png` for a zero-based individual page.
 A whole multi-page replacement such as `HUD2.png` retains the original
@@ -120,8 +129,9 @@ keeping the atlas's buttons/panels (or their SD originals).
 The HD header is joined in memory and drawn as one rectangle, allowing smooth
 filtering across the original atlas split without a visible seam.
 
-Keep each exported atlas's canvas and element positions. Atlas pages are square,
-power-of-two, 256..8192 pixels; joined banners retain the exported 462:64 ratio.
+Keep each exported atlas's element positions to preserve its layout. PNG
+dimensions need not be square, power-of-two or an exact multiple of the original.
+The renderer manages GPU storage and fits the source to the original UV layout.
 Unmapped or invalid PNGs produce a clear error naming the file, rather than
 silently being skipped. Restart Play after changing artwork. The renderer uses
 premultiplied color for filtering/blending, preserving smooth edges and fades;
@@ -271,6 +281,19 @@ They do not query machine/account names, serial numbers, UUIDs, MAC/IP addresses
 or hardware device IDs. Common personal paths are redacted in script logs;
 bootstrap errors may include script paths. Logs stay local and are never
 uploaded automatically. Review them before sharing.
+
+For a game crash, share the **main `play-*.log` shown in the popup**. It includes
+current-session tails of graphics, native exception and video logs; the complete
+attachments share its filename prefix. Play samples game memory and loaded module
+versions, records relevant settings, and checks Windows Application Error events
+for the same child process. Native fault reports distinguish first-chance
+observations (which may be handled) from unhandled exceptions and record the
+instruction's module/offset, access type/address, registers and bounded code-address
+candidates. No memory dump is created. These diagnostics provide evidence for
+investigation; an access violation alone does not establish a RAM/video problem.
+The release's `runtime/wohr.map` maps runtime addresses back to its exact build.
+The main report and each saved attachment identify the mod version; native crash
+logs record the version compiled into the DLL, including before graphics starts.
 
 Existing players: click **Update**, then **Play** when Setup reopens. Update
 repairs the installed game and preserves saves/preferences. Interfaces from

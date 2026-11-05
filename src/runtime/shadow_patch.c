@@ -254,6 +254,7 @@ static void __cdecl finish_transform(void) {
             /* Classify the final material states, before effect tags are cleared. */
             scene_lighting_finish();
             clear_effect_tags(buffer,count,FALSE);
+            hd_world_finish();
         }
     }
     old_finish_transform();

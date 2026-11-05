@@ -15,6 +15,17 @@ try{
     $result=& (Join-Path $work 'scripts/Repair-Layout.ps1') -GameRoot $game -PassThru
     if($result.removed){throw 'Migration is not idempotent.'}
     $artRoot=Join-Path $work 'assets/hd';$optional=Join-Path $artRoot 'hud-reticles.png'
+    # Metadata-only native headers let the real HD validator resolve the
+    # copied individual artwork without installing any original game assets.
+    $pics=Join-Path $game 'textures/sd/Pics/Hi-res';[IO.Directory]::CreateDirectory($pics)|Out-Null
+    $catalog=Get-Content -LiteralPath (Join-Path $work 'manifests/hd-textures.json') -Raw -Encoding UTF8|ConvertFrom-Json
+    foreach($region in @($catalog|Where-Object kind -eq region|ForEach-Object regions)){
+        $path=Join-Path $pics $region.native;$pages=[int]$region.page+1
+        if(Test-Path -LiteralPath $path){$header=[IO.File]::ReadAllBytes($path);$pages=[Math]::Max($pages,[BitConverter]::ToUInt16($header,12)/256)}
+        $header=New-Object byte[] 18;$header[2]=2;$header[16]=16
+        [BitConverter]::GetBytes([uint16](256*$pages)).CopyTo($header,12);[BitConverter]::GetBytes([uint16]256).CopyTo($header,14)
+        [IO.File]::WriteAllBytes($path,$header)
+    }
     $reticleSource=if([IO.File]::Exists($optional)){$optional}else{Join-Path $artRoot 'hud-gauges.png'}
     [IO.File]::Copy($reticleSource,(Join-Path $artRoot 'unknown-preview.png'))
     $failed=$false;try{& (Join-Path $work 'scripts/Install-Textures.ps1') -SourcePath $artRoot -GameRoot $game -PassThru}catch{$failed=$_.Exception.Message -like '*Cannot map*'}

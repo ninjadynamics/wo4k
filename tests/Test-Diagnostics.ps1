@@ -13,6 +13,7 @@ try {
         Assert (($Property -join ',') -eq ($allowed[$ClassName] -join ',')) 'Query includes identifying fields.'
         [pscustomobject]@{Caption='Windows 11';Version='10.0.26100';BuildNumber='26100';OSArchitecture='64-bit';Name='Test CPU or GPU';NumberOfCores=8;NumberOfLogicalProcessors=16;TotalPhysicalMemory=32GB;DriverVersion='1.2.3';SerialNumber='PRIVATE_SERIAL';UserName='PRIVATE_USER';UUID='PRIVATE_UUID';MACAddress='PRIVATE_MAC'}
     }
+    [IO.File]::WriteAllText((Join-Path $work 'VERSION'),'0.1.0-test')
     $log=Start-WoLog 'test' $work
     Write-WoLog 'redaction' @{message=('File at '+$env:USERPROFILE+'\private\x and '+$work+'\file')}
     $entries=@(Get-Content -LiteralPath $log|ForEach-Object {ConvertFrom-Json $_})
@@ -22,6 +23,45 @@ try {
     Assert ($text -notmatch 'PRIVATE_(SERIAL|USER|UUID|MAC)') 'Private inventory fields leaked.'
     Assert (-not $text.Contains($env:USERPROFILE.Replace('\','\\')) -and -not $text.Contains($work.Replace('\','\\'))) 'Personal paths were not redacted in JSON.'
     Assert ($text.Contains('%USERPROFILE%') -and $text.Contains('%MODROOT%')) 'Path placeholders missing.'
+    # Collect native/video breadcrumbs from their real parent logs directory,
+    # snapshot them beside the session, and include tails in the pasted log.
+    $nativeGame=Join-Path $work 'wobble';[IO.Directory]::CreateDirectory($nativeGame)|Out-Null
+    $nativeLog=Join-Path $work 'logs/game.log';$videoLog=Join-Path $work 'logs/video-intro.log';$staleVideo=Join-Path $work 'logs/video-error.log'
+    [IO.File]::WriteAllText($nativeLog,"video_started 0`r`nvideo_exit_code 0`r`nrender_patch_version 40`r`n")
+    [IO.File]::WriteAllText((Join-Path $work 'logs/game-crash.log'),"mod_version 0.1.0-test`r`nexception_unhandled 0xC0000005`r`nfault_instruction 0x10001234 wohr.dll+0x00001234`r`n")
+    [IO.File]::WriteAllText($videoLog,('File='+$work+"\wobble\movies\intro.mp4`r`nOpened=True`r`nResult=ended`r`n"))
+    [IO.File]::WriteAllText($staleVideo,'Old unrelated playback error')
+    [IO.File]::SetLastWriteTimeUtc($staleVideo,$script:WoLogStartedUtc.AddMinutes(-1))
+    Save-WoGameLogs $nativeGame
+    Assert ([IO.File]::Exists([IO.Path]::ChangeExtension($log,'game.log'))) 'Native runtime log was not attached.'
+    Assert (([IO.File]::ReadAllText([IO.Path]::ChangeExtension($log,'game.log'))).StartsWith('# WO4K mod_version=0.1.0-test')) 'Saved standalone attachment omits its mod version.'
+    Assert ([IO.File]::Exists([IO.Path]::ChangeExtension($log,'video-intro.log'))) 'Video status was not attached.'
+    Assert ([IO.File]::Exists([IO.Path]::ChangeExtension($log,'game-crash.log'))) 'Native exception report was not attached.'
+    Assert (-not [IO.File]::Exists([IO.Path]::ChangeExtension($log,'video-error.log'))) 'A stale video failure was attributed to this session.'
+    $tails=@(Get-Content -LiteralPath $log|ForEach-Object {ConvertFrom-Json $_}|Where-Object event -eq game_log_tail)
+    Assert ($tails.Count -eq 3 -and ($tails.data.lines -join ',').Contains('video_exit_code 0') -and ($tails.data.lines -join ',').Contains('Result=ended') -and ($tails.data.lines -join ',').Contains('exception_unhandled 0xC0000005')) 'Pasted launcher log omits runtime/video/crash breadcrumbs.'
+    Assert (([IO.File]::ReadAllText($log)).Contains('%MODROOT%') -and -not ([IO.File]::ReadAllText($log)).Contains($work.Replace('\','\\'))) 'Log tails leaked original paths.'
+    Assert (-not [IO.File]::Exists($nativeLog) -and -not [IO.File]::Exists($videoLog) -and [IO.File]::Exists($staleVideo)) 'Current logs were not consumed or stale logs were altered.'
+    Save-WoGameLogs $nativeGame
+    $tails=@(Get-Content -LiteralPath $log|ForEach-Object {ConvertFrom-Json $_}|Where-Object event -eq game_log_tail)
+    Assert ($tails.Count -eq 3) 'Failure/finally collection duplicated native/video evidence.'
+    # Event Viewer evidence is restricted to this executable AND child PID.
+    function Get-WinEvent($FilterHashtable,$MaxEvents,$ErrorAction){
+        foreach($eventPid in @('0x99','0x42')){
+            $eventXml='<Event><EventData><Data Name="AppName">Wipeout2097.exe</Data><Data Name="ProcessId">'+$eventPid+'</Data><Data Name="ModuleName">C:\private\driver.dll</Data><Data Name="ExceptionCode">c0000005</Data><Data Name="FaultingOffset">00123456</Data><Data Name="IntegratorReportId">PRIVATE_UUID</Data><Data Name="AppPath">PRIVATE_USER</Data></EventData></Event>'
+            $entry=[pscustomobject]@{TimeCreated=Get-Date;Payload=$eventXml}
+            $entry|Add-Member -MemberType ScriptMethod -Name ToXml -Value {return $this.Payload}
+            $entry
+        }
+    }
+    Save-WoWindowsCrashEvent 66 ([DateTime]::UtcNow.AddSeconds(-5))
+    $windows=@(Get-Content -LiteralPath $log|ForEach-Object {ConvertFrom-Json $_}|Where-Object event -eq windows_application_error)
+    Assert ($windows.Count -eq 1 -and $windows[0].data.ModuleName -eq 'driver.dll' -and $windows[0].data.FaultingOffset -eq '00123456') 'Windows crash fields or PID correlation failed.'
+    Assert (([IO.File]::ReadAllText($log)) -notmatch 'PRIVATE_(USER|UUID)|C:\\\\private') 'Windows crash event leaked identifiers/paths.'
+    [IO.File]::WriteAllText((Join-Path $nativeGame 'Wipeout2097.ini'),"[Render]`r`nShadowLiftPercent=150`r`nUnknown=PRIVATE_USER`r`n[Audio]`r`nSoundtrack=1`r`n")
+    Write-WoGameConfiguration $nativeGame
+    $config=@(Get-Content -LiteralPath $log|ForEach-Object {ConvertFrom-Json $_}|Where-Object event -eq game_configuration)
+    Assert ($config.Count -eq 1 -and $config[0].data.settings.'Render/ShadowLiftPercent' -eq '150' -and ([IO.File]::ReadAllText($log)) -notmatch 'PRIVATE_USER') 'Configuration capture includes unknown fields or omits render settings.'
     function Show-WoErrorDialog([string]$Text){$script:dialogText=$Text}
     $oldMarker=$env:WO4K_ERROR_MARKER;$env:WO4K_ERROR_MARKER=Join-Path $work 'reported'
     Assert (Show-WoFailure 'Test failure') 'Popup was not shown.'
@@ -32,14 +72,14 @@ try {
     $fixture=Join-Path $work 'mod Ω with spaces';$scripts=Join-Path $fixture 'scripts';$game=Join-Path $fixture 'wobble'
     [IO.Directory]::CreateDirectory($scripts)|Out-Null;[IO.Directory]::CreateDirectory($game)|Out-Null
     [IO.File]::Copy((Join-Path $root 'Play.ps1'),(Join-Path $fixture 'Play.ps1'))
-    $helper=[IO.File]::ReadAllText((Join-Path $root 'scripts/Diagnostics.ps1'))+"`r`nfunction Get-WoSystemInfo {return @{windows='Windows 11';cpu='Fixture';ram_gib=32;gpu='Fixture'}}`r`n"
+    $helper=[IO.File]::ReadAllText((Join-Path $root 'scripts/Diagnostics.ps1'))+"`r`nfunction Get-WoSystemInfo {return @{windows='Windows 11';cpu='Fixture';ram_gib=32;gpu='Fixture'}}`r`nfunction Save-WoWindowsCrashEvent { Write-WoLog 'windows_fixture' 'Crash-event lookup called.' }`r`n"
     [IO.File]::WriteAllText((Join-Path $scripts 'Diagnostics.ps1'),$helper,(New-Object Text.UTF8Encoding($true)))
     [IO.File]::WriteAllText((Join-Path $scripts 'Refresh-Assets.ps1'),'[pscustomobject]@{art_checked=4;art_ignored=@();art_files=@()}')
     [IO.File]::WriteAllText((Join-Path $fixture 'VERSION'),'0.1.0-test')
     [IO.File]::WriteAllText((Join-Path $game 'installation.json'),' {"version":"test","hd_textures":true,"clean_audio":true}')
     foreach($name in @('wohr.dll','ddraw.dll','wo2097-controller.exe','libiconv-2.dll')){[IO.File]::WriteAllText((Join-Path $game $name),'dependency fixture')}
     if(-not $Compiler){$Compiler=(Get-Command gcc.exe -ErrorAction Stop).Source}
-    $native=Join-Path $work 'exit.c';[IO.File]::WriteAllText($native,'#include <windows.h>'+"`n"+'int main(void){ExitProcess(EXIT_CODE);return 0;}')
+    $native=Join-Path $work 'exit.c';[IO.File]::WriteAllText($native,'#include <windows.h>'+"`n"+'int main(void){Sleep(2500);ExitProcess(EXIT_CODE);return 0;}')
     function Run-Play([int]$Expected){
         & powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $fixture 'Play.ps1') -NoErrorDialog
         Assert ($LASTEXITCODE -eq $Expected) ('Unexpected Play exit status: '+$LASTEXITCODE)
@@ -51,6 +91,7 @@ try {
         [IO.File]::Copy((Join-Path $work 'fixture.exe'),(Join-Path $game 'Wipeout2097.exe'),$true)
         $events=Run-Play $case[1]
         Assert (@($events|Where-Object event -eq game_exit).Count -eq 1) 'Game exit code was not captured.'
+        Assert (@($events|Where-Object event -eq game_memory).Count -ge 1 -and @($events|Where-Object event -eq game_modules).Count -ge 1) 'Running process memory/module evidence missing.'
         if($case[1]){Assert ((($events|Where-Object event -eq failure).data.message).Contains('0xC0000005')) 'Crash exit code was hidden.'}else{Assert (@($events|Where-Object event -eq failure).Count -eq 0) 'Normal exit incorrectly reported a failure.'}
     }
     [IO.File]::Delete((Join-Path $game 'wohr.dll'));$events=Run-Play 1

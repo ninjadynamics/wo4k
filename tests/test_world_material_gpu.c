@@ -17,6 +17,7 @@ static DWORD material_pixel_at(IDirectDrawSurface7 *surface,UINT x) {
 static DWORD material_pixel(IDirectDrawSurface7 *surface){return material_pixel_at(surface,32);}
 #include "test_sprite_blend.c"
 #include "test_ps1_sprites.c"
+#include "test_hd_regions_gpu.c"
 static void test_world_material_gpu(void) {
     WCHAR path[MAX_PATH];if(!GetEnvironmentVariableW(L"WO_TEST_DDRAW_WRAPPER",path,MAX_PATH))return;
     WCHAR report_path[MAX_PATH];
@@ -127,6 +128,7 @@ static void test_world_material_gpu(void) {
     }
     test_sprite_blend_gpu(dd,device,target,&desc);
     test_ps1_blending_gpu(dd,device,target,&desc);
+    test_hd_world_gpu(dd,device,target,&desc);
     DWORD pixels[8]={0x2097,before,opaque,foliage,native_keyed,broken_keyed,fixed_keyed,edge},written;
     if(material_report!=INVALID_HANDLE_VALUE){WriteFile(material_report,pixels,sizeof(pixels),&written,0);CloseHandle(material_report);}
     device->lpVtbl->SetTexture(device,0,0);texture->lpVtbl->Release(texture);device->lpVtbl->Release(device);

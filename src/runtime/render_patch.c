@@ -65,6 +65,7 @@ static void hud_layout_finish(void);
 static void apply_race_preferences(void);
 static void finish_race_ui_effects(void);
 static void ui_hd_finish(void);
+static void hd_world_finish(void);
 static BOOL ui_hd_frame_page(UINT slot);
 static float credits_motion_y;
 static BYTE *render_entries;
@@ -342,7 +343,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     *(float *)(game+0x8b190)=projection_x;
     installed=TRUE;
     update_projection();
-    wo_render_event("render_patch_version",40);
+    wo_render_event("render_patch_version",42);
     wo_render_event("render_display_width",width);wo_render_event("render_display_height",height);
     wo_render_event("render_geometry_width_percent",geometry_width);
     initialize_menu();

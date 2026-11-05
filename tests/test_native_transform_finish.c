@@ -85,6 +85,15 @@ static void test_native_transform_finish(BYTE *image) {
     native_transform_ps1_probe=TRUE;finish_transform();native_transform_ps1_probe=FALSE;
     if(native_transform_unlocks!=3 || *(UINT *)(image+0x631d50)!=6)ExitProcess(240);
     for(UINT i=0;i<3;++i)if(vertices[i].reserved || vertices[i].color!=original.color || vertices[i+3].reserved || vertices[i+3].color!=0xffffffff)ExitProcess(241);
+    /* The retained native PROCESSVERTICES pointer must also survive HD world
+     * texture/state packets, with no additional or relocated vertices. */
+    copy(stream,native_input,length);*(BYTE **)(image+0x631d54)=stream+length;
+    *(BYTE **)(image+0x63f820)=native_transform_process;*(UINT *)(image+0x631d50)=3;
+    for(UINT i=0;i<3;++i)vertices[i]=original;
+    ui_hd_pages[100].handle=123;ui_hd_pages[100].world=TRUE;ui_hd_opaque_pages[100].handle=124;
+    finish_transform();
+    if(native_transform_unlocks!=4 || *(UINT *)(image+0x631d50)!=3)ExitProcess(242);
+    ui_hd_pages[100]=(UiHdPage){0};ui_hd_opaque_pages[100]=(UiHdPage){0};
     for(UINT i=0;i<sizeof(globals)/sizeof(globals[0]);++i)*(DWORD *)(image+globals[i])=saved_globals[i];
     image[0x519290]=saved_fade;shadows_active=saved_shadows;exhaust_active=saved_exhaust;refresh_race=saved_race;
     distance_execute[0]=saved_buffer;*fade_operand=saved_fade_operand;

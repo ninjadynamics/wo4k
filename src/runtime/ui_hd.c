@@ -2,10 +2,11 @@
 #include <d3d.h>
 #include "hud_coverage.h"
 typedef void (__cdecl *UiNativeLoadFn)(int,const char *,SHORT,SHORT);
-typedef struct UiHdPage {IDirectDrawSurface *surface;IDirect3DTexture *texture;DWORD handle;UINT width;UiHdFrameArt frame_art;BYTE *hud_coverage;} UiHdPage;
+typedef struct UiHdPage {IDirectDrawSurface *surface;IDirect3DTexture *texture;DWORD handle;UINT width;UiHdFrameArt frame_art;BYTE *hud_coverage;BOOL world;} UiHdPage;
 enum {UI_HD_PAGE_COUNT=256};
 enum {UI_HD_STATE_COUNT=13};
 static UiHdPage ui_hd_pages[UI_HD_PAGE_COUNT];
+static UiHdPage ui_hd_opaque_pages[UI_HD_PAGE_COUNT];
 static UiHdPage ui_hd_logo;
 #define UI_HD_LOGO_TAG 0x574f4c47u
 static UiNativeLoadFn old_ui_native_load;
@@ -68,6 +69,7 @@ static void ui_hd_release(UiHdPage *page) {
     if(page->surface)page->surface->lpVtbl->Release(page->surface);
     page->texture=0;page->surface=0;page->handle=0;page->width=0;
     page->frame_art.valid=FALSE;
+    page->world=FALSE;
     if(page->hud_coverage)VirtualFree(page->hud_coverage,0,MEM_RELEASE);page->hud_coverage=0;
 }
 static void ui_hd_capture_states(IDirect3DDevice *device) {
@@ -127,13 +129,19 @@ static BYTE *ui_hd_join_logo(const BYTE *atlas,UINT size,UINT *width,UINT *heigh
     }
     return joined;
 }
-static BOOL ui_hd_load(const char *filename,UINT index,UINT pages,UiHdPage *page) {
+static BOOL ui_hd_load(const char *filename,UINT index,UINT pages,UiHdPage *page,UiHdPage *opaque) {
     BOOL logo=index==0 && startup_name(filename,"xllogo.tga");
     if(logo)ui_hd_release(&ui_hd_logo);
     UINT width=0;BYTE *pixels=hd_asset_pixels(filename,index,pages,&width);
     if(!pixels)return FALSE;
     if(startup_name(filename,"testmenu.tga"))ui_hd_measure_frame(pixels,width,index,&page->frame_art);
     BOOL ok=ui_hd_upload(pixels,width,width,page);
+    if(ok && hd_world_name(filename)){
+        page->world=TRUE;
+        for(UINT i=0;i<width*width;++i)pixels[i*4+3]=255;
+        ok=ui_hd_upload(pixels,width,width,opaque);opaque->world=TRUE;
+        if(!ok){ui_hd_release(page);ui_hd_release(opaque);}
+    }
     if(ok && startup_name(filename,"hud2.tga"))page->hud_coverage=hud_coverage_create(pixels,width);
     if(ok && logo){
         UINT w=0,h=0;BYTE *joined=ui_hd_join_logo(pixels,width,&w,&h);
@@ -154,11 +162,12 @@ static void __cdecl ui_native_load(int unused,const char *filename,SHORT first,S
     if(first<0 || count<1 || (UINT)first+(UINT)count>UI_HD_PAGE_COUNT)return;
     UINT loaded=0;
     for(UINT i=0;i<(UINT)count;++i){
-        UiHdPage fresh={0};
-        if(ui_hd_load(filename,i,(UINT)count,&fresh)){
+        UiHdPage fresh={0},opaque={0};
+        if(ui_hd_load(filename,i,(UINT)count,&fresh,&opaque)){
             ++loaded;wo_render_event("ui_hd_loaded_slot",(UINT)first+i);wo_render_event("ui_hd_loaded_width",fresh.width);
         }
         ui_hd_commit_page((UINT)first+i,&fresh);
+        ui_hd_release(ui_hd_opaque_pages+(UINT)first+i);ui_hd_opaque_pages[(UINT)first+i]=opaque;
     }
     IDirect3DDevice *device=*(IDirect3DDevice **)(game+0xc8d10);
     if(loaded && device)ui_hd_capture_states(device);
@@ -284,12 +293,29 @@ static UINT ui_hd_rewrite(const BYTE *input,UINT length,BYTE *out,UINT capacity,
         if(opcode==3 && ui_hd_handle(handle)) {
             if(size!=8)return 0;
             UINT wanted[UI_HD_STATE_COUNT];for(UINT i=0;i<UI_HD_STATE_COUNT;++i)wanted[i]=original[i];
+            int slot=ui_hd_slot(handle);
+            if(slot>=0 && ui_hd_pages[slot].world){
+                /* World textures keep native blend/depth/modulation. A second
+                 * upload makes keyed BLACK opaque again when keying is off. */
+                DWORD texture=original[6]?handle:ui_hd_opaque_pages[slot].handle;
+                if(!texture)return 0;
+                /* Legacy MODULATE selects texture alpha when one exists.
+                 * MODULATEALPHA preserves the diffuse opacity that RGB pages
+                 * supplied before this RGBA replacement was introduced. */
+                if(wanted[3]==2)wanted[3]=4;
+                wanted[6]=0;
+                if(original[6]){wanted[7]=1;wanted[10]=127;wanted[11]=5;}
+                if(!ui_hd_emit(out,&written,capacity,effective,wanted))return 0;
+                if(texture!=handle && !ui_hd_texture(out,&written,capacity,texture))return 0;
+                if(bytes>capacity-written)return 0;copy(out+written,input+offset,bytes);written+=bytes;
+                if(texture!=handle && !ui_hd_texture(out,&written,capacity,handle))return 0;
+                offset+=bytes;touched=TRUE;continue;
+            }
             wanted[0]=1;wanted[1]=2;wanted[2]=6;wanted[3]=4;wanted[4]=original[4];
             if(ui_hd_extra_states)wanted[6]=0;
             wanted[7]=1;wanted[10]=0;wanted[11]=5; /* discard alpha0 before depth writes */
             wanted[8]=wanted[9]=2;
             if(title_input_active()){wanted[4]=0;wanted[5]=0;} /* title lettering overlays the artwork, no scene depth */
-            int slot=ui_hd_slot(handle);
             if(slot>=1 && slot<=3)wanted[12]=D3DTADDRESS_CLAMP;
             if(slot<22 || slot>24){
                 if(!ui_hd_emit(out,&written,capacity,effective,wanted))return 0;
@@ -358,7 +384,8 @@ static BOOL ui_hd_prepare(BYTE *instructions,UINT length,TLVertex *vertices,UINT
         UINT opcode=instructions[offset],size=instructions[offset+1],n=*(WORD *)(instructions+offset+2),bytes=4+size*n;
         if(bytes>length-offset)return FALSE;
         if(opcode==8){if(size!=8)return FALSE;for(UINT i=0;i<n;++i)if(*(DWORD *)(instructions+offset+4+i*8)==1)handle=*(DWORD *)(instructions+offset+8+i*8);}
-        if(opcode==3 && ui_hd_handle(handle)){
+        int slot=ui_hd_slot(handle);
+        if(opcode==3 && slot>=0 && !ui_hd_pages[slot].world){
             if(size!=8)return FALSE;
             for(UINT i=0;i<n;++i)for(UINT corner=0;corner<3;++corner){
                 WORD *index=(WORD *)(instructions+offset+4+i*8+corner*2);
@@ -376,9 +403,9 @@ static BOOL ui_hd_prepare(BYTE *instructions,UINT length,TLVertex *vertices,UINT
     }
     *count=used;return TRUE;
 }
-static void ui_hd_finish(void) {
+static void ui_hd_finish_buffer(BYTE *buffer) {
     BOOL any=FALSE;for(UINT i=0;i<UI_HD_PAGE_COUNT;++i)if(ui_hd_pages[i].handle){any=TRUE;break;}if(!any)return;
-    BYTE *buffer=*(BYTE **)(game+0x7c9690),*start=*(BYTE **)(game+0x53f1a0),*end=*(BYTE **)(game+0x631d54);
+    BYTE *start=*(BYTE **)(game+0x53f1a0),*end=*(BYTE **)(game+0x631d54);
     UINT size=*(UINT *)(game+0xc8610);
     if(!buffer || !start || end<start || start<buffer || end>=buffer+size)return;
     UINT capacity=(UINT)(buffer+size-start);if(capacity>sizeof(ui_hd_instructions))capacity=sizeof(ui_hd_instructions);
@@ -390,12 +417,15 @@ static void ui_hd_finish(void) {
     if(n){copy(start,ui_hd_instructions,n);*(BYTE **)(game+0x631d54)=start+n;*(UINT *)(game+0x631d50)=count;}
     for(UINT i=0;i<count;++i)if(((TLVertex *)buffer)[i].specular==UI_HD_LOGO_TAG)((TLVertex *)buffer)[i].specular=0;
 }
+static void ui_hd_finish(void){ui_hd_finish_buffer(*(BYTE **)(game+0x7c9690));}
+static void hd_world_finish(void){ui_hd_finish_buffer(*(BYTE **)(game+0x53f190));}
 static void initialize_ui_hd(const WCHAR *root) {
     WCHAR hd[4];if(GetEnvironmentVariableW(L"WO2097_HD_ART",hd,4) && hd[0]==L'0')return;
     UINT n=0;while(root[n] && n<MAX_PATH-40) {ui_hd_directory[n]=root[n];++n;}
     if(root[n])return;
     for(UINT i=0;i<=n;++i)ui_hd_game_root[i]=root[i];
     const WCHAR *suffix=L"..\\assets\\hd\\";while((*((WCHAR *)ui_hd_directory+n++)=*suffix++)) {}
+    hd_load_region_index();
     old_ui_native_load=(UiNativeLoadFn)hook(RVA_ui_native_load,entry_ui_native_load,sizeof(entry_ui_native_load),ui_native_load);
     wo_render_event("ui_hd_loader_hook",old_ui_native_load!=0);
 }

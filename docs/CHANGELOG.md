@@ -1,5 +1,30 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.21
+
+- Capture native x86 faults with module-relative instruction addresses, access
+  type/address, registers, bounded frame/code-address candidates, and available
+  physical/commit/process address space. Observe first-chance faults without
+  suppressing them; distinguish unhandled exceptions and preserve prior filters.
+  Include the matching runtime symbol map in each built release.
+- Sample game memory and loaded module versions during play, record relevant
+  graphics/audio preferences, and collect matching Windows Application Error
+  details after abnormal exits. Save current-session graphics, native and video
+  logs together and embed their tails in the main Play log. Record movie opening,
+  completion, failure and original-video fallback as they happen. Logs remain
+  local, with path/identifier filtering and no automatic uploads or memory dumps.
+- Install individual HD texture regions by manifest filename on every launch.
+  Accept arbitrary PNG dimensions/aspect ratios without changing source files;
+  retain native atlas pixels elsewhere and preserve opaque/keyed world rendering,
+  vertex fades and additive effects. Removing an optional PNG restores native art.
+  Include the contributor's fifteen edited signs/posters/cats at half working
+  resolution and the added race-page artwork.
+- Add assets/hd/trim.cmd for optional lossless FFmpeg PNG compression. Preserve
+  pixel/alpha values, bit depth and color profiles; discard editing metadata;
+  replace only verified smaller files. This script, the local maintainer
+  debanding tool and texture-export helper live in the source repository,
+  outside release payloads for compatibility with published updaters.
+
 ## 0.1.0-beta.20
 
 - Use a compact installed view with hidden source selectors and Update, Repair

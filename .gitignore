@@ -17,6 +17,7 @@ src/runtime/build/*
 *.obj
 *.a
 *.lib
+/runtime/wohr.map
 *.zip
 *.wodiff
 /release-files.json

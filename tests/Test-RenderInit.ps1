@@ -11,6 +11,7 @@ $env:WO_TEST_GAME_ROOT=[IO.Path]::GetFullPath($GameRoot)
 $env:WO_TEST_SETTINGS=Join-Path $out 'test-settings.ini'
 $env:WO_TEST_BOUNDS=Join-Path $out 'title-bounds.bin'
 $env:WO_TEST_FRAME_ART_ROOT=Join-Path $root 'assets/hd'
+$env:WO_TEST_HD_REGION_ASSETS=if((Test-Path -LiteralPath (Join-Path $GameRoot 'textures/sd/Pics/Hi-res/NRACE01.TGA')) -and (Test-Path -LiteralPath (Join-Path $GameRoot 'textures/hd-regions.bin'))){'1'}else{$null}
 $env:WO2097_RENDER_TEST='1';$env:WO2097_DISTANCE_TEST='1';$env:WO2097_REFRESH_TEST='1';$env:WO2097_SIM60_TEST='0'
 $env:WO_TEST_DDRAW_WRAPPER=$null;$env:WO_TEST_MATERIAL_REPORT=$null
 if($env:WO_TEST_GPU_MATERIALS -eq '1'){
@@ -32,6 +33,9 @@ if($env:WO_TEST_GPU_MATERIALS -eq '1'){Write-Host 'PASS: real offscreen GPU repr
 if($env:WO_TEST_GPU_MATERIALS -eq '1'){Write-Host 'PASS: A/B GPU samples verify that the original filtered sprite edge is darkened, while alpha cutoff128 rejects that fringe; opaque pixels and transparent black masking still pass.'}
 if($env:WO_TEST_GPU_MATERIALS -eq '1'){Write-Host 'PASS: explosion/smoke A/B pixels reproduce double-coverage dark halos; premultiplied effect packets preserve neutral edges and opaque interiors at 0/21/128/255 opacity, plus native additive destination blending.'}
 if($env:WO_TEST_GPU_MATERIALS -eq '1'){Write-Host 'PASS: PS1 B+F explosions and exact clamp(B-F) smoke match real GPU pixels across two backgrounds, three fades and overlapping quads; black contributes zero and native blend factors are restored.'}
+if($env:WO_TEST_GPU_MATERIALS -eq '1'){Write-Host 'PASS: HD world pages draw opaque black, reject keyed black, preserve vertex fades and additive RGB on the real offscreen GPU.'}
+if($env:WO_TEST_HD_REGION_ASSETS){Write-Host 'PASS: all authored HD region placements decode and compose at their exact native locations.'}
+Write-Host 'PASS: world packet states and the original native closing pointer survive HD replacement.'
 Write-Host 'PASS: the original x86 DrawExplode emits its real mode0 billboards; each camera/ship-translated emitter retains its PS1 blend, original silhouette and neutral128 modulation. Native FinishTransformBuffer processes the appended white smoke vertices and three-pass triangles without moving its placeholder.'
 Write-Host 'PASS: each world buffer resets inherited explicit alpha testing and preserves native color keying, including with neutral lighting and soft shadows/effects disabled.'
 Write-Host 'PASS: original x86 FinishTransformBuffer closes the rewritten stream through its retained PROCESSVERTICES pointer; vertex count, reset commands, triangle indices and final EXIT survive unchanged in position and meaning.'

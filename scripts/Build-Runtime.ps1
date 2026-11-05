@@ -6,6 +6,9 @@ $headers = $HeaderDirectory
 $runtimeSource = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../src/runtime'))
 $out = Join-Path $runtimeSource 'build'
 New-Item -ItemType Directory -Path $out -Force | Out-Null
+$version=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../VERSION')).Trim()
+if($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$'){throw 'Invalid runtime version.'}
+[IO.File]::WriteAllText((Join-Path $out 'runtime_version.h'),('#define WO_MOD_VERSION "'+$version+'"'),[Text.Encoding]::ASCII)
 @'
 LIBRARY KERNEL32.dll
 EXPORTS
@@ -37,6 +40,14 @@ GetTickCount@0
 GetSystemDirectoryW@8
 WaitForSingleObject@8
 GetExitCodeProcess@8
+AddVectoredExceptionHandler@8
+RemoveVectoredExceptionHandler@4
+SetUnhandledExceptionFilter@4
+VirtualQuery@12
+ReadProcessMemory@20
+GetCurrentThreadId@0
+GlobalMemoryStatusEx@4
+FlushFileBuffers@4
 '@ | Set-Content -LiteralPath (Join-Path $out 'kernel32.def') -Encoding Ascii
 @'
 LIBRARY WINMM.dll
@@ -84,7 +95,9 @@ foreach ($unit in @('wohd','render_patch','simulation_patch')) {
     & "$bin\clang.exe" --target=i686-w64-windows-gnu -isystem $headers -Os -fno-builtin -fno-stack-protector -Wall -Wextra -Wno-unused-parameter -c "$runtimeSource\$unit.c" -o "$out\$unit.obj"
     if ($LASTEXITCODE) { throw "Compile failed: $unit" }
 }
-& "$bin\lld-link.exe" /dll /machine:x86 /entry:DllMain@12 /nodefaultlib "/def:$runtimeSource\wohd.def" "/out:$out\wohd.dll" "$out\wohd.obj" "$out\render_patch.obj" "$out\simulation_patch.obj" "$out\kernel32.lib" "$out\winmm.lib" "$out\user32.lib" "$out\ole32.lib"
+& "$bin\lld-link.exe" /dll /machine:x86 /entry:DllMain@12 /nodefaultlib "/map:$out\wohr.map" "/def:$runtimeSource\wohd.def" "/out:$out\wohd.dll" "$out\wohd.obj" "$out\render_patch.obj" "$out\simulation_patch.obj" "$out\kernel32.lib" "$out\winmm.lib" "$out\user32.lib" "$out\ole32.lib"
 if ($LASTEXITCODE) { throw 'Link failed' }
 Copy-Item -LiteralPath "$out\wohd.dll" -Destination (Join-Path $PSScriptRoot '../runtime/wohr.dll') -Force
+$map=[IO.File]::ReadAllText((Join-Path $out 'wohr.map')).Replace($runtimeSource,'%RUNTIME_SRC%')
+[IO.File]::WriteAllText((Join-Path $PSScriptRoot '../runtime/wohr.map'),$map,[Text.Encoding]::ASCII)
 Write-Host 'Built portable x86 mod runtime.'

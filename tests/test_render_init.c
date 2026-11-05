@@ -51,6 +51,7 @@ static void fixture_logo_poly(BYTE *p,BOOL second){
 #include "test_scene_lighting.c"
 #include "test_native_transform_finish.c"
 #include "test_world_material_gpu.c"
+#include "test_hd_regions.c"
 void wo_render_event(const char *name,DWORD value){
     const char *wanted="render_race_ui_clock";while(*name && *name==*wanted){++name;++wanted;}if(!*name && !*wanted)race_ui_event=value;
 }
@@ -85,6 +86,7 @@ void __stdcall test_entry(void){
     ExceptionFn exceptions=(ExceptionFn)GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"AddVectoredExceptionHandler");
     if(exceptions)exceptions(1,fixture_exception);
     test_world_material_gpu();
+    test_hd_world_packets();
     BYTE *image=VirtualAlloc(0,0x7ee000,MEM_COMMIT|MEM_RESERVE,PAGE_EXECUTE_READWRITE);if(!image)ExitProcess(5);
     WCHAR root[MAX_PATH],path[MAX_PATH];
     UINT length=GetEnvironmentVariableW(L"WO_TEST_GAME_ROOT",root,MAX_PATH);
@@ -397,5 +399,6 @@ void __stdcall test_entry(void){
         double seconds=(double)(after.QuadPart-before.QuadPart)/refresh_frequency.QuadPart;
         if(seconds<1 || seconds>25 || !ui_last_time.QuadPart)ExitProcess(40);
     }
+    test_hd_region_assets();
     ExitProcess(0);
 }

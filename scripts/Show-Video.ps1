@@ -3,15 +3,26 @@
     [int]$ControllerOwner=0,[long]$OwnerWindow=0,[switch]$Probe,[switch]$ResolveOnly,[switch]$OriginalOnly)
 . (Join-Path $PSScriptRoot 'Video-Paths.ps1')
 $ErrorActionPreference='Stop'
+$videoModVersion='unknown';try{$videoModVersion=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../VERSION')).Trim()}catch{}
+function Write-VideoBreadcrumb([string]$Event,$Data) {
+    if($ResolveOnly){return}
+    try{
+        $directory=Join-Path $PSScriptRoot '../logs';[IO.Directory]::CreateDirectory($directory)|Out-Null
+        $entry=[ordered]@{time=[DateTime]::UtcNow.ToString('o');mod_version=$videoModVersion;event=$Event;movie=$Movie;data=$Data}
+        if($Event -eq 'video_requested' -and -not $OriginalOnly){[IO.File]::WriteAllText((Join-Path $directory ('video-'+$Movie+'.log')),'')}
+        [IO.File]::AppendAllText((Join-Path $directory ('video-'+$Movie+'.log')),(ConvertTo-Json $entry -Compress)+[Environment]::NewLine,(New-Object Text.UTF8Encoding($false)))
+    }catch{Write-Verbose 'Could not save a video breadcrumb.'}
+}
 trap {
     $errorLog=Join-Path $PSScriptRoot '../logs/video-error.log'
     [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($errorLog)))|Out-Null
-    [IO.File]::WriteAllText($errorLog,($_|Out-String)+$_.ScriptStackTrace)
+    [IO.File]::WriteAllText($errorLog,('mod_version='+$videoModVersion+[Environment]::NewLine+($_|Out-String)+$_.ScriptStackTrace))
     throw
 }
 $moviePath=Find-ModVideo $GameRoot $Movie -OriginalOnly:$OriginalOnly
 if($ResolveOnly){return $moviePath}
-if(-not $moviePath){return}
+Write-VideoBreadcrumb 'video_requested' @{file=[IO.Path]::GetFileName($moviePath);original_only=[bool]$OriginalOnly;probe=[bool]$Probe}
+if(-not $moviePath){Write-VideoBreadcrumb 'video_unavailable' 'No movie file was found.';return}
 if([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA'){throw 'Video playback requires Windows PowerShell -STA.'}
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 if(-not ('Wo4kVideoInput' -as [type])){
@@ -60,13 +71,14 @@ $clock=[Diagnostics.Stopwatch]::StartNew()
 $video.Add_MediaOpened({
     $state.opened=$true;$state.width=$video.NaturalVideoWidth;$state.height=$video.NaturalVideoHeight
     if($video.NaturalDuration.HasTimeSpan){$state.duration=$video.NaturalDuration.TimeSpan.TotalSeconds}
+    Write-VideoBreadcrumb 'video_opened' @{width=$state.width;height=$state.height;duration_seconds=$state.duration}
     if($video.NaturalVideoWidth -le 0 -or $video.NaturalVideoHeight -le 0){$state.failed=$true;$state.reason='no video stream';$window.Close()}
 })
-$video.Add_MediaEnded({$state.reason='finished';$window.Close()})
-$video.Add_MediaFailed({param($sender,$event)$state.failed=$true;$state.reason=$event.ErrorException.Message;$window.Close()})
+$video.Add_MediaEnded({$state.reason='finished';Write-VideoBreadcrumb 'video_ended' $null;$window.Close()})
+$video.Add_MediaFailed({param($sender,$event)$state.failed=$true;$state.reason=$event.ErrorException.Message;Write-VideoBreadcrumb 'video_failed' $state.reason;$window.Close()})
 $window.Add_PreviewKeyDown({param($sender,$event)if($event.Key -in 'Escape','Return','Space'){$event.Handled=$true;$window.Close()}})
 $window.Add_MouseDown({$window.Close()})
-$window.Add_ContentRendered({$video.Play()})
+$window.Add_ContentRendered({Write-VideoBreadcrumb 'video_play_requested' $null;$video.Play()})
 $mapping=$null;$view=$null;$controller=$null;$timer=$null
 try{
     # Reuse the running game's SDL3 mapping; standalone probes own their helper.
@@ -116,12 +128,12 @@ try{
     if($timer){$timer.Stop()};$video.Close()
     if($controller){if(-not $controller.HasExited){$controller.Kill();$controller.WaitForExit()};$controller.Dispose()}
     if($view){$view.Dispose()};if($mapping){$mapping.Dispose()}
+    Write-VideoBreadcrumb 'video_closed' @{opened=$state.opened;failed=$state.failed;result=$state.reason;game_focus_lost=$state.focusLost;elapsed_seconds=[Math]::Round($clock.Elapsed.TotalSeconds,2)}
 }
 # A broken/unsupported MP4 replacement can still fall back to the supplied MPG.
 if($state.failed -and -not $OriginalOnly -and [IO.Path]::GetExtension($moviePath) -ieq '.mp4' -and (Find-ModVideo $GameRoot $Movie -OriginalOnly)){
+    Write-VideoBreadcrumb 'video_original_fallback' $null
     & $PSCommandPath -GameRoot $GameRoot -Movie $Movie -ControllerOwner $ControllerOwner -OwnerWindow $OwnerWindow -Probe:$Probe -OriginalOnly
     return
 }
 if($Probe){if($state.failed -or $state.reason -ne 'probe passed'){throw ('Video probe failed ('+$Movie+'): '+$state.reason)};Write-Host ('PASS: '+$Movie+' decoded '+$state.width+'x'+$state.height+'; playback advanced.');return}
-$logs=Join-Path $PSScriptRoot '../logs';[IO.Directory]::CreateDirectory($logs)|Out-Null
-[IO.File]::WriteAllText((Join-Path $logs ('video-'+$Movie+'.log')),('File='+$moviePath+"`r`nOpened="+$state.opened+"`r`nResult="+$state.reason+"`r`nGameFocusLost="+$state.focusLost))

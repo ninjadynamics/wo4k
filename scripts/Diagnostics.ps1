@@ -1,6 +1,8 @@
 ﻿# Local logs: only the explicitly selected, non-identifying hardware fields.
 $script:WoLogPath=$null
 $script:WoLogRoot=$null
+$script:WoLogStartedUtc=$null
+$script:WoLogVersion='unknown'
 function Protect-WoLogText([string]$Text) {
     foreach($pair in @(@($script:WoLogRoot,'%MODROOT%'),@($env:USERPROFILE,'%USERPROFILE%'),@($env:TEMP,'%TEMP%'))){
         if($pair[0]){$Text=[regex]::Replace($Text,[regex]::Escape($pair[0].Replace('\','\\')),[string]$pair[1],[Text.RegularExpressions.RegexOptions]::IgnoreCase);$Text=[regex]::Replace($Text,[regex]::Escape($pair[0]),[string]$pair[1],[Text.RegularExpressions.RegexOptions]::IgnoreCase)}
@@ -36,12 +38,14 @@ function Get-WoSystemInfo {
     return $result
 }
 function Start-WoLog([string]$Operation,[string]$Root,[switch]$SkipHardware) {
+    $script:WoLogStartedUtc=[DateTime]::UtcNow
     $script:WoLogRoot=[IO.Path]::GetFullPath($Root).TrimEnd('\')
     $name=$Operation+'-'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff')+'-'+$PID+'.log'
     $directory=Join-Path $script:WoLogRoot 'logs'
     try{[IO.Directory]::CreateDirectory($directory)|Out-Null;$script:WoLogPath=Join-Path $directory $name;[IO.File]::WriteAllText($script:WoLogPath,'')}
     catch{$directory=Join-Path ([IO.Path]::GetTempPath()) 'WO4K/logs';[IO.Directory]::CreateDirectory($directory)|Out-Null;$script:WoLogPath=Join-Path $directory $name;[IO.File]::WriteAllText($script:WoLogPath,'')}
     $version='unknown';try{$version=[IO.File]::ReadAllText((Join-Path $Root 'VERSION')).Trim()}catch{}
+    $script:WoLogVersion=$version
     Write-WoLog 'session' @{operation=$Operation;mod_version=$version;privacy='Local only; no identifiers, network addresses, account names or automatic uploads.'}
     if(-not $SkipHardware){Write-WoLog 'system' (Get-WoSystemInfo)}
     return $script:WoLogPath
@@ -151,18 +155,99 @@ function Get-WoExitDescription([int]$Code) {
     }
     return "The game exited with code $hex ($Code). $hint"
 }
-function Save-WoGameLogs([string]$GameRoot) {
-    foreach($name in @('Debug.txt','DDrawCompat-Wipeout2097.log')){
+function Write-WoProcessSnapshot([Diagnostics.Process]$Process,[switch]$Modules) {
+    try{
+        $Process.Refresh()
+        Write-WoLog 'game_memory' @{private_bytes=$Process.PrivateMemorySize64;virtual_bytes=$Process.VirtualMemorySize64;working_set_bytes=$Process.WorkingSet64;peak_working_set_bytes=$Process.PeakWorkingSet64;peak_paged_bytes=$Process.PeakPagedMemorySize64;threads=$Process.Threads.Count;handles=$Process.HandleCount}
+    }catch{Write-WoLog 'game_memory_unavailable' $_.Exception.Message}
+    if($Modules){
+        try{
+            $items=@($Process.Modules|Select-Object -First 256|ForEach-Object {
+                @{name=$_.ModuleName;base=('0x{0:X8}' -f $_.BaseAddress.ToInt64());bytes=$_.ModuleMemorySize;version=$_.FileVersionInfo.FileVersion}
+            })
+            Write-WoLog 'game_modules' @{modules=$items}
+        }catch{Write-WoLog 'game_modules_unavailable' $_.Exception.Message}
+    }
+}
+function Write-WoGameConfiguration([string]$GameRoot) {
+    # Allowlist settings instead of dumping arbitrary user-edited INI content.
+    $allowed=@('EngineTrails','GeometryWidthPercent','FloatRotations','SoftShadows','ShadowOpacityPercent','ShadowSoftnessPercent','GlowAftOffset','GlowUpOffset','ShowFPS','ShadowLiftPercent','HighlightsPercent','Soundtrack','MusicVolume','EffectsVolume','Track','SoundMode','EnableDDrawCompat','LogLevel','DisplayResolution','DisplayAspectRatio','FullscreenMode','ResolutionScale','RenderColorDepth','Antialiasing','TextureFilter','ColorKeyMethod','FpsLimiter','VertexFixup','VertexBufferMemoryType','SpriteDetection','SpriteFilter','VSync','PresentDelay','CpuAffinity','CpuAffinityRotation','BltFilter')
+    foreach($name in @('Wipeout2097.ini','DDrawCompat.ini','DDrawCompat-Wipeout2097.ini')){
         $path=Join-Path $GameRoot $name
+        if(-not [IO.File]::Exists($path)){continue}
+        try{
+            $values=[ordered]@{};$section=''
+            foreach($line in [IO.File]::ReadAllLines($path)){
+                if($line -match '^\s*\[([\w -]+)\]'){$section=$matches[1]}
+                elseif($line -match '^\s*(\w+)\s*=\s*([^;#]*)'){
+                    $key=$matches[1];$value=$matches[2].Trim()
+                    if($key -in $allowed -and $value -match '^[a-zA-Z0-9_().,% +:-]{0,100}$'){$values[$section+'/'+$key]=$value}
+                }
+            }
+            Write-WoLog 'game_configuration' @{file=$name;settings=$values}
+        }catch{Write-WoLog 'game_configuration_unavailable' @{file=$name;message=$_.Exception.Message}}
+    }
+}
+function Save-WoWindowsCrashEvent([int]$ProcessId,[datetime]$StartedUtc) {
+    # Application Error 1000 has named fields. Never copy its rendered Message,
+    # report/account identifiers, executable paths, or unrelated crash records.
+    for($attempt=0;$attempt -lt 3;$attempt++){
+        try{
+            $events=@(Get-WinEvent -FilterHashtable @{LogName='Application';ProviderName='Application Error';Id=1000;StartTime=$StartedUtc.ToLocalTime().AddSeconds(-1)} -MaxEvents 24 -ErrorAction Stop)
+            foreach($event in $events){
+                $xml=[xml]$event.ToXml();$fields=@{}
+                foreach($item in $xml.Event.EventData.Data){$fields[[string]$item.Name]=[string]$item.'#text'}
+                $eventPid=0L;$pidText=[string]$fields.ProcessId
+                if($pidText -match '^0x[0-9a-f]+$'){$eventPid=[Convert]::ToInt64($pidText.Substring(2),16)}
+                elseif($pidText -match '^\d+$'){$eventPid=[long]$pidText}
+                if($eventPid -ne $ProcessId -or [IO.Path]::GetFileName([string]$fields.AppName) -ine 'Wipeout2097.exe'){continue}
+                $data=[ordered]@{time=$event.TimeCreated.ToUniversalTime().ToString('o')}
+                foreach($key in @('AppName','AppVersion','ModuleName','ModuleVersion','ExceptionCode','FaultingOffset')){
+                    $value=[string]$fields[$key]
+                    if($key -in 'AppName','ModuleName'){$value=[IO.Path]::GetFileName($value)}
+                    $data[$key]=$value
+                }
+                Write-WoLog 'windows_application_error' $data
+                return
+            }
+        }catch{
+            if($_.FullyQualifiedErrorId -notmatch 'NoMatchingEventsFound'){
+                Write-WoLog 'windows_application_error_unavailable' $_.Exception.Message
+                return
+            }
+        }
+        if($attempt -lt 2){Start-Sleep -Milliseconds 1000}
+    }
+    Write-WoLog 'windows_application_error_unavailable' 'No matching Application Error event was available yet; native exception breadcrumbs may still identify the fault.'
+}
+function Save-WoGameLogs([string]$GameRoot) {
+    $sources=@()
+    foreach($name in @('Debug.txt','DDrawCompat-Wipeout2097.log')){
+        $sources+=@{name=$name;path=(Join-Path $GameRoot $name);current_session=$true}
+    }
+    # The native runtime writes beside the mod, not inside wobble. These
+    # breadcrumbs include video_started/video_exit_code and renderer progress.
+    $parent=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($GameRoot).TrimEnd('\'))
+    foreach($name in @('game.log','game-crash.log')){$sources+=@{name=$name;path=(Join-Path $parent ('logs/'+$name));current_session=$true}}
+    foreach($name in @('video-intro.log','video-xtro1.log','video-xtro2.log','video-xtro3.log','video-xtro4.log','video-error.log')){
+        $sources+=@{name=$name;path=(Join-Path $script:WoLogRoot ('logs/'+$name));current_session=$true}
+    }
+    foreach($source in $sources){
+        $name=$source.name;$path=$source.path
         if([IO.File]::Exists($path)){
             try{
+                if($source.current_session -and $script:WoLogStartedUtc -and [IO.File]::GetLastWriteTimeUtc($path) -lt $script:WoLogStartedUtc){continue}
                 $text=[IO.File]::ReadAllText($path)
                 $text=[regex]::Replace($text,'(?im)^.*(?:DeviceIdentifier|PNPDevice|AdapterLuid|SerialNumber).*(?:\r?\n|$)','')
                 $text=[regex]::Replace($text,'(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b','[identifier omitted]')
                 $target=[IO.Path]::ChangeExtension($script:WoLogPath,$name)
-                [IO.File]::WriteAllText($target,(Protect-WoLogText $text),(New-Object Text.UTF8Encoding($false)))
+                [IO.File]::WriteAllText($target,('# WO4K mod_version='+$script:WoLogVersion+[Environment]::NewLine+(Protect-WoLogText $text)),(New-Object Text.UTF8Encoding($false)))
                 [IO.File]::Delete($path)
                 Write-WoLog 'game_log_saved' @{file=[IO.Path]::GetFileName($target)}
+                # A pasted launcher log should retain useful evidence even
+                # when the reporter omits its separately saved attachments.
+                $tail=@($text -split '\r?\n'|Where-Object {$_}|Select-Object -Last 80)
+                Write-WoLog 'game_log_tail' @{file=[IO.Path]::GetFileName($target);lines=$tail}
             }catch{Write-WoLog 'game_log_unavailable' @{file=$name;message=$_.Exception.Message}}
         }
     }

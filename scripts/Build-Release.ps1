@@ -10,6 +10,9 @@ foreach($dir in $folders){$files+=Get-ChildItem -LiteralPath (Join-Path $script:
 $files+=Get-ChildItem -LiteralPath (Join-Path $script:ModRoot 'patches') -File -Filter '*.wodiff'
 foreach($file in $files){
     $rel=$file.FullName.Substring($script:ModRoot.Length+1).Replace('\','/')
+    # Maintainer convenience only. Published updaters deliberately reject CMD
+    # payloads; retain compatibility when upgrading from those releases.
+    if($rel -eq 'assets/hd/trim.cmd'){continue}
     if($file.Extension -in '.mpg','.mpeg','.mp4','.avi','.wmv','.wav','.mp3','.iso','.mdf','.mds','.bin','.tga','.tim','.cmp','.ppm','.wad','.swp','.dat','.py','.cmd','.bat','.obj','.lib'){throw "Forbidden release payload: $rel"}
     if($file.Extension -eq '.exe' -and $rel -notin 'Setup.exe','Play.exe','runtime/wo2097-controller.exe','runtime/audio-clean.exe'){throw "Unexpected executable: $rel"}
     if($file.Extension -eq '.dll' -and $rel -notin 'runtime/wohr.dll','runtime/ddraw.dll','runtime/libiconv-2.dll'){throw "Unexpected library: $rel"}

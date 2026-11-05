@@ -36,6 +36,7 @@ static void logevent(const char *name,DWORD value) {
     if(logfile!=INVALID_HANDLE_VALUE) WriteFile(logfile,line,n,&written,0);
 }
 void wo_render_event(const char *name,DWORD value) {logevent(name,value);}
+#include "crash_diagnostics.c"
 #include "portable_paths.c"
 #include "startup_launch.c"
 static MCIERROR send(const WCHAR *s,WCHAR *answer,UINT size) {
@@ -94,11 +95,8 @@ static void setvolume(void) {
 }
 #include "music_library.c"
 static void initialize(void) {
-    WCHAR path[MAX_PATH]; UINT n;
     if(initialized) return; initialized=TRUE;
-    if(!resolve_root()) return;n=lenw(root);
-    copyw(path,root);copyw(path+n,L"..\\logs\\game.log");
-    logfile=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,0,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,0);
+    if(!resolve_root()) return;
     logevent("startup_setup_bypassed",wo_startup_bypassed);
     logevent("startup_sound_mode",wo_startup_sound_mode);
     audio_setting_path();
@@ -214,7 +212,21 @@ BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID reserved) {
         module=instance;
         /* Keep the game's short filename buffers safe. The EXE retains
          * relative roots and no longer changes CWD while assembling paths. */
-        if(resolve_root())prepare_game_folder();
+        if(resolve_root()) {
+            WCHAR path[MAX_PATH];UINT n=lenw(root);
+            copyw(path,root);copyw(path+n,L"..\\logs\\game.log");
+            logfile=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,0,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,0);
+            if(logfile!=INVALID_HANDLE_VALUE) {
+                static const char version[]="mod_version " WO_MOD_VERSION "\r\n";DWORD written;
+                WriteFile(logfile,version,sizeof(version)-1,&written,0);
+            }
+            copyw(path+n,L"..\\logs\\game-crash.log");wo_crash_install(path);
+            logevent("runtime_attached",1);
+            prepare_game_folder();
+        }
+    } else if(reason==DLL_PROCESS_DETACH) {
+        wo_crash_uninstall();
+        if(logfile!=INVALID_HANDLE_VALUE)CloseHandle(logfile);
     }
     return TRUE;
 }
