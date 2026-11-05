@@ -1,5 +1,11 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.22
+
+- Add eleven more contributor-edited scene textures for tracks 06, 08, 17 and
+  20. Existing filename mappings install them automatically with HD artwork
+  enabled. Retain the versioned crash diagnostics introduced in beta.21.
+
 ## 0.1.0-beta.21
 
 - Capture native x86 faults with module-relative instruction addresses, access
