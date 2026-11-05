@@ -40,6 +40,17 @@ static float panel_motion(const BYTE *p,float basis) {
 }
 static float menu_center_x,menu_center_y;
 static BOOL menu_active(void) {return installed && menu_patching && *(int *)(game+0x8c9d4)!=0;}
+static BOOL menu_stat_gauge(const BYTE *p) {
+    if(!menu_active() || *(const WORD *)(p+22)!=32)return FALSE;
+    /* DrawTeamStats at 438230 constructs FT4 rectangles in 640-unit space.
+     * Red/green are separate strips of the same atlas, with a 10-pixel height.
+     * Match their native packet shape, not colours in replaceable artwork. */
+    UINT v=p[13];if(v!=94 && v!=106)return FALSE;
+    if(p[21]!=v || p[29]!=v+10 || p[37]!=v+10 || p[12] || p[28] || p[20]!=p[36])return FALSE;
+    return *(const SHORT *)(p+8)==*(const SHORT *)(p+24) && *(const SHORT *)(p+16)==*(const SHORT *)(p+32) &&
+        *(const SHORT *)(p+10)==*(const SHORT *)(p+18) && *(const SHORT *)(p+26)==*(const SHORT *)(p+34) &&
+        *(const SHORT *)(p+26)-*(const SHORT *)(p+10)==10;
+}
 static float menu_axis(float value,float size,float first,float last,float scale) {
     if(value<=first)return value*scale/size;
     if(value>=last)return 1-(size-value)*scale/size;

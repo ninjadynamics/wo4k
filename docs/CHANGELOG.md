@@ -1,5 +1,17 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.24
+
+- Project ship shadows from the same interpolated position as the rendered
+  ship, using a private copy of the ship data. Preserve native track-plane
+  projection and side effects; apply the correction to hard and soft shadows.
+- Map the native textured menu stat-gauge pieces through common responsive endpoints,
+  keeping red/green joins closed and row bounds aligned in widescreen and
+  portrait layouts. Preserve gradients and native world-flare positioning.
+- Verify the original shadow projection on flat/sloped track at four frame
+  rates, and the complete team-stat drawing routine for all fifteen ship
+  choices across five aspect ratios. Preserve native colours and texture UVs.
+
 ## 0.1.0-beta.23
 
 - Collect the native game's redirected logs/game-debug.txt beside the main

@@ -20,6 +20,7 @@ static ShadowTriangle shadow_triangles[23][30*SHADOW_LAYERS];
 static ShadowList shadow_lists[23];
 static BYTE shadow_instructions[131072];
 static DWORD shadow_draws,shadow_material_batches;
+static BYTE shadow_render_ships[15*240];
 
 static BOOL soften_shadow(void **vertices,int *count,void **triangles) {
     if(!shadows_active || !shadow_depth || *count<=0 || *count>60 || (*count%4))return FALSE;
@@ -55,7 +56,22 @@ static BOOL soften_shadow(void **vertices,int *count,void **triangles) {
     ++shadow_draws;return TRUE;
 }
 static void __cdecl draw_shadow(void *shapes,void *ships) {
-    ++shadow_depth;old_draw_shadow(shapes,ships);--shadow_depth;
+    void *render_ships=ships;
+    if(refresh_active && refresh_race && ships) {
+        /* DrawShadow projects the current physics pose onto the track. The
+         * mesh uses the previous/current render phase instead; using different
+         * poses makes its shadow jump forward at each simulation tick. Project
+         * a private render copy so the original track-plane math still runs,
+         * with no mutation of ship physics, collision pointers or flags. */
+        copy(shadow_render_ships,ships,sizeof(shadow_render_ships));
+        for(UINT ship=0;ship<15;++ship) {
+            float delta[3];refresh_ship_delta(ship,delta);
+            LONG *position=(LONG *)(shadow_render_ships+ship*240+0x40);
+            for(UINT axis=0;axis<3;++axis)position[axis]+=(LONG)delta[axis];
+        }
+        render_ships=shadow_render_ships;
+    }
+    ++shadow_depth;old_draw_shadow(shapes,render_ships);--shadow_depth;
 }
 
 /* Rewrite only STATERENDER commands around shadow triangles. Keep depth tests,
@@ -263,8 +279,10 @@ static void initialize_shadows(const WCHAR *settings) {
     if(!equal(game+RVA_finish_transform,entry_finish_transform,sizeof(entry_finish_transform)))return;
     old_finish_transform=(FinishFn)hook(RVA_finish_transform,entry_finish_transform,sizeof(entry_finish_transform),finish_transform);
     if(!old_finish_transform)return;
-    if(!GetPrivateProfileIntW(L"Render",L"SoftShadows",1,settings))return;
     if(!equal(game+RVA_draw_shadow,entry_draw_shadow,sizeof(entry_draw_shadow)))return;
+    old_draw_shadow=(ShadowFn)hook(RVA_draw_shadow,entry_draw_shadow,sizeof(entry_draw_shadow),draw_shadow);
+    wo_render_event("render_shadow_motion_test",old_draw_shadow!=0);
+    if(!GetPrivateProfileIntW(L"Render",L"SoftShadows",1,settings))return;
     UINT opacity=GetPrivateProfileIntW(L"Render",L"ShadowOpacityPercent",60,settings);
     UINT softness=GetPrivateProfileIntW(L"Render",L"ShadowSoftnessPercent",12,settings);
     if(opacity>95)opacity=95;if(softness>40)softness=40;
@@ -276,7 +294,6 @@ static void initialize_shadows(const WCHAR *settings) {
     }
     shadow_alpha=(UINT)((1-(low+high)*0.5f)*255+0.5f);
     shadow_expansion=softness/100.0f;
-    old_draw_shadow=(ShadowFn)hook(RVA_draw_shadow,entry_draw_shadow,sizeof(entry_draw_shadow),draw_shadow);
     shadows_active=old_draw_shadow && old_finish_transform;
     wo_render_event("render_soft_shadows_test",shadows_active);
 }

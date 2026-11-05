@@ -52,6 +52,7 @@ static void fixture_logo_poly(BYTE *p,BOOL second){
 #include "test_native_transform_finish.c"
 #include "test_world_material_gpu.c"
 #include "test_hd_regions.c"
+#include "test_shadow_menu_motion.c"
 void wo_render_event(const char *name,DWORD value){
     const char *wanted="render_race_ui_clock";while(*name && *name==*wanted){++name;++wanted;}if(!*name && !*wanted)race_ui_event=value;
 }
@@ -368,6 +369,7 @@ void __stdcall test_entry(void){
     if(*(UINT *)(native_vertices+0x39214)!=8)ExitProcess(88); /* SD/upload-failure fallback */
     test_menu_frame(image,native_vertices);
     test_menu_art_alignment(image,native_vertices);
+    test_team_stat_gauges(image,native_vertices);
     *(int *)(image+0x8c9d4)=0;title_active=TRUE;
     /* Verify the production present path executes the untouched original
      * title buffers BEFORE the native flip, and leaves all queues owned by it. */
@@ -400,5 +402,6 @@ void __stdcall test_entry(void){
         if(seconds<1 || seconds>25 || !ui_last_time.QuadPart)ExitProcess(40);
     }
     test_hd_region_assets();
+    test_projected_shadow_motion(image);
     ExitProcess(0);
 }

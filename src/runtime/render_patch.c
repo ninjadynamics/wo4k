@@ -176,6 +176,15 @@ static void __cdecl quad(float z,const BYTE *p,int blend) {
 static void __cdecl scaled_quad(float z,const BYTE *p,int blend) {
     if(ui_hd_draw_logo(z,p,blend))return;
     BYTE positioned[40];p=audio_layout_quad(p,positioned);
+    if(menu_stat_gauge(p)) {
+        /* Map shared FT4 endpoints identically instead of anchoring each
+         * coloured segment at its own centre, which opens widescreen gaps. */
+        BOOL thin_x=menu_thin_x,thin_y=menu_thin_y;
+        menu_thin_x=menu_thin_y=FALSE;
+        ++menu_frame_depth;old_scaled_quad(z,p,blend);--menu_frame_depth;
+        menu_thin_x=thin_x;menu_thin_y=thin_y;
+        return;
+    }
     draw_quad(old_scaled_quad,z,p,blend,640,TRUE);
 }
 /* Native 402991 is DrawPolyG4, also used by projected world flares. It is
@@ -343,7 +352,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     *(float *)(game+0x8b190)=projection_x;
     installed=TRUE;
     update_projection();
-    wo_render_event("render_patch_version",42);
+    wo_render_event("render_patch_version",44);
     wo_render_event("render_display_width",width);wo_render_event("render_display_height",height);
     wo_render_event("render_geometry_width_percent",geometry_width);
     initialize_menu();

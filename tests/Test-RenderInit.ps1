@@ -36,6 +36,8 @@ if($env:WO_TEST_GPU_MATERIALS -eq '1'){Write-Host 'PASS: PS1 B+F explosions and 
 if($env:WO_TEST_GPU_MATERIALS -eq '1'){Write-Host 'PASS: HD world pages draw opaque black, reject keyed black, preserve vertex fades and additive RGB on the real offscreen GPU.'}
 if($env:WO_TEST_HD_REGION_ASSETS){Write-Host 'PASS: all authored HD region placements decode and compose at their exact native locations.'}
 Write-Host 'PASS: world packet states and the original native closing pointer survive HD replacement.'
+Write-Host 'PASS: original x86 DrawShadow projects interpolated ship positions onto flat/sloped track at 30/60/165/240 FPS, with hard/soft shadows, sparse ship visibility, monotonic longitudinal motion and unchanged ship physics.'
+Write-Host 'PASS: the complete original x86 DrawTeamStats routine emits its real textured red/green bars for all 15 ship choices, including Piranha, across five aspect ratios; every join and row bound aligns while UVs and colours remain unchanged.'
 Write-Host 'PASS: the original x86 DrawExplode emits its real mode0 billboards; each camera/ship-translated emitter retains its PS1 blend, original silhouette and neutral128 modulation. Native FinishTransformBuffer processes the appended white smoke vertices and three-pass triangles without moving its placeholder.'
 Write-Host 'PASS: each world buffer resets inherited explicit alpha testing and preserves native color keying, including with neutral lighting and soft shadows/effects disabled.'
 Write-Host 'PASS: original x86 FinishTransformBuffer closes the rewritten stream through its retained PROCESSVERTICES pointer; vertex count, reset commands, triangle indices and final EXIT survive unchanged in position and meaning.'
