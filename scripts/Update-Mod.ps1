@@ -187,7 +187,7 @@ $session=Join-Path $script:ModRoot ('.work/update-'+[guid]::NewGuid().ToString('
     if(-not $owned.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe update cleanup target.'}
     Assert-ModManagedPath $script:ModRoot $owned
     if([IO.Directory]::Exists($owned)){[IO.Directory]::Delete($owned,$true)}
-    Set-UpdateStatus 100 'Update checked and Install / repair completed. Reopen Setup to load any interface changes.' complete
+    Set-UpdateStatus 100 'Update checked and Install / repair completed. Setup will reopen automatically.' complete
 } catch {
     if(-not $FunctionsOnly){Complete-WoFailure $_ 'Update failed' -StatusFile $StatusFile -NoDialog:$NoErrorDialog}
     throw

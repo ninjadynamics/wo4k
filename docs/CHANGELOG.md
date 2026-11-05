@@ -1,5 +1,22 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.20
+
+- Use a compact installed view with hidden source selectors and Update, Repair
+  and Play actions. First-time setup shows sources with Update and Install.
+  Repair reveals the saved sources for the current session: Repair becomes a
+  yellow Cancel and Play becomes Install. Cancel discards uninstalled edits;
+  reopening Setup restores the compact view.
+- Reset completed operation messages to Ready while preserving actual errors.
+  Remove the Portable caption and align the Ninja logo with the progress line.
+- Use warm orange-red hover/pressed highlights with white button labels,
+  including buttons whose normal text is dark. Keep explanatory tooltips on
+  settings labels without repeating them on buttons and dropdowns.
+- Restart Setup after successful updates using a helper that waits for the old
+  UI process to exit before opening the updated app. Failed updates keep the
+  current window and explanation. Older interfaces need one manual reopen on
+  their first upgrade to this version.
+
 ## 0.1.0-beta.19
 
 - Release Setup's icon file after loading it so Update can replace the icon

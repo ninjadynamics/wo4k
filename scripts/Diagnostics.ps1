@@ -75,6 +75,7 @@ function Show-WoFailure([string]$Message,[string]$LogPath=$script:WoLogPath,[swi
 # written by Write-WoFailure. Never label every worker error as corrupt data.
 function Get-WoFailureMessage($Record,[string]$Stage) {
     $message=if($Record -is [string]){$Record}else{[string]$Record.Exception.Message}
+    if($Stage -match '(?i)Restarting Setup'){return 'Update completed, but Setup could not reopen. Start Setup.exe from the mod folder.'}
     $sharing=$false;$denied=$false
     if($Record -isnot [string]){
         for($cause=$Record.Exception;$cause;$cause=$cause.InnerException){

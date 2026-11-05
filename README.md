@@ -62,15 +62,23 @@ unsupported binaries are rejected before an installation is committed.
    and extract it into a writable folder outside Program Files.
 2. Open **Setup.exe**. It searches common local folders in the background.
    Use the browse button to select a file/folder or the animated ✨ button to
-   search again. No match leaves a field silently empty; controls have tooltips.
+   search again. No match leaves a field silently empty. Hover over settings
+   labels for explanations.
 3. Select the PC game source once. Optionally add a PlayStation game source,
    then choose available PC/PlayStation music or **No music**.
 4. Choose **Audio output** (Mono, Stereo or Dolby Surround),
    **Fullscreen mode** (Borderless or Exclusive), **Install HD artwork**
    and **Improve audio quality** as desired,
-   then click **Install / repair**.
+   then click **Install**.
 5. Click **Play**, or run **Play.exe**. The original display-selection screen
    is bypassed; WO4K renders at your display's resolution and aspect ratio.
+
+After installation, Setup hides the source selectors and shows **Update**,
+**Repair** and **Play**. **Repair** reveals the saved PC/optional PlayStation
+sources for the current session. **Repair** becomes a yellow **Cancel**, and
+**Play** becomes **Install**. Review the paths and click **Install** to rebuild
+the installation, or **Cancel** to discard edits and return to Play.
+Closing and reopening Setup hides the source selectors again.
 
 Change **Audio output** in Setup anytime. It saves automatically for the next
 launch without reinstalling; Stereo is the default.
@@ -184,7 +192,9 @@ installed. Downloading a release ZIP and overwriting the mod folder is also
 supported: the next Play or Setup launch reconciles the installation locally.
 Both launchers remove retired, unchanged mod-owned files and empty directories
 using the previous release inventory. Modified/custom files and saves are kept.
-Close the game before updating; reopen Setup afterward to load interface changes.
+Close the game before updating. Setup reopens automatically after the update
+and Install / repair complete successfully. When upgrading from beta.19 or
+earlier, reopen Setup manually once after that first update.
 It does not check for updates or download anything automatically at startup.
 
 The supplied plain-text configuration files contain one HTTPS URL each:
@@ -262,10 +272,10 @@ or hardware device IDs. Common personal paths are redacted in script logs;
 bootstrap errors may include script paths. Logs stay local and are never
 uploaded automatically. Review them before sharing.
 
-Existing players: click **Update**, close and reopen Setup to load its updated
-interface, then **Install / repair** if needed and **Play**. Logging is automatic;
-there is no diagnostic option to enable. Update already refreshes the installed
-runtime and preserves saves/preferences.
+Existing players: click **Update**, then **Play** when Setup reopens. Update
+repairs the installed game and preserves saves/preferences. Interfaces from
+beta.19 or earlier need one manual close/reopen after their first upgrade.
+Logging is automatic; there is no diagnostic option to enable.
 
 WO4K is a beta. Report the mod version, Windows version, source type, symptoms
 and relevant `logs/` through [Issues](https://github.com/ninjadynamics/wo4k/issues).

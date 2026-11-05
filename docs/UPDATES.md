@@ -15,8 +15,9 @@ Both remain plain text containing one HTTPS URL, rather than Windows Internet
 Shortcut sections. Missing, blank, unreadable, invalid UTF-8,
 multiline or malformed files disable their controls without a popup. Plain
 HTTP, credentials in URLs, local files and non-GitHub source links are rejected.
-Setup rereads configuration when activated and before using a link. Every
-disabled control has a tooltip explaining why it is unavailable.
+Setup rereads configuration when activated and before using a link. Settings
+labels retain their explanatory tooltips; buttons and dropdowns do not repeat
+them.
 
 Update runs curl in a background worker, so the window remains responsive.
 It uses HTTPS for downloads and redirects, with time/size limits and curl's
@@ -38,9 +39,9 @@ archives do not contain the packaged inventory.
 
 Versions use SemVer, including beta numbers. An older release does not replace
 the current installation. An equal release restores damaged packaged files and
-runs Install / repair again, making Update a repair fail-safe. Changed mod files and installed runtime
-files are backed up under `backups/update-*`. A failed copy rolls back files
-already replaced. URL configuration, audio/music, saves, settings and original
+runs Install / repair again, making Update a repair fail-safe. Changed mod files
+and installed runtime files are backed up under `backups/update-*`. A failed
+copy rolls back files already replaced. URL configuration, audio/music, saves, settings and original
 game data are retained. Installed HD artwork is regenerated from new artwork
 only when HD artwork was enabled. Setup retains source paths and preferences
 in `.state/setup.json`. After an update, a fresh worker runs Install / repair
@@ -48,7 +49,12 @@ for that saved configuration. Play and Setup also reconcile local runtime,
 texture and audio files after manually extracting a release ZIP over the mod.
 Unchanged retired mod files are removed using the previous release inventory;
 modified files, saves and unrelated local content are preserved.
-Close the game before updating.
+Close the game before updating. On successful completion, Setup closes and a
+hidden helper waits for its old process to exit before opening the updated app.
+A failed update keeps the existing window open with its explanation. Interfaces
+from beta.19 or earlier need one manual close/reopen after their first upgrade;
+subsequent updates restart automatically. Temporary Repair mode does not survive
+the restart.
 
 Updates keep the supported patched game executable. If a future release
 requires a different game executable, the updater leaves the installation

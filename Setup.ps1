@@ -13,16 +13,16 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
 # Import only function definitions; no filesystem search on the UI thread.
 . (Join-Path $PSScriptRoot 'scripts/Discover-Sources.ps1') -OutputFile (Join-Path $PSScriptRoot '.work/unused.json')
 [xml]$xaml=@'
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="WipEout 2097 / XL · Beta Mod" Width="820" Height="750" MinWidth="760" MinHeight="730" WindowStartupLocation="CenterScreen" Background="#0D111B" Foreground="#EEF2FB" FontFamily="Segoe UI" ToolTip="Portable WipEout 2097 beta mod setup. Your source files remain unchanged.">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="WipEout 2097 / XL · Beta Mod" Width="820" Height="750" MinWidth="760" MinHeight="730" WindowStartupLocation="CenterScreen" Background="#0D111B" Foreground="#EEF2FB" FontFamily="Segoe UI">
  <Window.Resources>
-  <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#EEF2FB"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="ToolTipService.ShowDuration" Value="60000"/></Style>
+  <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="ToolTipService.ShowDuration" Value="60000"/></Style>
   <Style TargetType="Button">
-   <Setter Property="Background" Value="#253148"/><Setter Property="Foreground" Value="#EEF2FB"/><Setter Property="Padding" Value="12,7"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/><Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+   <Setter Property="Background" Value="#253148"/><Setter Property="Foreground" Value="#EEF2FB"/><Setter Property="Padding" Value="12,7"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-    <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="#87909E" BorderThickness="0" CornerRadius="4" Padding="{TemplateBinding Padding}"><ContentPresenter x:Name="ButtonContent" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/></Border>
+    <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="#87909E" BorderThickness="0" CornerRadius="4" Padding="{TemplateBinding Padding}"><ContentPresenter x:Name="ButtonContent" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" TextElement.Foreground="{TemplateBinding Foreground}"/></Border>
     <ControlTemplate.Triggers>
-     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#343A46"/><Setter Property="Foreground" Value="#FFFFFF"/></Trigger>
-     <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#454C59"/></Trigger>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#FF6633"/><Setter TargetName="ButtonContent" Property="TextElement.Foreground" Value="#FFFFFF"/></Trigger>
+     <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#FF875A"/><Setter TargetName="ButtonContent" Property="TextElement.Foreground" Value="#FFFFFF"/></Trigger>
      <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="BorderThickness" Value="1"/></Trigger>
      <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="Opacity" Value=".45"/></Trigger>
     </ControlTemplate.Triggers>
@@ -31,7 +31,7 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
   <Style TargetType="TextBox"><Setter Property="Background" Value="#171F2D"/><Setter Property="Foreground" Value="#EDF3FF"/><Setter Property="BorderBrush" Value="#34425C"/><Setter Property="SelectionBrush" Value="#606773"/><Setter Property="Padding" Value="10,9"/><Setter Property="FontSize" Value="13"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border x:Name="Field" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="4"><ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="#687180"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="#98A2B1"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
-  <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#D2DCEE"/><Setter Property="Margin" Value="0,9,0,0"/><Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+  <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#D2DCEE"/><Setter Property="Margin" Value="0,9,0,0"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><StackPanel Orientation="Horizontal"><Border x:Name="CheckSurface" Width="17" Height="17" Background="#171F2D" BorderBrush="#77808F" BorderThickness="1" CornerRadius="3" Margin="0,0,8,0"><Path x:Name="CheckMark" Data="M 3,8 L 6,11 L 12,4" Stroke="#66DBD0" StrokeThickness="2" Visibility="Collapsed"/></Border><ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True"/></StackPanel><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="CheckSurface" Property="Background" Value="#343A46"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="CheckSurface" Property="BorderBrush" Value="#CFD5DF"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="#EEF2FB"/><Setter Property="Padding" Value="10,7"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem"><Border x:Name="Choice" Background="#171F2D" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Choice" Property="Background" Value="#4A263B"/></Trigger><Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Choice" Property="Background" Value="#343A46"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".4"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
@@ -48,47 +48,49 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left"><Image x:Name="Wo4kLogo" Width="300" Height="100" Stretch="Uniform" SnapsToDevicePixels="True" UseLayoutRounding="True" ToolTip="WO4K — modern enhancements for WipEout 2097 / XL."/><TextBlock Text="Beta" FontSize="12" FontWeight="Bold" Foreground="#66DBD0" VerticalAlignment="Center" Margin="12,0,0,0" ToolTip="Beta: the original PC game, enhanced for modern Windows."/></StackPanel>
    <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="GithubColumn" Width="121"/></Grid.ColumnDefinitions>
     <TextBlock Text="Adds widescreen, smooth animation, HD artwork and modern controls to WipeOut 2097 / XL." FontSize="15" Foreground="#A5B5CD" ToolTip="Play at your display's aspect ratio and refresh rate, with interpolated animation, extended track visibility, HD interface artwork, SDL3 gamepad support, locally improved sound effects and switchable PC/PlayStation soundtracks. The original 30 Hz game simulation is preserved."/>
-    <Button x:Name="SourceLink" Grid.Column="1" Background="Transparent" Padding="0" HorizontalAlignment="Right" VerticalAlignment="Center" IsEnabled="False" AutomationProperties.Name="GitHub source" ToolTip="GitHub: add a valid HTTPS GitHub URL to source.url to enable this link."><Image x:Name="GithubLogo" Width="105" Height="24" Stretch="Uniform" SnapsToDevicePixels="True" UseLayoutRounding="True" ToolTip="Open the project GitHub page when a valid source URL is configured."/></Button>
+    <Button x:Name="SourceLink" Grid.Column="1" Background="Transparent" Padding="0" HorizontalAlignment="Right" VerticalAlignment="Center" IsEnabled="False" AutomationProperties.Name="GitHub source"><Image x:Name="GithubLogo" Width="105" Height="24" Stretch="Uniform" SnapsToDevicePixels="True" UseLayoutRounding="True"/></Button>
    </Grid>
   </StackPanel>
   <Border Grid.Row="1" Background="#172335" CornerRadius="8" Padding="14,11" Margin="0,19,0,17" ToolTip="Game installation uses your local source files without mounting a disc. Only the Update button downloads a mod release.">
    <TextBlock x:Name="SourceHint" Text="Please provide the path(s) to your WipeOut 2097 / XL game files." Foreground="#BCD5E8" ToolTip="Use the PC ZIP/disc image for game data and any included PC music, or the small 11 MB PC version without music. Add a PlayStation source for optional PS1 music."/>
   </Border>
   <StackPanel Grid.Row="2">
+   <StackPanel x:Name="SourceFields">
    <TextBlock Text="WINDOWS GAME" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Required: PC ZIP/disc image or the small 11 MB PC version. Included PC music is extracted automatically; the small version can play without music or with optional PlayStation music."/>
    <Grid Margin="0,5,0,13"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/></Grid.ColumnDefinitions>
     <TextBox x:Name="GamePath" ToolTip="PC ZIP, ISO/disc image or 11 MB PC version. Setup extracts included PC music automatically. Music is optional: the small version works silently or with the PlayStation soundtrack."/>
-    <Button x:Name="GameBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select a PC source file or folder."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16" ToolTip="Browse for a game archive, disc image or existing folder."/></Button>
-    <Button x:Name="GameMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search common local folders again for supported Windows game files."><TextBlock x:Name="GameWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for the Windows game source."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
+    <Button x:Name="GameBrowse" Grid.Column="1" Margin="5,0,0,0"><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16"/></Button>
+    <Button x:Name="GameMagic" Grid.Column="2" Margin="5,0,0,0"><TextBlock x:Name="GameWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5"><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
    </Grid>
    <TextBlock Text="PLAYSTATION GAME · OPTIONAL" FontSize="11" FontWeight="Bold" Foreground="#A5B5CD" ToolTip="Adds original PlayStation artwork from the European 2097 disc, plus its soundtrack when CD audio is included. A data-only image supplies artwork without music."/>
    <Grid Margin="0,5,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="58"/><ColumnDefinition Width="58"/></Grid.ColumnDefinitions>
     <TextBox x:Name="PsxPath" ToolTip="Optional European PS1 game ZIP, ISO or CUE/BIN set for original textures and sprites. An existing PlayStation music folder supplies music only. Windows game files are still required."/>
-    <Button x:Name="PsxBrowse" Grid.Column="1" Margin="5,0,0,0" ToolTip="Select the optional PlayStation game or music source."><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16" ToolTip="Browse for PlayStation artwork and disc audio."/></Button>
-    <Button x:Name="PsxMagic" Grid.Column="2" Margin="5,0,0,0" ToolTip="Search again for an optional PlayStation game or soundtrack source."><TextBlock x:Name="PsxWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5" ToolTip="Repeat automatic discovery for PlayStation artwork and music."><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
+    <Button x:Name="PsxBrowse" Grid.Column="1" Margin="5,0,0,0"><TextBlock Text="🔎" FontFamily="Segoe UI Emoji" FontSize="16"/></Button>
+    <Button x:Name="PsxMagic" Grid.Column="2" Margin="5,0,0,0"><TextBlock x:Name="PsxWand" Text="✨" FontFamily="Segoe UI Emoji" FontSize="16" RenderTransformOrigin=".5,.5"><TextBlock.RenderTransform><RotateTransform/></TextBlock.RenderTransform></TextBlock></Button>
    </Grid>
+   </StackPanel>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
-    <TextBlock Text="Default soundtrack" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="The music bank selected on first launch. You can switch soundtracks later in the game's audio options."/>
-    <ComboBox x:Name="Soundtrack" Grid.Column="1" SelectedIndex="2" Padding="8,5" ToolTip="Choose available PC or PlayStation music, or No music. The 11 MB PC version needs no soundtrack.">
-     <ComboBoxItem x:Name="PcChoice" IsEnabled="False" Content="PC" ToolTip="Use PC music when your selected PC source includes it."/>
-     <ComboBoxItem x:Name="PsxChoice" Content="PlayStation" IsEnabled="False" ToolTipService.ShowOnDisabled="True" ToolTip="Supply a valid PlayStation music source to enable this choice."/>
-     <ComboBoxItem Content="No music" ToolTip="Play with sound effects only. Works with the small 11 MB PC version; no music source is required."/>
+    <TextBlock Text="Default soundtrack" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="Choose installed PC or PlayStation music, or No music. Data-only discs supply artwork without CD audio. Switch soundtracks during play in Options / Audio."/>
+    <ComboBox x:Name="Soundtrack" Grid.Column="1" SelectedIndex="2" Padding="8,5">
+     <ComboBoxItem x:Name="PcChoice" IsEnabled="False" Content="PC"/>
+     <ComboBoxItem x:Name="PsxChoice" Content="PlayStation" IsEnabled="False"/>
+     <ComboBoxItem Content="No music"/>
     </ComboBox>
    </Grid>
    <TextBlock x:Name="SoundtrackHint" Text="Switch soundtracks anytime in the game's Audio options." FontSize="12" Foreground="#9FB0CA" Margin="0,6,0,0" ToolTip="When both soundtracks are installed, change between PC and PlayStation music on the fly in Options / Audio. Your choice is remembered."/>
    <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
-    <TextBlock Text="Audio output" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="Choose the game's sound output mode. Changes are saved for the next launch; Play starts the game directly."/>
-    <ComboBox x:Name="AudioOutput" Grid.Column="1" SelectedIndex="1" ToolTip="Saved automatically for the next launch. Stereo is recommended for normal speakers and headphones.">
-     <ComboBoxItem Content="Mono" ToolTip="Mix the game's sound effects into mono."/>
-     <ComboBoxItem Content="Stereo" ToolTip="Play the game's sound effects in stereo."/>
-     <ComboBoxItem Content="Dolby Surround" ToolTip="Use the original game's Dolby Surround sound effects mode with a compatible decoder."/>
+    <TextBlock Text="Audio output" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="Choose Mono, Stereo or Dolby Surround. Stereo suits normal speakers and headphones; Dolby Surround needs a compatible decoder. Saved for the next launch."/>
+    <ComboBox x:Name="AudioOutput" Grid.Column="1" SelectedIndex="1">
+     <ComboBoxItem Content="Mono"/>
+     <ComboBoxItem Content="Stereo"/>
+     <ComboBoxItem Content="Dolby Surround"/>
     </ComboBox>
    </Grid>
    <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
-    <TextBlock Text="Fullscreen mode" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="Choose how the game fills your display. Changes are saved for the next launch."/>
-    <ComboBox x:Name="FullscreenMode" Grid.Column="1" SelectedIndex="0" ToolTip="Saved automatically for the next launch. Borderless uses a screen-sized window; Exclusive gives the game exclusive fullscreen access.">
-     <ComboBoxItem Content="Borderless" ToolTip="Fill the screen without a window border, with easy switching to other apps."/>
-     <ComboBoxItem Content="Exclusive" ToolTip="Use exclusive fullscreen presentation."/>
+    <TextBlock Text="Fullscreen mode" VerticalAlignment="Center" Foreground="#C7D3E6" ToolTip="Borderless fills the screen and allows easy app switching. Exclusive uses exclusive fullscreen presentation. Saved for the next launch."/>
+    <ComboBox x:Name="FullscreenMode" Grid.Column="1" SelectedIndex="0">
+     <ComboBoxItem Content="Borderless"/>
+     <ComboBoxItem Content="Exclusive"/>
     </ComboBox>
    </Grid>
    <CheckBox x:Name="HdTextures" Content="Install HD artwork" IsChecked="True" ToolTip="Install the supplied HD fonts, HUD, notice and title. Original SD artwork is retained for fallback."/>
@@ -97,14 +99,13 @@ Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System
   <StackPanel Grid.Row="3" Margin="0,18,0,0">
    <TextBlock x:Name="Status" Text="Please provide the path(s) to your WipeOut 2097 / XL game files." Foreground="#9FB0CA" FontSize="12" Margin="0,0,0,8" ToolTip="Current operation and its result. Failure details identify what needs attention; technical information stays in the diagnostic log."/>
    <ProgressBar x:Name="Progress" Height="2" Margin="0,0,0,28" Minimum="0" Maximum="100" Value="0" Foreground="#66DBD0" Background="#243149" ToolTip="Current discovery or installation progress. A moving bar means work is continuing in the background."/>
-   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/><ColumnDefinition Width="100"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
-    <Grid>
-     <TextBlock Text="Portable · No CD mounting" VerticalAlignment="Bottom" Margin="0,0,0,7" Foreground="#7385A1" FontSize="12" ToolTip="Installs into the wobble folder beside Setup. No registry installation, disc mounting, or fixed drive path."/>
-     <Image x:Name="NinjaLogo" Width="256" Height="128" Stretch="Uniform" SnapsToDevicePixels="True" UseLayoutRounding="True" Margin="0,-32,24,0" HorizontalAlignment="Right" VerticalAlignment="Bottom" ToolTip="WO4K mod branding: Ninja Dynamics."/>
-    </Grid>
-    <Button x:Name="UpdateButton" VerticalAlignment="Bottom" Content="Update" Grid.Column="1" Margin="0,0,9,0" IsEnabled="False" ToolTip="Add a valid release URL to release.url to enable updates."/>
-    <Button x:Name="PlayButton" VerticalAlignment="Bottom" Content="Play" Grid.Column="2" Margin="0,0,9,0" IsEnabled="False" ToolTip="Install the game first to enable Play."/>
-    <Button x:Name="InstallButton" VerticalAlignment="Bottom" Content="Install / repair" Grid.Column="3" Background="#66DBD0" Foreground="#142032" FontWeight="SemiBold" ToolTip="Verify sources and build a complete installation. Existing saves/preferences are retained; the previous installation is backed up."/>
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Image x:Name="NinjaLogo" Width="256" Height="128" Stretch="Uniform" SnapsToDevicePixels="True" UseLayoutRounding="True" Margin="0,-32,24,0" HorizontalAlignment="Left" VerticalAlignment="Bottom" ToolTip="WO4K mod branding: Ninja Dynamics."/>
+    <StackPanel x:Name="Actions" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+     <Button x:Name="UpdateButton" Width="100" VerticalAlignment="Bottom" Content="Update" Margin="0,0,9,0" IsEnabled="False"/>
+     <Button x:Name="InstallButton" Width="160" VerticalAlignment="Bottom" Content="Install" Background="#66DBD0" Foreground="#142032" FontWeight="SemiBold"/>
+     <Button x:Name="PlayButton" Width="160" VerticalAlignment="Bottom" Content="Play" Background="#66DBD0" Foreground="#142032" FontWeight="SemiBold" Visibility="Collapsed" IsEnabled="False"/>
+    </StackPanel>
    </Grid>
   </StackPanel>
  </Grid>
@@ -132,7 +133,7 @@ function Set-BrandingPixelSizes {
     $shift=[Math]::Max(0,((128-63.5)/$dpi.DpiScaleY-14)/2)
     $window.FindName('NinjaLogo').Margin=New-Object Windows.Thickness(0,-32,24,(-$shift))
     foreach($name in @('UpdateButton','PlayButton','InstallButton')){
-        $right=if($name -eq 'InstallButton'){0}else{9}
+        $right=if($name -eq 'PlayButton' -or ($name -eq 'InstallButton' -and $window.FindName('PlayButton').Visibility -ne 'Visible')){0}else{9}
         $window.FindName($name).Margin=New-Object Windows.Thickness(0,0,$right,$shift)
     }
     $window.FindName('GithubColumn').Width=New-Object Windows.GridLength($window.FindName('GithubLogo').Width+16)
@@ -150,6 +151,7 @@ $script:audioOutput=$window.FindName('AudioOutput')
 $script:fullscreenMode=$window.FindName('FullscreenMode')
 $script:scan=$null;$script:worker=$null;$script:scanMode='All';$script:scanResult='';$script:workerStatus='';$script:psxVerified=$false
 $script:issueMessage='';$script:installedReady=$false
+$script:repairMode=$false;$script:hasInstallation=$false;$script:sourceLayoutInitialized=$false;$script:startupStarted=$false;$script:restartingAfterUpdate=$false
 $script:restoringConfiguration=$true
 $script:savedConfiguration=Get-ModConfiguration $PSScriptRoot
 $script:restorePsxDefault=$script:savedConfiguration.DefaultSoundtrack -eq 'Psx';$script:soundtrackTouched=$true;$script:gameVerified=$false;$script:sourceError=$false
@@ -171,53 +173,101 @@ function Start-InstallationCheck {
     $script:status.Text='Checking the configured installation...';Set-GuiState Installing
     $script:worker=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Reconcile-Installation.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -ErrorLog ($script:WoLogPath+'.worker.log')
 }
+function Update-InstallLayout {
+    $script:hasInstallation=Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/installation.json')
+    $sources=$window.FindName('SourceFields');$showSources=-not $script:hasInstallation -or $script:repairMode
+    $changed=-not $script:sourceLayoutInitialized -or ($sources.Visibility -eq 'Visible') -ne $showSources
+    $sources.Visibility=if($showSources){'Visible'}else{'Collapsed'}
+    $script:play.Visibility=if($script:hasInstallation){'Visible'}else{'Collapsed'}
+    $script:install.Content=if($script:repairMode){'Cancel'}elseif($showSources){'Install'}else{'Repair'}
+    $script:play.Content=if($script:repairMode){'Install'}else{'Play'}
+    $script:install.Width=if($script:hasInstallation){100}else{160}
+    $script:install.Background=if($script:repairMode){'#F2C94C'}elseif($script:hasInstallation){'#253148'}else{'#66DBD0'}
+    $script:install.Foreground=if($script:repairMode -or -not $script:hasInstallation){'#142032'}else{'#EEF2FB'}
+    if($changed){
+        $window.MinHeight=if($showSources){730}else{580}
+        $window.Height=if($showSources){750}else{600}
+        $script:sourceLayoutInitialized=$true
+    }
+    Set-BrandingPixelSizes
+}
+function Open-RepairSources {
+    $script:repairConfiguration=Get-ModConfiguration $PSScriptRoot;$script:repairReady=$script:installedReady
+    $script:repairMode=$true;Update-InstallLayout;Update-PsxChoice;Set-GuiState Idle
+    $script:fields.Game.Focus()|Out-Null
+}
+function Cancel-RepairSources {
+    $sourceTimer.Stop();$script:restoringConfiguration=$true
+    try{
+        $prior=$script:repairConfiguration
+        if(-not $ValidateUi -and -not $PreviewPath){$script:savedConfiguration=Save-ModConfiguration $prior $PSScriptRoot}
+        else{$script:savedConfiguration=$prior}
+        $script:fields.Game.Text=$prior.GameSource;$script:fields.Psx.Text=$prior.PsxMusicSource
+        $script:combo.SelectedIndex=[Array]::IndexOf([string[]]@('Pc','Psx','None'),$prior.DefaultSoundtrack)
+        $script:audioOutput.SelectedIndex=[Array]::IndexOf([int[]]@(1,2,5),$prior.SoundMode)
+        $script:fullscreenMode.SelectedIndex=[Array]::IndexOf([string[]]@('borderless','exclusive'),$prior.FullscreenMode)
+        $window.FindName('HdTextures').IsChecked=$prior.HdTextures;$window.FindName('CleanAudio').IsChecked=$prior.CleanAudio
+    }finally{$script:restoringConfiguration=$false}
+    $script:repairMode=$false;$script:installedReady=$script:repairReady;Update-PsxChoice;Set-GuiState Idle
+}
+function Restart-SetupAfterUpdate {
+    try{
+        $helper=Start-ModSetupRestart $PSScriptRoot $PID;$helper.Dispose()
+        $script:restartingAfterUpdate=$true
+        $timer.Stop();$sourceTimer.Stop();$window.Close()
+    }catch{
+        Write-WoFailure $_ 'Restarting Setup after update'
+        $script:sourceError=$true;$script:issueMessage='Update completed, but Setup could not reopen. Close this window and open Setup.exe.'
+        Set-GuiState Idle
+    }
+}
 function Refresh-LinkControls {
     $release=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'release.url') Release
     $source=Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'source.url') Source
     $curl=[IO.File]::Exists((Join-Path ([Environment]::SystemDirectory) 'curl.exe'))
     $script:update.IsEnabled=($script:guiState -eq 'Idle' -and [bool]$release -and $curl)
     $script:update.Content=if($script:guiState -eq 'Updating'){'Updating…'}else{'Update'}
-    $script:update.ToolTip=if(-not $release){'Update unavailable: release.url is missing, empty or invalid. Add an HTTPS GitHub releases URL or a direct ZIP URL.'}elseif(-not $curl){'Update unavailable: Windows curl.exe could not be found.'}elseif($script:guiState -ne 'Idle'){'Setup is busy. Updates become available when the current operation finishes.'}else{'Use curl to download and verify the latest mod release, then update it locally. Audio, saves, settings and URL files are retained.'}
     $script:sourceLink.IsEnabled=[bool]$source
-    $script:sourceLink.ToolTip=if($source){'Open the Ninja Dynamics GitHub page: '+$source}else{'GitHub link unavailable: source.url is missing, empty or invalid. Add an HTTPS GitHub organization or repository URL.'}
-    $window.FindName('GithubLogo').ToolTip=$script:sourceLink.ToolTip
 }
 function Set-GuiState([string]$State) {
+    Update-InstallLayout
     $script:guiState=$State;$locked=$State -in @('Installing','Updating')
     foreach($kind in @('Game','Psx')) {
         $script:magic[$kind].IsEnabled=$State -eq 'Idle'
-        $script:magic[$kind].ToolTip=if($State -eq 'Searching'){'Searching local folders; this button is disabled until discovery finishes.'}elseif($locked){'Setup is busy. Discovery is available again afterward.'}else{'Search local folders again for a verified '+$kind+' source.'}
-        $script:wands[$kind].ToolTip=$script:magic[$kind].ToolTip
         if($State -eq 'Searching'){$a=New-Object Windows.Media.Animation.DoubleAnimation(0,360,(New-Object Windows.Duration([TimeSpan]::FromSeconds(1.4))));$a.RepeatBehavior=[Windows.Media.Animation.RepeatBehavior]::Forever;$script:wands[$kind].RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty,$a)}else{$script:wands[$kind].RenderTransform.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty,$null)}
         $script:fields[$kind].IsEnabled=-not $locked;$script:browse[$kind].IsEnabled=-not $locked
         $script:fields[$kind].ToolTip=if($locked){'Setup is busy. This source field is locked until it finishes.'}elseif($kind -eq 'Game'){'PC ZIP/disc image or the small 11 MB PC version. Included PC music is extracted automatically. The small version works without music or with optional PlayStation music.'}else{'Optional European PlayStation disc for original artwork and any included CD audio, or an extracted music folder.'}
-        $script:browse[$kind].ToolTip=if($locked){'Setup is busy. Source selection is temporarily unavailable.'}else{'Choose a '+$kind+' source file or folder.'}
     }
     $script:install.IsEnabled=$State -eq 'Idle';$script:play.IsEnabled=($State -eq 'Idle' -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/Wipeout2097.exe')))
-    $script:play.ToolTip=if($script:play.IsEnabled){'Refresh artwork and sound effects, then launch the mod with widescreen, controller and music support.'}elseif($State -ne 'Idle'){'Setup is busy. Play becomes available when work finishes.'}else{'Complete setup to enable Play.'}
-    $script:install.ToolTip=if($State -eq 'Idle'){'Install or repair using these sources; preserve saves and back up the previous installation.'}else{'Setup is busy. Wait for the current operation to finish.'}
     $script:combo.IsEnabled=-not $locked;$window.FindName('HdTextures').IsEnabled=-not $locked;$window.FindName('CleanAudio').IsEnabled=-not $locked
     $script:audioOutput.IsEnabled=-not $locked
     $script:fullscreenMode.IsEnabled=-not $locked
-    $script:combo.ToolTip=if($locked){'Setup is busy. The default soundtrack choice is temporarily locked.'}else{'Choose available PC or PlayStation music, or No music. The small 11 MB PC version does not require a soundtrack.'}
     $script:progress.IsIndeterminate=$State -in @('Searching','Updating')
     $script:status.ToolTip=$script:status.Text
     Refresh-LinkControls
-    if($State -eq 'Idle'){Update-SourceMessage}
+    if($State -eq 'Idle'){
+        if(-not $script:sourceError -and -not $script:issueMessage){$script:status.Text='Ready'}
+        else{$script:status.Text=$script:issueMessage}
+        $script:status.ToolTip=$script:status.Text;Update-SourceMessage
+    }
 }
 function Update-SourceMessage {
-    $message=Get-ModSourceMessage $script:fields.Game.Text.Trim() $script:fields.Psx.Text.Trim() ([bool]$script:gameVerified) ([bool]$script:psxVerified) ([bool]$script:sourceError) $script:issueMessage $script:installedReady
+    if($script:hasInstallation -and -not $script:repairMode -and -not $script:sourceError -and -not $script:issueMessage){
+        $message=if($script:installedReady){'Ready to launch, all systems go!'}else{'Checking the installed game...'}
+    }elseif(-not $script:sourceError -and -not $script:issueMessage -and $script:gameVerified -and (-not $script:fields.Psx.Text.Trim() -or $script:psxVerified)){
+        $message=if($script:hasInstallation){'Sources are ready. Choose Install to repair the game.'}else{'Sources are ready. Choose Install to set up the game.'}
+    }else{
+        $message=Get-ModSourceMessage $script:fields.Game.Text.Trim() $script:fields.Psx.Text.Trim() ([bool]$script:gameVerified) ([bool]$script:psxVerified) ([bool]$script:sourceError) $script:issueMessage $script:installedReady
+    }
     $window.FindName('SourceHint').Text=$message;$window.FindName('SourceHint').ToolTip=$message
 }
 function Update-PsxChoice {
     $pcInfo=Get-ModSourceInfo $script:fields.Game.Text.Trim()
     $script:gameVerified=[bool]$pcInfo.Game; $pcAvailable=[bool]$pcInfo.Pc -or (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/music/pc/tracks.ini'));$window.FindName('PcChoice').IsEnabled=$pcAvailable
-    $window.FindName('PcChoice').ToolTip=if($pcAvailable){'PC music found in the selected game source.'}else{'This PC source has no detected music. Choose No music or add a PlayStation soundtrack.'}
     $path=$script:fields.Psx.Text.Trim();$script:psxVerified=$false
     if($path){$info=Get-ModSourceInfo $path;$script:psxVerified=[bool]$info.Psx}
     $psxAudio=($script:psxVerified -and [bool]$info.PsxMusic) -or (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/music/psx/tracks.ini'))
     $script:psxChoice.IsEnabled=$psxAudio
-    $script:psxChoice.ToolTip=if($psxAudio){'Verified PlayStation audio available. Choose it as the initial soundtrack.'}else{'A data-only PlayStation image supplies artwork. Add CD audio to enable its soundtrack.'}
     if($script:restorePsxDefault -and $psxAudio){$script:combo.SelectedIndex=1;$script:restorePsxDefault=$false}
     elseif(-not $script:soundtrackTouched -or ($script:combo.SelectedIndex -eq 0 -and -not $pcAvailable) -or ($script:combo.SelectedIndex -eq 1 -and -not $psxAudio)){$script:combo.SelectedIndex=if($pcAvailable){0}elseif($psxAudio){1}else{2}}
     Update-SourceMessage
@@ -236,7 +286,7 @@ foreach($kind in @('Game','Psx')) {
     $script:browse[$kind].Tag=$kind
     $script:browse[$kind].Add_Click({param($sender,$event)
         $kind=[string]$sender.Tag;$menu=New-Object Windows.Controls.ContextMenu
-        foreach($mode in @('File','Folder')){$item=New-Object Windows.Controls.MenuItem;$item.Header='Select '+$mode.ToLowerInvariant()+'…';$item.ToolTip=if($mode -eq 'File'){'Choose a ZIP or disc descriptor/image.'}else{'Choose an existing game or music folder.'};$item.Tag=@($kind,$mode)
+        foreach($mode in @('File','Folder')){$item=New-Object Windows.Controls.MenuItem;$item.Header='Select '+$mode.ToLowerInvariant()+'…';$item.Tag=@($kind,$mode)
             $item.Add_Click({param($choice,$event)
                 $kind=$choice.Tag[0];$mode=$choice.Tag[1];$path=''
                 if($mode -eq 'File'){$dialog=New-Object Microsoft.Win32.OpenFileDialog;$dialog.Filter='Game sources|*.zip;*.iso;*.mds;*.mdf;*.cue;*.bin|All files|*.*';if($dialog.ShowDialog($window)){$path=$dialog.FileName}}
@@ -246,7 +296,7 @@ foreach($kind in @('Game','Psx')) {
         }$menu.PlacementTarget=$sender;$menu.IsOpen=$true
     })
     $script:fields[$kind].Add_LostKeyboardFocus({Update-PsxChoice})
-    $script:fields[$kind].Add_TextChanged({$script:sourceError=$false;$script:issueMessage='';$script:installedReady=$false;$sourceTimer.Stop();$sourceTimer.Start()})
+    $script:fields[$kind].Add_TextChanged({if($script:restoringConfiguration){return};$script:sourceError=$false;$script:issueMessage='';$script:installedReady=$false;$sourceTimer.Stop();$sourceTimer.Start()})
 }
 $script:combo.Add_DropDownClosed({$script:restorePsxDefault=$false;$script:soundtrackTouched=$true;Save-SetupPreferences})
 $script:audioOutput.Add_SelectionChanged({
@@ -273,14 +323,35 @@ $script:update.Add_Click({
     $script:issueMessage='';$script:sourceError=$false;Update-SourceMessage;$script:status.Text='Starting update…';Set-GuiState Updating
     try{$script:worker=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Update-Mod.ps1')+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -ErrorLog ($script:WoLogPath+'.worker.log')}catch{Complete-WoFailure $_ 'Starting the updater failed' -StatusFile $script:workerStatus;$script:sourceError=$true;$script:issueMessage=Get-WoFailureMessage $_ 'Starting the updater';$script:status.Text=$script:issueMessage;Set-GuiState Idle}
 })
-$script:play.Add_Click({Save-SetupPreferences;Start-Process -FilePath (Join-Path $PSScriptRoot 'Play.exe') -WorkingDirectory $PSScriptRoot|Out-Null})
-$script:install.Add_Click({
-    if($script:worker -or $script:scan){return};Update-PsxChoice;Save-SetupPreferences
+function Start-SetupInstallation {
+    if($script:worker -or $script:scan){return}
+    Update-PsxChoice;Save-SetupPreferences
     if(-not $script:fields.Game.Text.Trim()){$script:status.Text='Choose your Windows game source to continue.';$script:status.ToolTip=$script:status.Text;return}
-    $id=[guid]::NewGuid().ToString('N');$request=Join-Path $PSScriptRoot ('.work/request-'+$id+'.json');$script:workerStatus=Join-Path $PSScriptRoot ('.work/status-'+$id+'.json')
-    Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource=$script:savedConfiguration.PcMusicSource;PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked;SoundMode=@(1,2,5)[$script:audioOutput.SelectedIndex];FullscreenMode=@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex]})
-    $script:sourceError=$false;$script:issueMessage='';Update-SourceMessage;$script:workerKind='installation';$script:status.Text='Starting installation…';Set-GuiState Installing
-    $script:worker=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'),'-StatusFile',('"'+$script:workerStatus+'"')) -ErrorLog ($script:WoLogPath+'.worker.log')
+    $id=[guid]::NewGuid().ToString('N');$script:workerStatus=Join-Path $PSScriptRoot ('.work/status-'+$id+'.json');[WoBeta.Files]::Parent($script:workerStatus)
+    $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File')
+    if($script:hasInstallation){
+        # Reuse the shared repair path, including retained music/disc caches
+        # when the original sources are temporarily unavailable.
+        $script:workerKind='repair'
+        $arguments+=@(('"'+(Join-Path $PSScriptRoot 'scripts/Reconcile-Installation.ps1')+'"'),'-ForceRepair')
+    }else{
+        $script:workerKind='installation';$request=Join-Path $PSScriptRoot ('.work/request-'+$id+'.json')
+        Write-ModJson $request ([ordered]@{GameSource=$script:fields.Game.Text.Trim();PcMusicSource=$script:savedConfiguration.PcMusicSource;PsxMusicSource=$script:fields.Psx.Text.Trim();DefaultSoundtrack=$(if($script:combo.SelectedIndex -eq 1){'Psx'}elseif($script:combo.SelectedIndex -eq 2){'None'}else{'Pc'});HdTextures=[bool]$window.FindName('HdTextures').IsChecked;CleanAudio=[bool]$window.FindName('CleanAudio').IsChecked;SoundMode=@(1,2,5)[$script:audioOutput.SelectedIndex];FullscreenMode=@('borderless','exclusive')[$script:fullscreenMode.SelectedIndex]})
+        $arguments+=@(('"'+(Join-Path $PSScriptRoot 'scripts/Install-Mod.ps1')+'"'),'-RequestFile',('"'+$request+'"'))
+    }
+    $arguments+=@('-StatusFile',('"'+$script:workerStatus+'"'))
+    $script:sourceError=$false;$script:issueMessage='';Update-SourceMessage;$script:status.Text=if($script:hasInstallation){'Repairing the installation...'}else{'Starting installation...'};Set-GuiState Installing
+    $script:worker=Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList $arguments -ErrorLog ($script:WoLogPath+'.worker.log')
+}
+$script:play.Add_Click({
+    if($script:repairMode){Start-SetupInstallation;return}
+    Save-SetupPreferences;Start-Process -FilePath (Join-Path $PSScriptRoot 'Play.exe') -WorkingDirectory $PSScriptRoot|Out-Null
+})
+$script:install.Add_Click({
+    if($script:worker -or $script:scan){return}
+    if($script:repairMode){Cancel-RepairSources;return}
+    if($script:hasInstallation){Open-RepairSources;return}
+    Start-SetupInstallation
 })
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(300)
 $timer.Add_Tick({
@@ -304,12 +375,17 @@ $timer.Add_Tick({
                 $failureLog=if($result.log_path){$result.log_path}else{$script:WoLogPath}
                 $null=Show-WoFailure $result.message -LogPath $failureLog
             }
-            $script:worker.Dispose();$script:worker=$null;if($result.success){Update-PsxChoice};Set-GuiState Idle
+            $script:worker.Dispose();$script:worker=$null
+            if($result.success -and $script:workerKind -eq 'update'){Restart-SetupAfterUpdate;return}
+            if($result.success){
+                Update-PsxChoice
+                if($script:repairMode){$script:repairConfiguration=Get-ModConfiguration $PSScriptRoot;$script:repairReady=$script:installedReady}
+            };Set-GuiState Idle
         }
     }
 })
 $window.Add_Activated({Refresh-LinkControls})
-$window.Add_Closing({param($sender,$event)Save-SetupPreferences;if($script:worker){$event.Cancel=$true;$script:status.Text='Please wait for setup to finish before closing.'}else{$sourceTimer.Stop();$timer.Stop();if($script:scan -and -not $script:scan.HasExited){$script:scan.Kill()}}})
+$window.Add_Closing({param($sender,$event)if(-not $script:restartingAfterUpdate){Save-SetupPreferences};if($script:worker){$event.Cancel=$true;$script:status.Text='Please wait for setup to finish before closing.'}else{$sourceTimer.Stop();$timer.Stop();if($script:scan -and -not $script:scan.HasExited){$script:scan.Kill()}}})
 $script:restoringConfiguration=$false
 Set-GuiState $PreviewState
 if($ValidateUi -or $PreviewPath) {
@@ -331,10 +407,19 @@ if($ValidateUi -or $PreviewPath) {
     if($PreviewState -eq 'Updating' -and ($script:play.IsEnabled -or $script:install.IsEnabled -or -not $script:progress.IsIndeterminate)){throw 'Update must disable game/install actions and show progress.'}
     if($script:sourceLink.IsEnabled -ne [bool](Get-ModConfiguredUrl (Join-Path $PSScriptRoot 'source.url') Source)){throw 'Source link availability does not match source.url.'}
     $elements=New-Object Collections.Generic.List[object]
-    function Inspect-Ui($element){if($element -is [Windows.Controls.Image] -or $element -is [Windows.Controls.TextBlock] -or $element -is [Windows.Controls.Button] -or $element -is [Windows.Controls.TextBox] -or $element -is [Windows.Controls.ComboBox] -or $element -is [Windows.Controls.ComboBoxItem] -or $element -is [Windows.Controls.CheckBox] -or $element -is [Windows.Controls.ProgressBar]){if(-not $element.ToolTip){throw ('Missing tooltip: '+$element.GetType().Name+' '+$element.Name)};$elements.Add($element)};foreach($child in [Windows.LogicalTreeHelper]::GetChildren($element)){if($child -is [Windows.DependencyObject]){Inspect-Ui $child}}}
+    function Inspect-Ui($element,[bool]$InsideControl=$false){
+        $control=$element -is [Windows.Controls.Button] -or $element -is [Windows.Controls.ComboBox] -or $element -is [Windows.Controls.ComboBoxItem]
+        $inspect=$control -or $element -is [Windows.Controls.Image] -or $element -is [Windows.Controls.TextBlock] -or $element -is [Windows.Controls.TextBox] -or $element -is [Windows.Controls.CheckBox] -or $element -is [Windows.Controls.ProgressBar]
+        if($inspect){
+            if($InsideControl -or $control){if($element.ToolTip){throw ('Redundant control tooltip: '+$element.Name)}}
+            elseif(-not $element.ToolTip){throw ('Missing label tooltip: '+$element.Name)}
+            $elements.Add($element)
+        }
+        foreach($child in [Windows.LogicalTreeHelper]::GetChildren($element)){if($child -is [Windows.DependencyObject]){Inspect-Ui $child ($InsideControl -or $control)}}
+    }
     Inspect-Ui $window
     if($PreviewPath){$content=$window.Content;$content.Width=[double]::NaN;$content.Height=[double]::NaN;$content.Background=$window.Background;$window.Content=$null;$previewSurface=New-Object Windows.Controls.Border;$previewSurface.Background=$window.Background;$previewSurface.Resources=$window.Resources;[Windows.Documents.TextElement]::SetForeground($previewSurface,$window.Foreground);[Windows.Documents.TextElement]::SetFontFamily($previewSurface,$window.FontFamily);$previewSurface.Child=$content;$previewSurface.Measure((New-Object Windows.Size($window.Width,$window.Height)));$previewSurface.Arrange((New-Object Windows.Rect(0,0,$window.Width,$window.Height)));$previewSurface.UpdateLayout();$previewDpi=[Windows.Media.VisualTreeHelper]::GetDpi($window);$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int][Math]::Ceiling($window.Width*$previewDpi.DpiScaleX),[int][Math]::Ceiling($window.Height*$previewDpi.DpiScaleY),(96*$previewDpi.DpiScaleX),(96*$previewDpi.DpiScaleY),[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($previewSurface);$encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));[WoBeta.Files]::Parent($PreviewPath);$f=[IO.File]::Create($PreviewPath);try{$encoder.Save($f)}finally{$f.Dispose()}}
-    Write-Host ('PASS: '+$elements.Count+' UI elements have tooltips; state '+$PreviewState);return
+    Write-Host ('PASS: '+$elements.Count+' UI elements validated; label tooltips retained; state '+$PreviewState);return
 }
 $dispatcher=[Windows.Threading.Dispatcher]::CurrentDispatcher
 $dispatcher.add_UnhandledException({
@@ -346,6 +431,6 @@ $dispatcher.add_UnhandledException({
     if(-not $script:worker){Set-GuiState Idle}
     $eventArgs.Handled=$true
 })
-$timer.Start();$window.Add_ContentRendered({if($env:WO4K_READY_MARKER){[IO.File]::WriteAllText($env:WO4K_READY_MARKER,'ready');$env:WO4K_READY_MARKER=$null;$env:WO4K_ERROR_MARKER=$null};if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/installation.json')){Start-InstallationCheck}else{Start-SourceDiscovery All}});$window.ShowDialog()|Out-Null
+$timer.Start();$window.Add_ContentRendered({if($script:startupStarted){return};$script:startupStarted=$true;if($env:WO4K_READY_MARKER){[IO.File]::WriteAllText($env:WO4K_READY_MARKER,'ready');$env:WO4K_READY_MARKER=$null;$env:WO4K_ERROR_MARKER=$null};if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'wobble/installation.json')){Start-InstallationCheck}else{Start-SourceDiscovery All}});$window.ShowDialog()|Out-Null
 
 } catch {Complete-WoFailure $_ 'Setup failed' -NoDialog:$ValidateUi;throw}

@@ -1,4 +1,4 @@
-# WPF must finish reading an image before the updater replaces its file.
+﻿# WPF must finish reading an image before the updater replaces its file.
 function Read-ModUiBitmap([string]$Path) {
     $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
     try{
@@ -14,6 +14,13 @@ function Start-ModUiProcess([string]$FilePath,[string[]]$ArgumentList,[string]$E
     # after the background process has already exited.
     $null=$process.Handle
     return $process
+}
+function Start-ModSetupRestart([string]$Root,[int]$ParentProcessId,[switch]$NoErrorDialog) {
+    $helper=Join-Path $Root 'scripts/Restart-Setup.ps1'
+    if(-not [IO.File]::Exists($helper)){throw 'The Setup restart helper is missing.'}
+    $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$helper+'"'),'-ParentProcessId',[string]$ParentProcessId)
+    if($NoErrorDialog){$arguments+='-NoErrorDialog'}
+    return Start-ModUiProcess -FilePath $script:ModPowerShell -ArgumentList $arguments
 }
 function Get-ModUiWorkerResult($Process,[string]$StatusFile,[string]$Operation) {
     $Process.WaitForExit();$code=$Process.ExitCode;$status=$null

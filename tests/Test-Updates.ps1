@@ -68,6 +68,14 @@ $repairScript=Join-Path $fixture 'scripts/Reconcile-Installation.ps1'
 Complete-ModUpdate $fixture $verified $inventory $work ''
 Assert-Result ([IO.File]::ReadAllText((Join-Path $fixture 'Setup.ps1')) -eq 'new setup') 'An already-current Update did not repair damaged packaged files.'
 Assert-Result ([IO.File]::ReadAllText((Join-Path $fixture 'repair-ran.txt')) -eq 'forced') 'An already-current Update skipped install/repair.'
+# A newer local build must keep its files when Update finds an older release,
+# while still running the requested repair fail-safe.
+$localInventory=Get-Content -LiteralPath (Join-Path $fixture 'release-files.json') -Raw -Encoding UTF8|ConvertFrom-Json
+$localInventory.version='0.1.0-beta.4';Write-ModJson (Join-Path $fixture 'release-files.json') $localInventory
+[IO.File]::WriteAllText((Join-Path $fixture 'Setup.ps1'),'newer local setup')
+Complete-ModUpdate $fixture $verified $inventory $work ''
+Assert-Result ([IO.File]::ReadAllText((Join-Path $fixture 'Setup.ps1')) -eq 'newer local setup') 'Update downgraded a newer local build.'
+Assert-Result ([IO.File]::ReadAllText((Join-Path $fixture 'repair-ran.txt')) -eq 'forced') 'An older published release skipped the local repair fail-safe.'
 [IO.File]::WriteAllText($repairScript,'param([switch]$ForceRepair,[switch]$NoErrorDialog,[string]$StatusFile);exit 9')
 $failed=$false;try{Complete-ModUpdate $fixture $verified $inventory $work ''}catch{$failed=$true}
 Assert-Result $failed 'Update swallowed an install/repair failure.'
