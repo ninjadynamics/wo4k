@@ -92,21 +92,27 @@ Change soundtracks on the fly in **Options → Audio** when both banks are
 installed. Your choice is saved. The PC bank contains nine songs; the optional
 PlayStation bank contains eleven.
 
-Every Play launch runs the artwork and sound-effect installers first. Edit HD
-PNGs in `assets/hd/` to have them picked up at the next launch. Audio outputs are rebuilt when changed or damaged; HD PNGs are validated and
-read directly by the renderer. Setup's HD/audio
-preferences are respected. Original effects stay locally in `wobble/audio/source/`,
-so refresh never repeatedly denoises its own output or needs the disc again.
-Native road/PS1 improvements are built into the packed SD sheets during setup
-and retained locally. Setup saves source paths and preferences in `.state/setup.json`.
-Before launching, Play checks the configured installation, synchronizes updated
-runtime files, imports missing PS1 artwork/music, and repairs missing or damaged
-outputs. Setup runs the same check when opened. Healthy installed assets and
-cached PS1 artwork remain usable when the original disc is offline; restoring
-missing music or PC data may require the configured source again.
-Texture choices are fixed at project time; launch checks verify installed output
-integrity without comparing PC and PS1 quality.
-Play scans `assets/hd/` on every launch and validates every PNG. All eleven
+Before every launch, Play checks the configured installation, synchronizes
+updated runtime files, imports missing PS1 artwork/music, refreshes artwork and
+sound effects, and repairs missing or damaged outputs. Setup runs the same check
+when opened. The check takes a few milliseconds: like Git, WO4K remembers each
+verified file's size, timestamps and file ID with its SHA-256 (in
+`.state/integrity.json`), and reads a file again whenever any of them changed,
+so edited, replaced, truncated or missing files are still found and repaired.
+The first launch after an install or update verifies everything once, and
+**Repair** always verifies every file. Edit HD PNGs in `assets/hd/` to have them
+picked up at the next launch; audio outputs are rebuilt when changed or
+damaged, and HD PNGs are validated and read directly by the renderer. Setup's
+HD/audio preferences are respected. Original effects stay locally in
+`wobble/audio/source/`, so refresh never repeatedly denoises its own output or
+needs the disc again. Native road/PS1 improvements are built into the packed SD
+sheets during setup and retained locally. Setup saves source paths and
+preferences in `.state/setup.json`. Healthy installed assets and cached PS1
+artwork remain usable when the original disc is offline; restoring missing
+music or PC data may require the configured source again. Texture choices are
+fixed at project time; launch checks verify installed output integrity without
+comparing PC and PS1 quality.
+Play checks every PNG in `assets/hd/` before each launch. All eleven
 exported UI filenames are supported: `font-and-numbers`, `hud-gauges`,
 `hud-reticles`, `menu-background`, `menu-frame-left/middle/right`,
 `menu-controls-1/2`, `menu-logo-atlas`, and `menu-banner-logo` (all `.png`).
@@ -148,6 +154,8 @@ saves and preferences are preserved. Close the game before changing assets.
 
 Setup extracts all five original PC videos to `wobble/movies/` when your source
 includes them. Startup runs in this order: **launcher → notice → intro → title**.
+The intro player is prepared while the notice shows, so the movie follows it
+at once.
 The four endings play on their original completion events: six gold medals
 (XTRO1), the Phantom challenge (XTRO2), eight gold medals (XTRO3), and the Piranha
 challenge (XTRO4). Original achievement and save handling stays in the game.

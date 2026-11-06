@@ -15,6 +15,14 @@
 - Play the original MPEG videos with WO4K's own player through Windows'
   built-in decoders instead of converting them with FFmpeg. MP4 replacements
   still take priority.
+- Start the game in about 40 ms instead of about a second (several seconds
+  with a cold disk cache): the launch check recognises unchanged files from
+  their size, timestamps and file ID, and still reads and repairs any edited,
+  replaced or missing file. Repair verifies everything.
+- Prepare the intro during the notice screen, so the movie follows it without
+  a black pause, and start the controller helper in the background, removing
+  a freeze on the first launch after an update. Play's log records how long
+  each startup step takes.
 - Update through Windows' built-in HTTPS instead of curl. A signed copy only
   accepts updates signed by the same publisher.
 - Bound disk use: keep the most recent game backup (without its music) and

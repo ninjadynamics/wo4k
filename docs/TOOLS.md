@@ -9,7 +9,12 @@ refreshing assets) is built into them.
 ```bat
 Play.exe --refresh-only       :: check and repair the installation, then exit
 Play.exe --no-error-dialog    :: report failures only in logs\
+Play.exe --root <folder>      :: use the installation in another mod folder
 ```
+
+Setting the environment variable `WO2097_VIDEO_PREPARE=0` before starting Play
+turns off preparing the intro player during the notice screen; the player is
+then started when the intro begins, as in earlier releases.
 
 ## Installing from the command line
 
