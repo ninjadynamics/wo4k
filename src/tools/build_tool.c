@@ -4,6 +4,11 @@
  *       Multi-size icon (16-256 px PNG frames) from a square PNG.
  *   wo4k-build hd-catalog <manifests/hd-textures.json> <output.h>
  *       C table of the HD atlas aliases used by the game runtime.
+ *   wo4k-build fetch <manifests/dependencies.json> <deps folder>
+ *   wo4k-build manifests
+ *   wo4k-build sign-input <folder>
+ *   wo4k-build package <version> <dist folder> [<signed folder>]
+ *       See build_fetch.c and build_package.c.
  *
  * Outputs are written only when their content changes, so dependent targets
  * are not rebuilt needlessly. */
@@ -86,6 +91,14 @@ int wmain(int argc, wchar_t **argv) {
         wo_buf_free(&ico);
     } else if (argc == 4 && wo_str_eq(args[1], "hd-catalog")) {
         ok = hd_catalog(args[2], args[3], &error);
+    } else if (argc == 4 && wo_str_eq(args[1], "fetch")) {
+        ok = build_fetch(args[2], args[3], &error);
+    } else if (argc == 2 && wo_str_eq(args[1], "manifests")) {
+        ok = build_manifests(&error);
+    } else if (argc == 3 && wo_str_eq(args[1], "sign-input")) {
+        ok = build_sign_input(args[2], &error);
+    } else if ((argc == 4 || argc == 5) && wo_str_eq(args[1], "package")) {
+        ok = build_package(args[2], args[3], argc == 5 ? args[4] : NULL, &error);
     } else {
         fprintf(stderr, "usage: wo4k-build icon <in.png> <out.ico>\n"
                         "       wo4k-build hd-catalog <hd-textures.json> <out.h>\n");

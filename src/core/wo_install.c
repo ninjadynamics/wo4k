@@ -118,15 +118,11 @@ static bool copy_between(const char *from_root, const char *from, const char *to
 
 bool wo_install_runtime(const WoMod *mod, const char *game_root, WoError *error) {
     static const char *const required[] = {"wohr.dll", "ddraw.dll", "wo2097-controller.exe",
-                                           "DDrawCompat-Wipeout2097.ini"};
-    static const char *const optional[] = {"wo4k-video.exe"};
+                                           "wo4k-video.exe", "DDrawCompat-Wipeout2097.ini"};
     char *runtime = wo_mod_path(mod, "runtime", error);
     bool ok = runtime != NULL;
     for (size_t i = 0; ok && i < WO_COUNT(required); i++) {
         ok = copy_between(runtime, required[i], game_root, required[i], true, error);
-    }
-    for (size_t i = 0; ok && i < WO_COUNT(optional); i++) {
-        ok = copy_between(runtime, optional[i], game_root, optional[i], false, error);
     }
     WoDirList list = {0};
     ok = ok && wo_list_dir(runtime, &list, error);
