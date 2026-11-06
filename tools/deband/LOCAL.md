@@ -6,24 +6,30 @@
 inheritance to its pipe and NUL handles. This fixes intermittent atomic rename
 failures with concurrent PNG workers; filtering and defaults are unchanged.
 
-The PowerShell build helper was retired with the rest of the PowerShell
-tooling. Build with the Makefile against static libpng, libjpeg-turbo and zlib,
-for example from the MSYS2 MINGW64 shell:
+The lossless PNG trimmer (`pngtrim.c`, previously the FFmpeg-based
+`assets/hd/trim.cmd`) is part of the tool: `-z` trims PNGs in place, and
+debanded PNG output is trimmed before it is published. `assets/hd/trim.cmd` is
+now a double-click launcher for `deband -z` on that folder.
 
-```sh
-pacman -S mingw-w64-x86_64-libpng mingw-w64-x86_64-libjpeg-turbo mingw-w64-x86_64-zlib
-mingw32-make -C tools/deband static
+Build from the repository root with the same toolchain as the mod:
+
+```bat
+mingw32-make deband        :: tools\deband\deband.exe
+mingw32-make deband-test   :: pngtrim tests, every result decoded with libpng
 ```
 
-`dependencies.json` still records the checksum-pinned
+The first build fetches the checksum-pinned
 [libpng source](https://github.com/pnggroup/libpng),
 [libjpeg-turbo](https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-libjpeg-turbo)
 and [zlib](https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-zlib)
-versions the previous helper used. The resulting `tools/deband/deband.exe` links
-the image libraries statically; only Windows system DLLs are needed. FFmpeg
-remains an optional separate executable on PATH.
+listed in `dependencies.json` into `.work/deps`; libpng is compiled with the
+mod's compiler, which avoids a newer prebuilt library's CRT imports. The
+resulting `tools/deband/deband.exe` links the image libraries statically; only
+Windows system DLLs are needed. FFmpeg remains an optional separate executable
+on PATH. The standalone `Makefile` remains for builds outside this repository.
 
-Run the regression fixtures (Pillow/numpy needed for verification only):
+Run the end-to-end regression fixtures (Pillow/numpy needed for verification
+only):
 
 ```bat
 python tools/deband/Test.py

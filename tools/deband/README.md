@@ -29,6 +29,7 @@ Usage: deband [options] FILE_OR_DIRECTORY
   -t F      Threshold 0.00003..0.5 (default: 0.020)
   -r N      Radius 1..128 pixels (default: 24)
   -d F      Dither intensity 0..4 levels (default: 0.8)
+  -z        Trim only: losslessly recompress PNGs in place (no debanding)
   -h        Show help
 ```
 
@@ -69,9 +70,32 @@ an on-disk temporary file and an atomic rename. JPEG is re-encoded at quality
 95, so **in-place JPEG processing is lossy**. Keep originals if you may want
 another treatment. Metadata such as EXIF/ICC may not survive processing.
 
+## Lossless PNG trimming
+
+PNG output is recompressed losslessly before it is published, and `-z` does
+only that, in place, for one PNG or every PNG in a directory:
+
+```bat
+deband.exe -z image.png
+deband.exe -z assets\hd
+```
+
+The image stays exactly as encoded: size, colour type, bit depth, interlacing,
+palette, transparency and every sample, including colour hidden under zero
+alpha. Only the row filters and the deflate stream are chosen again: each
+strategy is ranked at a fast zlib level, and the two best are compressed at
+level 9. Colour-space chunks (`cHRM`, `gAMA`, `iCCP`, `sBIT`, `sRGB`, `cICP`,
+`mDCv`, `cLLi`) are kept verbatim; editing metadata (text, EXIF, XMP,
+Photoshop data, timestamps, resolution) is dropped. The result is decoded and
+compared with the original before anything is written, a file is replaced
+only when the result is smaller, and never if it changed on disk meanwhile.
+Animated PNGs are left unchanged. The code is in `pngtrim.c`.
+
 ## Compile on Windows (MSYS2 UCRT64)
 
-Use the **MSYS2 UCRT64** terminal (not the plain MSYS terminal).
+In the WO4K repository, `mingw32-make deband` builds it with pinned libraries
+and no MSYS2; see [LOCAL.md](LOCAL.md). Elsewhere, use the **MSYS2 UCRT64**
+terminal (not the plain MSYS terminal).
 
 ```bash
 pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-libpng mingw-w64-ucrt-x86_64-libjpeg-turbo mingw-w64-ucrt-x86_64-zlib make
@@ -80,7 +104,7 @@ pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-libpng mingw-
 Compile a statically linked executable:
 
 ```bash
-gcc -O3 -std=c99 -D_CRT_SECURE_NO_WARNINGS -static -static-libgcc -o deband.exe deband.c -lpng -ljpeg -lz -lm
+gcc -O3 -std=c99 -D_CRT_SECURE_NO_WARNINGS -static -static-libgcc -o deband.exe deband.c pngtrim.c -lpng -ljpeg -lz -lm
 ```
 
 Or run `make static` from the UCRT64 terminal.
@@ -98,7 +122,7 @@ packages change.
 Install development headers for libpng and libjpeg, then:
 
 ```bash
-gcc -O3 -std=c99 -D_XOPEN_SOURCE=700 -o deband deband.c -lpng -ljpeg -lz -lm -pthread
+gcc -O3 -std=c99 -D_XOPEN_SOURCE=700 -o deband deband.c pngtrim.c -lpng -ljpeg -lz -lm -pthread
 ```
 
 For a statically linked Linux binary, run `make static` if the static libraries
@@ -130,7 +154,7 @@ Other input formats are skipped when scanning a directory.
 - The native backend avoids FFmpeg entirely and uses a four-point edge-aware
   debanding operation, with a precomputed direction lookup table.
 - The 512x512 high-pass noise tile is shared across all worker threads.
-- libpng's fast lossless encoding is used for high batch throughput.
+- libpng writes each output quickly; pngtrim.c then recompresses it losslessly.
 
 On the development environment, a run of twelve 510x622 PNGs took 1.31 seconds
 with FFmpeg (`-j 4`) and 0.28 seconds with native C (`-s -j 8`). These are
@@ -143,6 +167,6 @@ per channel, and the processing does not retain all source color metadata.
 
 ## License note
 
-`deband.c` itself is supplied as an example implementation. The build requires
+`deband.c` and `pngtrim.c` are supplied as an example implementation. The build requires
 libpng, libjpeg and their respective dependencies, each governed by its own
 license. FFmpeg, when installed, is executed as a separate program.

@@ -1,27 +1,29 @@
-{
-  "format": 1,
-  "target": "Windows x86_64 UCRT64 static libraries",
-  "png_source": {
-    "name": "libpng",
-    "version": "1.6.59",
+[
+  {
+    "name": "libpng 1.6.59 (source)",
+    "archive": "libpng-1.6.59.tar.gz",
     "url": "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.59.tar.gz",
     "sha256": "2540302a1844ad2b2b501977abecfa850f265f97b78f065a712ab4074a89f5b5",
+    "marker": "libpng-1.6.59/png.h",
+    "marker_sha256": "5758258cb691e429bafbf16057210e2d9bfa2c33b6c4636a6db562480f39b273",
     "metadata": "https://github.com/msys2/MINGW-packages/blob/master/mingw-w64-libpng/PKGBUILD"
   },
-  "packages": [
-    {
-      "name": "libjpeg-turbo",
-      "version": "3.2.1-1",
-      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libjpeg-turbo-3.2.1-1-any.pkg.tar.zst",
-      "sha256": "8eed77c1e0d6de7f8822687f7b1dfa32cda09394806ef67b23399e63de1a92a6",
-      "metadata": "https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-libjpeg-turbo"
-    },
-    {
-      "name": "zlib",
-      "version": "1.3.2-3",
-      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-zlib-1.3.2-3-any.pkg.tar.zst",
-      "sha256": "130e6ef04c654fc2150a177600aa5ed0035087665a893479d2c85ba7485d5704",
-      "metadata": "https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-zlib"
-    }
-  ]
-}
+  {
+    "name": "libjpeg-turbo 3.2.1",
+    "archive": "libjpeg-turbo-ucrt64.pkg.tar.zst",
+    "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libjpeg-turbo-3.2.1-1-any.pkg.tar.zst",
+    "sha256": "8eed77c1e0d6de7f8822687f7b1dfa32cda09394806ef67b23399e63de1a92a6",
+    "marker": "ucrt64/lib/libjpeg.a",
+    "marker_sha256": "06eab484bc3d93b3a1a7cc30a0609f817a6095590d19f6f43af2dfad9dd2a7d1",
+    "metadata": "https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-libjpeg-turbo"
+  },
+  {
+    "name": "zlib 1.3.2",
+    "archive": "zlib-ucrt64.pkg.tar.zst",
+    "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-zlib-1.3.2-3-any.pkg.tar.zst",
+    "sha256": "130e6ef04c654fc2150a177600aa5ed0035087665a893479d2c85ba7485d5704",
+    "marker": "ucrt64/lib/libz.a",
+    "marker_sha256": "4cb41e66d0b8dabe744ee5ba93a11bea6b3c83cc9caab56721a23a8a87244286",
+    "metadata": "https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-zlib"
+  }
+]

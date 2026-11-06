@@ -29,13 +29,14 @@ are retained during every refresh. Setup keeps the original sound effects in
 `wobble/audio/source/`; these are locally supplied game files, never release
 payloads. Changes to the audio processor are detected and the effects rebuilt.
 
-In a source checkout, double-click `assets/hd/trim.cmd` with FFmpeg on PATH.
-It processes PNGs beside the script, verifies decoded pixels/alpha and bit
-depth, preserves PNG colour-profile chunks, and replaces only smaller outputs.
-Editing metadata is removed. Animated PNGs are skipped. Use `--no-pause` from a
-terminal to suppress the final keypress prompt. This maintainer script runs
-through Windows PowerShell; it is kept in Git and excluded from game release
-ZIPs.
+In a source checkout, double-click `assets/hd/trim.cmd` to losslessly
+recompress the PNGs beside it. It runs `deband -z` (see below; build it once
+with `mingw32-make deband`), which keeps every pixel, alpha value, bit depth
+and colour-profile chunk, removes editing metadata, verifies the result by
+decoding it, and replaces a file only when it is smaller and unchanged on disk
+meanwhile. Animated PNGs are skipped. Use `--no-pause` from a terminal to
+suppress the final keypress prompt. The launcher is kept in Git and excluded
+from game release ZIPs.
 
 ## Maintainer commands
 
@@ -59,19 +60,21 @@ geometry. No automatic texture resynthesis or recompression occurs.
 `extract-music` accepts a music folder or an MDS/MDF, CUE/BIN image; unpack a
 ZIP first.
 
-## Maintainer texture debander
+## Maintainer texture debander and PNG trimmer
 
-The user-supplied C debanding utility is in `tools/deband/`. Build it with its
-own Makefile against static libpng, libjpeg and zlib, for example from the
-MSYS2 MINGW64 shell:
+The user-supplied C debanding utility is in `tools/deband/`, together with the
+lossless PNG trimmer. Build it from the repository root:
 
-```sh
-pacman -S mingw-w64-x86_64-libpng mingw-w64-x86_64-libjpeg-turbo mingw-w64-x86_64-zlib
-mingw32-make -C tools/deband static
+```bat
+mingw32-make deband         :: tools\deband\deband.exe (fetches pinned libpng, libjpeg, zlib)
+mingw32-make deband-test    :: trimmer tests
+tools\deband\deband.exe -z assets\hd
 ```
 
 `-h` shows the available options. Use `-o` with a separate output directory to
-retain the source images. FFmpeg is preferred when installed, with a native C
-fallback. See [the local tool notes](../tools/deband/LOCAL.md). The executable
-and processed artwork remain ignored, and this maintainer tool is excluded from
-game releases.
+retain the source images. FFmpeg is preferred for debanding when installed,
+with a native C fallback; trimming needs no FFmpeg. Debanded PNG output is
+trimmed automatically. See [the tool's README](../tools/deband/README.md) and
+[the local notes](../tools/deband/LOCAL.md). The executable and processed
+artwork remain ignored, and this maintainer tool is excluded from game
+releases.

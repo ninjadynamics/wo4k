@@ -1,13 +1,14 @@
 /*
  * deband.c - multithreaded batch image debanding and high-pass dithering.
- * C99. Requires libpng and libjpeg for built-in image I/O.
+ * C99. Requires libpng and libjpeg for built-in image I/O, and zlib.
  * FFmpeg is optional at runtime; when installed, it is the default backend.
  *
+ * In the WO4K repository: mingw32-make deband (see LOCAL.md).
  * Linux:
- *   cc -O3 -std=c99 -D_XOPEN_SOURCE=700 -o deband deband.c \
+ *   cc -O3 -std=c99 -D_XOPEN_SOURCE=700 -o deband deband.c pngtrim.c \
  *      -lpng -ljpeg -lz -lm -pthread
  * MSYS2 UCRT64:
- *   gcc -O3 -std=c99 -D_CRT_SECURE_NO_WARNINGS -o deband.exe deband.c \
+ *   gcc -O3 -std=c99 -o deband.exe deband.c pngtrim.c \
  *      -lpng -ljpeg -lz -lm
  *
  * Usage: deband [options] input_file_or_directory
@@ -18,6 +19,7 @@
  *  -t VAL    Deband threshold, 0.00003..0.5 (default 0.020)
  *  -r N      Deband radius in pixels, 1..128 (default 24)
  *  -d VAL    Dither amplitude in 8-bit levels, 0..4 (default 0.8)
+ *  -z        Trim only: losslessly recompress PNGs in place, no debanding
  *  -h        Help
  *
  * Input: PNG/JPEG, 24/32-bit BMP, 24/32-bit uncompressed/RLE TGA.
@@ -26,6 +28,7 @@
  *
  * Output without -x is always lossless PNG and never replaces an existing
  * file. In-place replacement uses a same-directory temp file and rename.
+ * PNG output is losslessly recompressed (pngtrim.c) before it is published.
  */
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -42,6 +45,7 @@
 
 #include <png.h>
 #include <jpeglib.h>
+#include "pngtrim.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -79,8 +83,9 @@ typedef struct {
     size_t count, cap;
     volatile long next;
     volatile long ok, failed, skipped;
+    volatile long long saved; /* -z: bytes saved */
     float threshold, dither;
-    int radius, simple, overwrite;
+    int radius, simple, overwrite, trim;
     float *noise;
     float trig_cos[256], trig_sin[256];
 } Context;
@@ -823,7 +828,106 @@ static void remove_file(const char *path) {
     unlink(path);
 #endif
 }
+static void count(volatile long *counter) {
+#ifdef _WIN32
+    InterlockedIncrement((volatile LONG *)counter);
+#else
+    __sync_fetch_and_add(counter, 1);
+#endif
+}
+static unsigned char *read_file(const char *path, size_t *len) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    unsigned char *data = NULL;
+    if (fseek(f, 0, SEEK_END) == 0) {
+        long size = ftell(f);
+        if (size > 0 && fseek(f, 0, SEEK_SET) == 0 && (data = (unsigned char *)malloc((size_t)size))) {
+            if (fread(data, 1, (size_t)size, f) == (size_t)size) *len = (size_t)size;
+            else { free(data); data = NULL; }
+        }
+    }
+    fclose(f);
+    return data;
+}
+static int write_file(const char *path, const unsigned char *data, size_t len) {
+    FILE *f = fopen(path, "wb");
+    if (!f) return 0;
+    int ok = fwrite(data, 1, len, f) == len;
+    if (fclose(f) != 0) ok = 0;
+    if (!ok) remove_file(path);
+    return ok;
+}
+static char *temp_name(const char *path, const char *tag, size_t index) {
+    size_t n = strlen(path) + 64;
+    char *temp = (char *)malloc(n);
+#ifdef _WIN32
+    unsigned long pid = (unsigned long)GetCurrentProcessId();
+#else
+    unsigned long pid = (unsigned long)getpid();
+#endif
+    if (temp) snprintf(temp, n, "%s.%s.%lu.%lu", path, tag, pid, (unsigned long)index);
+    return temp;
+}
+/* Recompress a PNG losslessly (see pngtrim.h) and replace it atomically when
+ * the result is smaller. *why explains a failure or skip. */
+static PngTrimResult trim_file(const char *path, size_t index, size_t *before, size_t *after,
+                               char *why, size_t why_size) {
+    size_t len = 0, out_len = 0;
+    unsigned char *original = read_file(path, &len), *smaller = NULL;
+    snprintf(why, why_size, "cannot read the file");
+    PngTrimResult r = original ? pngtrim(original, len, &smaller, &out_len, why, why_size)
+                               : PNGTRIM_FAILED;
+    if (r == PNGTRIM_SMALLER) {
+        /* Never replace an image saved again (by an editor) meanwhile. */
+        size_t now_len = 0;
+        unsigned char *now = read_file(path, &now_len);
+        int same = now && now_len == len && memcmp(now, original, len) == 0;
+        free(now);
+        char *temp = same ? temp_name(path, "trimtmp", index) : NULL;
+        if (!same) {
+            snprintf(why, why_size, "file changed during compression; original kept");
+            r = PNGTRIM_FAILED;
+        } else if (!temp || !write_file(temp, smaller, out_len) || !publish(temp, path, 1)) {
+            if (temp) remove_file(temp);
+            snprintf(why, why_size, "cannot replace the file; original kept");
+            r = PNGTRIM_FAILED;
+        }
+        free(temp);
+    }
+    *before = len;
+    *after = out_len;
+    free(smaller);
+    free(original);
+    return r;
+}
+/* -z: trim one input PNG in place. */
+static void trim_job(Context *ctx, size_t index) {
+    const char *path = ctx->jobs[index].src;
+    size_t before = 0, after = 0;
+    char why[160];
+    PngTrimResult r = trim_file(path, index, &before, &after, why, sizeof(why));
+    if (r == PNGTRIM_SMALLER) {
+        printf("Trimmed: %s (%zu -> %zu bytes)\n", base_name(path), before, after);
+#ifdef _WIN32
+        InterlockedExchangeAdd64((volatile LONG64 *)&ctx->saved, (LONG64)(before - after));
+#else
+        __sync_fetch_and_add(&ctx->saved, (long long)(before - after));
+#endif
+        count(&ctx->ok);
+    } else if (r == PNGTRIM_NOT_SMALLER) {
+        printf("Unchanged: %s\n", base_name(path));
+        count(&ctx->skipped);
+    } else if (r == PNGTRIM_SKIPPED) {
+        printf("Skipped: %s: %s\n", base_name(path), why);
+        count(&ctx->skipped);
+    } else {
+        fprintf(stderr, "ERROR: %s: %s\n", path, why);
+        count(&ctx->failed);
+    }
+    fflush(stdout);
+}
 static void process_job(Context *ctx, size_t index) {
+    if (ctx->trim) { trim_job(ctx, index); return; }
     Job *j = &ctx->jobs[index];
     int w = 0, h = 0;
     if (!img_info(j, &w, &h) || w < 1 || h < 1 || (uint64_t)w * h > SIZE_MAX / 8u) {
@@ -859,13 +963,19 @@ static void process_job(Context *ctx, size_t index) {
 #else
     unsigned long pid = (unsigned long)getpid();
 #endif
-    snprintf(temp, nt, "%s.debandtmp.%lu.%zu", j->dst, pid, index);
+    snprintf(temp, nt, "%s.debandtmp.%lu.%lu", j->dst, pid, (unsigned long)index);
     int writer_kind = ctx->overwrite ? j->kind : 1;
     int wrote = img_write(temp, rgba, w, h, writer_kind);
     free(rgba);
     if (!wrote) {
         fprintf(stderr, "ERROR: cannot write: %s\n", temp);
         remove_file(temp); free(temp); goto failed;
+    }
+    if (writer_kind == 1) {
+        size_t before = 0, after = 0;
+        char why[160];
+        if (trim_file(temp, index, &before, &after, why, sizeof(why)) == PNGTRIM_FAILED)
+            fprintf(stderr, "WARN: PNG left uncompressed for '%s': %s\n", j->dst, why);
     }
     if (!publish(temp, j->dst, ctx->overwrite)) {
         fprintf(stderr, "ERROR: cannot publish (exists or not writable): %s\n", j->dst);
@@ -979,7 +1089,7 @@ static int scan_tree(const char *path, const char *rel, const char *skip_root) {
             }
         } else {
             int kind = kind_of(name);
-            if (kind && !add_job(child, relative, kind)) {
+            if (kind && (!global_ctx->trim || kind == 1) && !add_job(child, relative, kind)) {
                 free(child); free(relative); FindClose(hd); return 0;
             }
         }
@@ -1007,7 +1117,7 @@ static int scan_tree(const char *path, const char *rel, const char *skip_root) {
                 }
             } else if (S_ISREG(st.st_mode)) {
                 int kind = kind_of(name);
-                if (kind && !add_job(child, relative, kind)) {
+                if (kind && (!global_ctx->trim || kind == 1) && !add_job(child, relative, kind)) {
                     free(child); free(relative); closedir(dir); return 0;
                 }
             }
@@ -1088,8 +1198,11 @@ static void usage(const char *exe) {
            "  -t F      Threshold 0.00003..0.5 (default: 0.020)\n"
            "  -r N      Radius 1..128 pixels (default: 24)\n"
            "  -d F      Dither strength 0..4 levels (default: 0.8)\n"
+           "  -z        Trim only: losslessly recompress PNGs in place (no debanding)\n"
            "  -h        Show help\n\n"
            "Without -x, produces PNGs and refuses to overwrite existing files.\n"
+           "PNG output is losslessly recompressed; -z does only that, keeping\n"
+           "pixels, bit depth and colour chunks and dropping editing metadata.\n"
            "With -o . or implicit -o ., prefixes each output with deband_.\n"
            "Supported input: PNG, JPG, JPEG, BMP (24/32-bit), TGA (24/32-bit).\n"
            "Fully transparent pixels retain original RGBA, including hidden RGB.\n"
@@ -1108,6 +1221,7 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) { usage(argv[0]); return 0; }
         if (!strcmp(argv[i], "-s")) ctx.simple = 1;
         else if (!strcmp(argv[i], "-x")) ctx.overwrite = 1;
+        else if (!strcmp(argv[i], "-z")) ctx.trim = 1;
         else if (!strcmp(argv[i], "-o") && i + 1 < argc) { output = argv[++i]; explicit_output = 1; }
         else if (!strcmp(argv[i], "-j") && i + 1 < argc) jobs = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-t") && i + 1 < argc) ctx.threshold = (float)atof(argv[++i]);
@@ -1118,6 +1232,8 @@ int main(int argc, char **argv) {
         else { fprintf(stderr, "ERROR: too many input paths\n"); return 2; }
     }
     if (!input) { usage(argv[0]); return 2; }
+    if (ctx.trim && explicit_output) { fprintf(stderr, "ERROR: -z works in place; it cannot be combined with -o\n"); return 2; }
+    if (ctx.trim) ctx.overwrite = 1;
     if (ctx.overwrite && explicit_output) { fprintf(stderr, "ERROR: -x and -o cannot be combined\n"); return 2; }
     if (ctx.radius < 1 || ctx.radius > 128 || ctx.threshold < 0.00003f ||
         ctx.threshold > 0.5f || ctx.dither < 0 || ctx.dither > 4 || jobs > 128 || jobs < 0) {
@@ -1130,7 +1246,7 @@ int main(int argc, char **argv) {
 #else
     global_is_dir = S_ISDIR(st.st_mode);
 #endif
-    if (!global_is_dir && kind_of(input) == 0) {
+    if (!global_is_dir && (kind_of(input) == 0 || (ctx.trim && kind_of(input) != 1))) {
         fprintf(stderr, "ERROR: unsupported input extension: %s\n", input); return 2;
     }
     char *input_root = absolute_path(input);
@@ -1171,12 +1287,12 @@ int main(int argc, char **argv) {
         }
     }
     if (!ctx.count) { fprintf(stderr, "No supported images found.\n"); free(input_root); free(output_root); return 1; }
-    if (!ctx.simple && !detect_ffmpeg()) {
+    if (!ctx.trim && !ctx.simple && !detect_ffmpeg()) {
         fprintf(stderr, "FFmpeg not detected; using native C mode.\n");
         ctx.simple = 1;
     }
-    int threads = jobs ? jobs : (ctx.simple ? cpu_count() : 4);
-    if (!jobs && ctx.simple && threads > 8) threads = 8;
+    int threads = jobs ? jobs : (ctx.simple || ctx.trim ? cpu_count() : 4);
+    if (!jobs && (ctx.simple || ctx.trim) && threads > 8) threads = 8;
     if ((size_t)threads > ctx.count) threads = (int)ctx.count;
     if (threads < 1) threads = 1;
     ctx.noise = (float *)malloc(NOISE_COUNT * sizeof(float));
@@ -1187,9 +1303,12 @@ int main(int argc, char **argv) {
         ctx.trig_cos[i] = cosf(angle);
         ctx.trig_sin[i] = sinf(angle);
     }
-    printf("Backend: %s | images: %zu | workers: %d | threshold: %.4f | radius: %d | dither: %.2f\n",
-           ctx.simple ? "native C" : "FFmpeg", ctx.count, threads,
-           ctx.threshold, ctx.radius, ctx.dither);
+    if (ctx.trim)
+        printf("Lossless PNG trim | images: %zu | workers: %d\n", ctx.count, threads);
+    else
+        printf("Backend: %s | images: %zu | workers: %d | threshold: %.4f | radius: %d | dither: %.2f\n",
+               ctx.simple ? "native C" : "FFmpeg", ctx.count, threads,
+               ctx.threshold, ctx.radius, ctx.dither);
     fflush(stdout);
 #ifdef _WIN32
     HANDLE *handles = (HANDLE *)calloc((size_t)threads, sizeof(HANDLE));
@@ -1208,7 +1327,11 @@ int main(int argc, char **argv) {
     for (int i = 0; i < started; i++) pthread_join(handles[i], NULL);
     free(handles);
 #endif
-    printf("Done. %ld succeeded, %ld failed.\n", ctx.ok, ctx.failed);
+    if (ctx.trim)
+        printf("Done. %ld/%zu PNGs smaller; %.2f MiB saved; %ld unchanged or skipped; %ld failed.\n",
+               ctx.ok, ctx.count, (double)ctx.saved / 1048576.0, ctx.skipped, ctx.failed);
+    else
+        printf("Done. %ld succeeded, %ld failed.\n", ctx.ok, ctx.failed);
     for (size_t i = 0; i < ctx.count; i++) { free(ctx.jobs[i].src); free(ctx.jobs[i].dst); }
     free(ctx.jobs); free(ctx.noise); free(input_root); free(output_root);
     return ctx.failed ? 1 : 0;

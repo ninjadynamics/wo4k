@@ -37,6 +37,7 @@ mingw32-make TOOLCHAIN=C:/mingw64/bin release
 | `fuzz` / `fuzz-smoke` | Build the parser fuzz harnesses / run each over its seeds (full libFuzzer runs happen in CI on Linux) |
 | `Setup.exe`, `Play.exe`, `core`, `runtime`, `controller`, `video` | Build one component |
 | `tools` | `build/tools/wo4k-build.exe`, the build helper, which also has [maintainer commands](docs/TOOLS.md#maintainer-commands) |
+| `deband` / `deband-test` | The optional [maintainer debander and PNG trimmer](docs/TOOLS.md#maintainer-texture-debander-and-png-trimmer) / its trimmer tests |
 | `sign-input` | Copy the five WO4K binaries to sign into `build/unsigned` |
 | `package` | `dist/wo4k-<VERSION>.zip`, its `.sha256` and `release-files.json`; `SIGNED=<folder>` packages signed binaries from that folder |
 | `release` | `test` followed by `package` |

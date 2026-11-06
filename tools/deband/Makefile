@@ -14,10 +14,10 @@ endif
 all: $(TARGET)
 
 static:
-	$(CC) $(CFLAGS) -static -static-libgcc -o $(TARGET) deband.c $(LIBS)
+	$(CC) $(CFLAGS) -static -static-libgcc -o $(TARGET) deband.c pngtrim.c $(LIBS)
 
-$(TARGET): deband.c
-	$(CC) $(CFLAGS) -o $@ $< $(LIBS)
+$(TARGET): deband.c pngtrim.c pngtrim.h
+	$(CC) $(CFLAGS) -o $@ deband.c pngtrim.c $(LIBS)
 
 clean:
 	rm -f deband deband.exe
