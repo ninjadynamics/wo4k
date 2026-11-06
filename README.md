@@ -7,7 +7,8 @@ while retaining the original game's 30 Hz simulation and gameplay pace.
 
 [Download releases](https://github.com/ninjadynamics/wo4k/releases) ·
 [Source code](https://github.com/ninjadynamics/wo4k) ·
-[Report a bug](https://github.com/ninjadynamics/wo4k/issues)
+[Report a bug](https://github.com/ninjadynamics/wo4k/issues) ·
+[Code signing policy](#code-signing-policy)
 
 This repository contains the mod's source code, artwork, Makefile and installer
 scripts. Compiled EXEs/DLLs and other generated build outputs are excluded from
@@ -302,6 +303,44 @@ Logging is automatic; there is no diagnostic option to enable.
 
 WO4K is a beta. Report the mod version, Windows version, source type, symptoms
 and relevant `logs/` through [Issues](https://github.com/ninjadynamics/wo4k/issues).
+
+## Uninstall
+
+WO4K is portable. To remove it, close the game and Setup, then delete the WO4K
+folder. That folder holds the mod, the installed game copy (`wobble/`), saves,
+settings, logs and backups. WO4K writes no registry entries, installs nothing
+system-wide and changes no Windows settings. The only file it may create
+outside its folder is a diagnostic log in `%TEMP%\WO4K` when the mod folder is
+not writable; delete that folder too if it exists. Your original game sources
+are only read, never modified.
+
+## Privacy
+
+This program will not transfer any information to other networked systems
+unless specifically requested by the user or the person installing or
+operating it.
+
+WO4K contacts the network only when you click **Update** (it downloads release
+information and the release package from GitHub) or the **GitHub** logo (it
+opens the project page in your browser). Diagnostic logs stay on your PC and
+are never uploaded; you decide whether to share them.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/),
+certificate by [SignPath Foundation](https://signpath.org/).
+
+Release binaries are built from this repository's source by the GitHub Actions
+release workflow and signed only after a maintainer approves each signing
+request. The signed files are `Setup.exe`, `Play.exe`, `runtime/wohr.dll`,
+`runtime/wo2097-controller.exe` and `runtime/wo4k-video.exe`. The third-party
+DDrawCompat `runtime/ddraw.dll` is included unmodified and unsigned, as
+published by its upstream project.
+
+Team roles:
+
+- Committers and reviewers: [ninjadynamics](https://github.com/ninjadynamics)
+- Approvers: [ninjadynamics](https://github.com/ninjadynamics)
 
 ## Acknowledgements
 
