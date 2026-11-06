@@ -1,0 +1,377 @@
+/* Play.exe: check and refresh the installation, start the game, wait for it
+ * and keep a diagnostic log. Failures are explained in a dialog that names
+ * the log; crash details come from the runtime's own logs and the Windows
+ * Application Error event for the game process.
+ *
+ *   Play.exe [--refresh-only] [--no-error-dialog] */
+#include "core/wo_win.h"
+
+#include <psapi.h>
+#include <shellapi.h>
+#include <stdio.h>
+#include <wchar.h>
+#include <winevt.h>
+
+#include "core/wo_fs.h"
+#include "core/wo_hash.h"
+#include "core/wo_log.h"
+#include "core/wo_mod.h"
+#include "core/wo_net.h"
+#include "core/wo_ops.h"
+#include "core/wo_settings.h"
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, int show);
+
+typedef struct PlayOptions {
+    bool refresh_only;
+    bool no_dialog;
+} PlayOptions;
+
+static void parse_arguments(PlayOptions *options) {
+    int argc = 0;
+    wchar_t **argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    for (int i = 1; argv && i < argc; i++) {
+        if (wcscmp(argv[i], L"--refresh-only") == 0) {
+            options->refresh_only = true;
+        } else if (wcscmp(argv[i], L"--no-error-dialog") == 0) {
+            options->no_dialog = true;
+        }
+    }
+    LocalFree(argv);
+}
+
+static void show_failure(const PlayOptions *options, const char *message) {
+    if (options->no_dialog) {
+        return;
+    }
+    const char *log = wo_log_path();
+    char *text = wo_format(NULL,
+                           "%s\r\n\r\nDiagnostic log:\r\n%s\r\n\r\nShare this log with the WO4K "
+                           "developer. It stays on your PC until you choose to share it.",
+                           message, log ? log : "(unavailable)");
+    wchar_t *wide = wo_wide(text ? text : message, NULL);
+    MessageBoxW(NULL, wide ? wide : L"WO4K could not start.", L"WO4K - operation failed",
+                MB_OK | MB_ICONERROR);
+    wo_free(wide);
+    wo_free(text);
+}
+
+static char *exit_description(DWORD code) {
+    const char *hint;
+    switch (code) {
+    case 0xC0000135:
+        hint = "A required DLL could not be loaded.";
+        break;
+    case 0xC000007B:
+        hint = "A required executable or DLL has an invalid format.";
+        break;
+    case 0xC0000428:
+        hint = "Windows could not verify a file signature; check Windows Security and Code "
+               "Integrity events.";
+        break;
+    case 0xC0000022:
+        hint = "Access was denied; check Windows Security for a blocked file.";
+        break;
+    case 0xC0000005:
+        hint = "The game crashed with an access violation.";
+        break;
+    default:
+        hint = "Check this session log and Windows Security / Event Viewer for details.";
+        break;
+    }
+    return wo_format(NULL, "The game exited with code 0x%08lX (%ld). %s", (unsigned long)code,
+                     (long)(LONG)code, hint);
+}
+
+static void log_dependencies(const WoMod *mod, WoError *error) {
+    static const char *const names[] = {"Wipeout2097.exe", "wohr.dll", "ddraw.dll",
+                                        "wo2097-controller.exe", "wo4k-video.exe"};
+    for (size_t i = 0; i < WO_COUNT(names); i++) {
+        char *path = wo_mod_game_path(mod, names[i], error);
+        WoFileInfo info;
+        if (!path || !wo_stat(path, &info, NULL) || !info.exists) {
+            if (i < 4) {
+                wo_fail(error, WO_ERR_NOT_FOUND,
+                        "Missing %s. Run Install / repair. Check Windows Security if a file was "
+                        "removed.",
+                        names[i]);
+            }
+            wo_free(path);
+            if (i < 4) {
+                return;
+            }
+            continue;
+        }
+        char digest[WO_SHA256_HEX_SIZE] = "";
+        wo_sha256_file(path, digest, NULL);
+        WoSignature signature;
+        bool checked = wo_signature_check(path, &signature, NULL);
+        WoJson *data = wo_json_new_object();
+        wo_json_put_str(data, "file", names[i]);
+        wo_json_put_int(data, "bytes", (int64_t)info.size);
+        wo_json_put_str(data, "sha256", digest);
+        wo_json_put_str(data, "signature", !checked ? "unknown" : signature.trusted ? "valid" : "none");
+        wo_log_event("dependency", data);
+        wo_free(path);
+    }
+}
+
+/* Find the Application Error (event 1000) record for the game's process and
+ * log its named fields only (no paths, report ids or account names). */
+static bool xml_field(const wchar_t *xml, const wchar_t *name, wchar_t *out, size_t cap) {
+    wchar_t pattern[64];
+    _snwprintf(pattern, WO_COUNT(pattern) - 1, L"<Data Name='%ls'>", name);
+    pattern[WO_COUNT(pattern) - 1] = 0;
+    const wchar_t *start = wcsstr(xml, pattern);
+    if (!start) {
+        return false;
+    }
+    start += wcslen(pattern);
+    const wchar_t *end = wcsstr(start, L"</Data>");
+    if (!end || (size_t)(end - start) >= cap) {
+        return false;
+    }
+    wmemcpy(out, start, (size_t)(end - start));
+    out[end - start] = 0;
+    return true;
+}
+
+static void log_crash_event(DWORD pid, FILETIME started) {
+    SYSTEMTIME utc;
+    FileTimeToSystemTime(&started, &utc);
+    wchar_t query[256];
+    _snwprintf(query, WO_COUNT(query) - 1,
+               L"*[System[Provider[@Name='Application Error'] and (EventID=1000) and "
+               L"TimeCreated[@SystemTime>='%04u-%02u-%02uT%02u:%02u:%02u.000Z']]]",
+               utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
+    query[WO_COUNT(query) - 1] = 0;
+    for (int attempt = 0; attempt < 3; attempt++) {
+        EVT_HANDLE results = EvtQuery(NULL, L"Application", query,
+                                      EvtQueryChannelPath | EvtQueryReverseDirection);
+        if (!results) {
+            wo_log_text("windows_application_error_unavailable", "The event log could not be queried.");
+            return;
+        }
+        EVT_HANDLE events[16];
+        DWORD returned = 0;
+        bool found = false;
+        if (EvtNext(results, WO_COUNT(events), events, 1000, 0, &returned)) {
+            for (DWORD i = 0; i < returned; i++) {
+                DWORD used = 0;
+                DWORD count = 0;
+                wchar_t *xml = NULL;
+                EvtRender(NULL, events[i], EvtRenderEventXml, 0, NULL, &used, &count);
+                if (used > 0 && used < (1u << 20)) {
+                    xml = wo_alloc(used + sizeof(wchar_t), NULL);
+                }
+                if (xml && EvtRender(NULL, events[i], EvtRenderEventXml, used, xml, &used, &count)) {
+                    wchar_t field[256];
+                    wchar_t app[256] = L"";
+                    DWORD event_pid = 0;
+                    if (xml_field(xml, L"ProcessId", field, WO_COUNT(field))) {
+                        event_pid = (DWORD)wcstoul(field, NULL, 0);
+                    }
+                    xml_field(xml, L"AppName", app, WO_COUNT(app));
+                    if (!found && event_pid == pid && _wcsicmp(app, L"Wipeout2097.exe") == 0) {
+                        found = true;
+                        static const wchar_t *const keys[] = {L"AppName",       L"AppVersion",
+                                                              L"ModuleName",    L"ModuleVersion",
+                                                              L"ExceptionCode", L"FaultingOffset"};
+                        WoJson *data = wo_json_new_object();
+                        for (size_t k = 0; k < WO_COUNT(keys); k++) {
+                            if (xml_field(xml, keys[k], field, WO_COUNT(field))) {
+                                char *key = wo_utf8(keys[k], NULL);
+                                char *value = wo_utf8(field, NULL);
+                                if (key && value) {
+                                    wo_json_put_str(data, key, value);
+                                }
+                                wo_free(key);
+                                wo_free(value);
+                            }
+                        }
+                        wo_log_event("windows_application_error", data);
+                    }
+                }
+                wo_free(xml);
+                EvtClose(events[i]);
+            }
+        }
+        EvtClose(results);
+        if (found) {
+            return;
+        }
+        Sleep(1000);
+    }
+    wo_log_text("windows_application_error_unavailable",
+                "No matching Application Error event was available yet; native exception "
+                "breadcrumbs may still identify the fault.");
+}
+
+static void save_game_logs(const WoMod *mod) {
+    static const char *const game_logs[] = {"Debug.txt", "DDrawCompat-Wipeout2097.log"};
+    static const char *const mod_logs[] = {"game.log",       "game-crash.log",  "game-debug.txt",
+                                           "video-intro.log", "video-xtro1.log", "video-xtro2.log",
+                                           "video-xtro3.log", "video-xtro4.log", "video-error.log"};
+    for (size_t i = 0; i < WO_COUNT(game_logs); i++) {
+        char *path = wo_mod_game_path(mod, game_logs[i], NULL);
+        if (path) {
+            wo_log_attach(game_logs[i], path, true);
+        }
+        wo_free(path);
+    }
+    for (size_t i = 0; i < WO_COUNT(mod_logs); i++) {
+        char *relative = wo_format(NULL, "logs/%s", mod_logs[i]);
+        char *path = relative ? wo_mod_path(mod, relative, NULL) : NULL;
+        if (path) {
+            wo_log_attach(mod_logs[i], path, true);
+        }
+        wo_free(path);
+        wo_free(relative);
+    }
+}
+
+static bool prepare_environment(const WoMod *mod, WoError *error) {
+    WoJson *receipt = NULL;
+    if (!wo_receipt_load(mod, &receipt, error)) {
+        return false;
+    }
+    if (!receipt) {
+        return wo_fail(error, WO_ERR_NOT_FOUND, "Run Setup / Install / repair before playing.");
+    }
+    WoJson *data = wo_json_new_object();
+    wo_json_put_str(data, "version", wo_json_str(receipt, "version", ""));
+    wo_json_put_bool(data, "hd_art", wo_json_bool(receipt, "hd_textures", false));
+    wo_json_put_bool(data, "improved_audio", wo_json_bool(receipt, "clean_audio", false));
+    wo_log_event("installation", data);
+    /* Runtime switches read by the game DLL. */
+    SetEnvironmentVariableW(L"WO2097_HD_ART", wo_json_bool(receipt, "hd_textures", false) ? L"1" : L"0");
+    SetEnvironmentVariableW(L"WO2097_RENDER_TEST", L"1");
+    SetEnvironmentVariableW(L"WO2097_DISTANCE_TEST", L"1");
+    SetEnvironmentVariableW(L"WO2097_REFRESH_TEST", L"1");
+    SetEnvironmentVariableW(L"WO2097_SIM60_TEST", L"0");
+    wo_json_free(receipt);
+    char *ddraw = wo_mod_game_path(mod, "DDrawCompat-Wipeout2097.ini", error);
+    bool ok = ddraw && wo_settings_set_log_level(ddraw, "info", error);
+    wo_free(ddraw);
+    if (ok) {
+        wo_log_event("game_configuration", wo_settings_snapshot(mod->game));
+    }
+    return ok;
+}
+
+static int run_game(const WoMod *mod, WoError *error) {
+    char *exe = wo_mod_game_path(mod, "Wipeout2097.exe", error);
+    wchar_t *wide_exe = exe ? wo_wide_path(exe, error) : NULL;
+    wchar_t *wide_dir = wide_exe ? wo_wide_path(mod->game, error) : NULL;
+    wo_free(exe);
+    if (!wide_dir) {
+        wo_free(wide_exe);
+        return -1;
+    }
+    STARTUPINFOW startup;
+    memset(&startup, 0, sizeof(startup));
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process;
+    memset(&process, 0, sizeof(process));
+    FILETIME started;
+    GetSystemTimeAsFileTime(&started);
+    ULONGLONG begin = GetTickCount64();
+    BOOL launched = CreateProcessW(wide_exe, NULL, NULL, NULL, FALSE, 0, NULL, wide_dir, &startup,
+                                   &process);
+    DWORD launch_error = GetLastError();
+    wo_free(wide_exe);
+    wo_free(wide_dir);
+    if (!launched) {
+        wo_fail_win32(error, launch_error, "Windows could not start the game");
+        return -1;
+    }
+    CloseHandle(process.hThread);
+    WoJson *data = wo_json_new_object();
+    wo_json_put_int(data, "pid", process.dwProcessId);
+    wo_json_put_int(data, "process_bits", 32);
+    wo_json_put_str(data, "message", "Waiting for the game to exit.");
+    wo_log_event("game_started", data);
+    WaitForSingleObject(process.hProcess, INFINITE);
+    DWORD code = 1;
+    GetExitCodeProcess(process.hProcess, &code);
+    PROCESS_MEMORY_COUNTERS memory;
+    memory.cb = sizeof(memory);
+    WoJson *exit_data = wo_json_new_object();
+    char hex[16];
+    snprintf(hex, sizeof(hex), "0x%08lX", (unsigned long)code);
+    wo_json_put_int(exit_data, "code", (int64_t)(LONG)code);
+    wo_json_put_str(exit_data, "hex", hex);
+    wo_json_put(exit_data, "seconds", wo_json_new_number((double)(GetTickCount64() - begin) / 1000.0));
+    if (GetProcessMemoryInfo(process.hProcess, &memory, sizeof(memory))) {
+        wo_json_put_int(exit_data, "peak_working_set_bytes", (int64_t)memory.PeakWorkingSetSize);
+    }
+    wo_log_event("game_exit", exit_data);
+    if (code != 0) {
+        log_crash_event(process.dwProcessId, started);
+        char *description = exit_description(code);
+        wo_fail(error, WO_ERR_INTERNAL, "%s", description ? description : "The game exited with an error.");
+        wo_free(description);
+    }
+    CloseHandle(process.hProcess);
+    return (int)code;
+}
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, int show) {
+    (void)instance;
+    (void)previous;
+    (void)command_line;
+    (void)show;
+    PlayOptions options = {0};
+    parse_arguments(&options);
+    wchar_t module[32768];
+    DWORD len = GetModuleFileNameW(NULL, module, (DWORD)WO_COUNT(module));
+    char *exe = (len > 0 && len < WO_COUNT(module)) ? wo_utf8(module, NULL) : NULL;
+    char *root = exe ? wo_path_parent(exe, NULL) : NULL;
+    wo_free(exe);
+    WoMod mod;
+    if (!root || !wo_mod_init(&mod, root, NULL)) {
+        MessageBoxW(NULL, L"Play could not determine the WO4K folder.", L"WO4K", MB_OK | MB_ICONERROR);
+        wo_free(root);
+        return 1;
+    }
+    wo_log_start("play", root);
+    WoError error = {0};
+    WoProgress progress = {NULL, NULL, NULL, WO_STAGE_GENERAL};
+    WoReconcileResult result;
+    wo_log_stage("Checking the installation");
+    bool ok = wo_reconcile(&mod, false, &progress, &result, &error);
+    if (ok && !result.installed) {
+        ok = wo_fail(&error, WO_ERR_NOT_FOUND, "Run Setup / Install / repair before playing.");
+    }
+    WoStage stage = progress.stage;
+    int code = 0;
+    if (ok && !options.refresh_only) {
+        wo_log_stage("Checking game dependencies");
+        stage = WO_STAGE_RUNTIME;
+        log_dependencies(&mod, &error);
+        ok = !wo_error_is_set(&error) && prepare_environment(&mod, &error);
+        if (ok) {
+            wo_log_stage("Starting the game");
+            stage = WO_STAGE_LAUNCH;
+            code = run_game(&mod, &error);
+            ok = code == 0;
+            if (code > 0 || code < -1) {
+                stage = WO_STAGE_GAME;
+            }
+        }
+    }
+    save_game_logs(&mod);
+    if (ok) {
+        wo_log_text("complete", options.refresh_only ? "Assets refreshed without starting the game."
+                                                     : "The game exited normally.");
+    } else {
+        wo_log_failure("Play", &error);
+        char *message = wo_user_message(stage, &error);
+        show_failure(&options, message ? message : error.message);
+        wo_free(message);
+    }
+    wo_log_end();
+    wo_mod_free(&mod);
+    wo_free(root);
+    return ok ? 0 : 1;
+}

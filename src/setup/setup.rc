@@ -1,0 +1,12 @@
+#include <windows.h>
+
+#define WO_FILE_DESCRIPTION "WO4K Setup"
+#define WO_INTERNAL_NAME "Setup"
+#define WO_ORIGINAL_FILENAME "Setup.exe"
+#define WO_FILE_TYPE VFT_APP
+#include "version.rc"
+
+/* Explorer shows the first icon; GLFW looks for GLFW_ICON for the window. */
+1 ICON "build/generated/setup.ico"
+GLFW_ICON ICON "build/generated/setup.ico"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "src/common/app.manifest"

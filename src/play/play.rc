@@ -1,0 +1,10 @@
+#include <windows.h>
+
+#define WO_FILE_DESCRIPTION "WO4K Play"
+#define WO_INTERNAL_NAME "Play"
+#define WO_ORIGINAL_FILENAME "Play.exe"
+#define WO_FILE_TYPE VFT_APP
+#include "version.rc"
+
+1 ICON "build/generated/play.ico"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "src/common/app.manifest"

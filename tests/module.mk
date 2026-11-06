@@ -17,3 +17,13 @@ $(BUILD)/tests/%.exe: $(BUILD)/obj/tests/%.o $(TEST_HARNESS) $(CORE_LIB)
 
 .PHONY: tests
 tests: $(TEST_EXES)
+
+# Slow checks against this machine's real game sources and installation
+# (they skip themselves elsewhere): "make test-local".
+LOCAL_TEST_SOURCES := $(sort $(wildcard tests/local/test_*.c))
+LOCAL_TEST_EXES := $(patsubst tests/%.c,$(BUILD)/tests/%.exe,$(LOCAL_TEST_SOURCES))
+DEPFILES += $(patsubst tests/%.c,$(BUILD)/obj/tests/%.d,$(LOCAL_TEST_SOURCES))
+
+.PHONY: test-local
+test-local: $(patsubst %,%.run,$(LOCAL_TEST_EXES))
+HELP_TARGETS += test-local
