@@ -518,35 +518,6 @@ bool video_breadcrumb_line(JsonBuffer *json, uint64_t filetime,
     return json_ok(json);
 }
 
-RECT video_letterbox(const RECT *client, uint32_t aspect_x, uint32_t aspect_y)
-{
-    RECT result = *client;
-    int64_t width = (int64_t)client->right - client->left;
-    int64_t height = (int64_t)client->bottom - client->top;
-    if (aspect_x == 0 || aspect_y == 0 || width <= 0 || height <= 0) {
-        return result;
-    }
-    int64_t fitted_width = width;
-    int64_t fitted_height = height;
-    if (width * aspect_y > height * aspect_x) {
-        /* Wider than the picture: bars at the sides. */
-        fitted_width = (height * aspect_x + aspect_y / 2) / aspect_y;
-    } else {
-        fitted_height = (width * aspect_y + aspect_x / 2) / aspect_x;
-    }
-    if (fitted_width < 1) {
-        fitted_width = 1;
-    }
-    if (fitted_height < 1) {
-        fitted_height = 1;
-    }
-    result.left = client->left + (LONG)((width - fitted_width) / 2);
-    result.top = client->top + (LONG)((height - fitted_height) / 2);
-    result.right = result.left + (LONG)fitted_width;
-    result.bottom = result.top + (LONG)fitted_height;
-    return result;
-}
-
 bool video_timed_out(bool opened, double elapsed_seconds,
     double duration_seconds)
 {

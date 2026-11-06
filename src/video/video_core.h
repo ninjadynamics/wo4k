@@ -1,5 +1,5 @@
 /* Pure helpers for wo4k-video.exe: movie lookup, command line, breadcrumb
- * JSON, letterboxing, timeouts and controller sampling. Nothing here creates
+ * JSON, timeouts and controller sampling. Nothing here creates
  * windows or touches COM, so tests/video/test_video_core.c covers it. */
 #ifndef WO_VIDEO_CORE_H
 #define WO_VIDEO_CORE_H
@@ -117,9 +117,6 @@ bool video_breadcrumb_line(JsonBuffer *json, uint64_t filetime,
     const char *version, const char *event, const wchar_t *movie,
     const char *data_json);
 
-/* Largest rectangle with the display aspect aspect_x:aspect_y, centred in
- * client. Never stretches; a zero aspect fills the client. */
-RECT video_letterbox(const RECT *client, uint32_t aspect_x, uint32_t aspect_y);
 
 /* The script's limits: 15 s to open, then max(30, duration + 15) s. */
 bool video_timed_out(bool opened, double elapsed_seconds,

@@ -6,7 +6,7 @@ VIDEO_EXE := runtime/wo4k-video.exe
 VIDEO_CORE_OBJECTS := $(BUILD)/obj/src/video/video_core.o
 VIDEO_OBJECTS := $(VIDEO_CORE_OBJECTS) \
 	$(patsubst %,$(BUILD)/obj/src/video/%.o,main video_backend video_dshow \
-		video_input video_log video_mf video_window) \
+		video_evr video_input video_log video_mf video_window) \
 	$(BUILD)/obj/src/video/video.res.o
 # Media Foundation (mfplat.dll, mf.dll) is loaded at run time from System32,
 # so only GUID libraries and always-present system DLLs are linked.

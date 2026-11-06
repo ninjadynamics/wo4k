@@ -20,9 +20,6 @@ typedef enum VideoState {
 typedef struct VideoInfo {
     uint32_t width;
     uint32_t height;
-    /* Display aspect ratio, accounting for non-square pixels. */
-    uint32_t aspect_x;
-    uint32_t aspect_y;
     double duration_seconds;
 } VideoInfo;
 

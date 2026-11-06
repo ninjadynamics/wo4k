@@ -10,12 +10,8 @@
 #include <mfapi.h>
 #include <mferror.h>
 #include <mfidl.h>
-#include <evr.h>
 
-/* evr.h only declares this IID and no MinGW GUID library defines it. */
-static const GUID mf_iid_display_control = {
-    0xa490b1e4, 0xab84, 0x4d31, { 0xa1, 0xb2, 0x18, 0x1e, 0x03, 0xb1, 0x07, 0x7a }
-};
+#include "video/video_evr.h"
 
 typedef HRESULT (WINAPI *MfStartupFn)(ULONG version, DWORD flags);
 typedef HRESULT (WINAPI *MfShutdownFn)(void);
@@ -129,17 +125,7 @@ static void mf_reason(char *reason, size_t size, const char *what, HRESULT hr)
     }
 }
 
-static uint64_t mf_gcd(uint64_t a, uint64_t b)
-{
-    while (b != 0) {
-        uint64_t next = a % b;
-        a = b;
-        b = next;
-    }
-    return a;
-}
-
-/* Frame size and display aspect from the stream's native media type. */
+/* Frame size from the stream's native media type. */
 static void mf_read_video_info(IMFMediaTypeHandler *handler, VideoInfo *info)
 {
     IMFMediaType *type = NULL;
@@ -150,21 +136,6 @@ static void mf_read_video_info(IMFMediaTypeHandler *handler, VideoInfo *info)
     if (SUCCEEDED(IMFMediaType_GetUINT64(type, &MF_MT_FRAME_SIZE, &packed))) {
         info->width = (uint32_t)(packed >> 32);
         info->height = (uint32_t)(packed & 0xffffffffu);
-    }
-    uint64_t pixel_x = 1;
-    uint64_t pixel_y = 1;
-    if (SUCCEEDED(IMFMediaType_GetUINT64(type, &MF_MT_PIXEL_ASPECT_RATIO,
-            &packed)) && (packed >> 32) != 0 && (packed & 0xffffffffu) != 0) {
-        pixel_x = packed >> 32;
-        pixel_y = packed & 0xffffffffu;
-    }
-    uint64_t aspect_x = (uint64_t)info->width * pixel_x;
-    uint64_t aspect_y = (uint64_t)info->height * pixel_y;
-    uint64_t divisor = mf_gcd(aspect_x, aspect_y);
-    if (divisor != 0 && aspect_x / divisor <= UINT32_MAX &&
-        aspect_y / divisor <= UINT32_MAX) {
-        info->aspect_x = (uint32_t)(aspect_x / divisor);
-        info->aspect_y = (uint32_t)(aspect_y / divisor);
     }
     IMFMediaType_Release(type);
 }
@@ -330,16 +301,14 @@ static void mf_release(MfPlayer *player)
 static void mf_topology_ready(MfPlayer *player)
 {
     HRESULT hr = mf_api.get_service((IUnknown *)player->session,
-        &MR_VIDEO_RENDER_SERVICE, &mf_iid_display_control,
+        &MR_VIDEO_RENDER_SERVICE, &video_iid_display_control,
         (void **)&player->display);
     if (FAILED(hr)) {
         video_backend_fail(&player->base, hr,
             "the video renderer has no display control");
         return;
     }
-    IMFVideoDisplayControl_SetAspectRatioMode(player->display,
-        MFVideoARMode_PreservePicture);
-    IMFVideoDisplayControl_SetBorderColor(player->display, RGB(0, 0, 0));
+    video_evr_prepare(player->display);
     if (player->base.state == VIDEO_STATE_OPENING) {
         player->base.state = VIDEO_STATE_READY;
     }
@@ -453,10 +422,7 @@ static void mf_layout(VideoBackend *backend, const RECT *client)
 {
     MfPlayer *player = (MfPlayer *)backend;
     if (player->display != NULL) {
-        /* PreservePicture letterboxes inside the whole client area. */
-        RECT destination = *client;
-        IMFVideoDisplayControl_SetVideoPosition(player->display, NULL,
-            &destination);
+        video_evr_layout(player->display, client);
     }
 }
 

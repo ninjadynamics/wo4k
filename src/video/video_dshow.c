@@ -1,14 +1,19 @@
 /* DirectShow backend. Windows' own MPEG-I Stream Splitter and MPEG Video
  * Decoder play the game's original MPEG-1 video elementary streams, which
- * Media Foundation's MPEG source rejects. The renderer's window becomes a
- * letterboxed child of the player window. */
+ * Media Foundation's MPEG source rejects.
+ *
+ * The graph renders only into renderers placed in it beforehand: the
+ * Enhanced Video Renderer, windowless in the player window, and (unless
+ * muted) a DirectSound renderer. DirectShow's default video renderer is
+ * never used: it shows a child window with ShowWindow, which activates the
+ * player and would take focus from the game. */
 #include "video/video_backend.h"
 
 #include <stdio.h>
 
 #include <dshow.h>
 
-#include "video/video_core.h"
+#include "video/video_evr.h"
 
 typedef struct DshowPlayer {
     VideoBackend base;
@@ -17,8 +22,8 @@ typedef struct DshowPlayer {
     IMediaControl *control;
     IMediaEventEx *events;
     IMediaSeeking *seeking;
-    IVideoWindow *video_window;
-    bool owns_video_window;
+    IBaseFilter *video_renderer;
+    IMFVideoDisplayControl *display;
 } DshowPlayer;
 
 static void dshow_reason(char *reason, size_t size, const char *what,
@@ -34,24 +39,19 @@ static void dshow_release(DshowPlayer *player)
 {
     if (player->control != NULL) {
         IMediaControl_Stop(player->control);
+        IMediaControl_Release(player->control);
     }
-    if (player->video_window != NULL) {
-        if (player->owns_video_window) {
-            /* Detach before the player window can be destroyed. */
-            IVideoWindow_put_Visible(player->video_window, OAFALSE);
-            IVideoWindow_put_MessageDrain(player->video_window, (OAHWND)NULL);
-            IVideoWindow_put_Owner(player->video_window, (OAHWND)NULL);
-        }
-        IVideoWindow_Release(player->video_window);
+    if (player->display != NULL) {
+        IMFVideoDisplayControl_Release(player->display);
+    }
+    if (player->video_renderer != NULL) {
+        IBaseFilter_Release(player->video_renderer);
     }
     if (player->seeking != NULL) {
         IMediaSeeking_Release(player->seeking);
     }
     if (player->events != NULL) {
         IMediaEventEx_Release(player->events);
-    }
-    if (player->control != NULL) {
-        IMediaControl_Release(player->control);
     }
     if (player->graph != NULL) {
         IGraphBuilder_Release(player->graph);
@@ -72,8 +72,7 @@ static void dshow_poll(VideoBackend *backend)
             video_backend_fail(backend, (HRESULT)first,
                 "DirectShow playback failed");
         } else if (code == EC_USERABORT) {
-            video_backend_fail(backend, E_ABORT,
-                "the DirectShow video window closed");
+            video_backend_fail(backend, E_ABORT, "DirectShow playback stopped");
         }
         IMediaEventEx_FreeEventParams(player->events, code, first, second);
     }
@@ -105,16 +104,13 @@ static bool dshow_position(VideoBackend *backend, LONGLONG *position_hns)
 static void dshow_layout(VideoBackend *backend, const RECT *client)
 {
     DshowPlayer *player = (DshowPlayer *)backend;
-    RECT fitted = video_letterbox(client, backend->info.aspect_x,
-        backend->info.aspect_y);
-    IVideoWindow_SetWindowPosition(player->video_window, fitted.left,
-        fitted.top, fitted.right - fitted.left, fitted.bottom - fitted.top);
+    video_evr_layout(player->display, client);
 }
 
 static void dshow_repaint(VideoBackend *backend)
 {
-    /* The renderer's child window paints itself. */
-    (void)backend;
+    DshowPlayer *player = (DshowPlayer *)backend;
+    IMFVideoDisplayControl_RepaintVideo(player->display);
 }
 
 static void dshow_destroy(VideoBackend *backend)
@@ -134,70 +130,127 @@ static HRESULT dshow_query(IGraphBuilder *graph, REFIID iid, void **out)
     return IGraphBuilder_QueryInterface(graph, iid, out);
 }
 
-/* The renderer's native size and preferred display aspect. */
-static HRESULT dshow_read_video_info(IGraphBuilder *graph, VideoInfo *info)
+/* The first pin of the given direction, with a reference, or NULL. */
+static IPin *dshow_find_pin(IBaseFilter *filter, PIN_DIRECTION direction)
 {
-    IBasicVideo *basic = NULL;
-    IBasicVideo2 *basic2 = NULL;
-    long width = 0;
-    long height = 0;
-    HRESULT hr = dshow_query(graph, &IID_IBasicVideo, (void **)&basic);
-    if (SUCCEEDED(hr)) {
-        hr = IBasicVideo_GetVideoSize(basic, &width, &height);
-        IBasicVideo_Release(basic);
+    IEnumPins *pins = NULL;
+    IPin *pin = NULL;
+    IPin *found = NULL;
+    if (FAILED(IBaseFilter_EnumPins(filter, &pins))) {
+        return NULL;
     }
-    if (SUCCEEDED(hr) && (width <= 0 || height <= 0)) {
-        hr = E_UNEXPECTED;
-    }
-    if (FAILED(hr)) {
-        return hr;
-    }
-    info->width = (uint32_t)width;
-    info->height = (uint32_t)height;
-    info->aspect_x = (uint32_t)width;
-    info->aspect_y = (uint32_t)height;
-    if (SUCCEEDED(dshow_query(graph, &IID_IBasicVideo2, (void **)&basic2))) {
-        long aspect_x = 0;
-        long aspect_y = 0;
-        if (SUCCEEDED(IBasicVideo2_GetPreferredAspectRatio(basic2, &aspect_x,
-                &aspect_y)) && aspect_x > 0 && aspect_y > 0) {
-            info->aspect_x = (uint32_t)aspect_x;
-            info->aspect_y = (uint32_t)aspect_y;
+    while (found == NULL && IEnumPins_Next(pins, 1, &pin, NULL) == S_OK) {
+        PIN_DIRECTION actual = PINDIR_INPUT;
+        if (SUCCEEDED(IPin_QueryDirection(pin, &actual)) &&
+            actual == direction) {
+            found = pin;
+        } else {
+            IPin_Release(pin);
         }
-        IBasicVideo2_Release(basic2);
     }
-    return S_OK;
+    IEnumPins_Release(pins);
+    return found;
 }
 
-static void dshow_mute(IGraphBuilder *graph)
+static bool dshow_input_connected(IBaseFilter *filter)
 {
-    IBasicAudio *audio = NULL;
-    if (SUCCEEDED(dshow_query(graph, &IID_IBasicAudio, (void **)&audio))) {
-        IBasicAudio_put_Volume(audio, -10000);
-        IBasicAudio_Release(audio);
+    IPin *peer = NULL;
+    IPin *input = dshow_find_pin(filter, PINDIR_INPUT);
+    if (input == NULL) {
+        return false;
     }
+    bool connected = IPin_ConnectedTo(input, &peer) == S_OK;
+    if (peer != NULL) {
+        IPin_Release(peer);
+    }
+    IPin_Release(input);
+    return connected;
 }
 
-static HRESULT dshow_attach_window(DshowPlayer *player)
+/* The Enhanced Video Renderer, windowless in the player window. */
+static HRESULT dshow_add_video_renderer(DshowPlayer *player)
 {
-    IVideoWindow *video = player->video_window;
-    HRESULT hr = IVideoWindow_put_Owner(video, (OAHWND)player->window);
-    if (FAILED(hr)) {
-        return hr;
-    }
-    player->owns_video_window = true;
-    hr = IVideoWindow_put_WindowStyle(video,
-        WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
+    IMFGetService *service = NULL;
+    HRESULT hr = CoCreateInstance(&video_clsid_evr, NULL, CLSCTX_INPROC_SERVER,
+        &IID_IBaseFilter, (void **)&player->video_renderer);
     if (SUCCEEDED(hr)) {
-        /* Clicks on the video reach the player window, which skips. */
-        hr = IVideoWindow_put_MessageDrain(video, (OAHWND)player->window);
+        hr = IGraphBuilder_AddFilter(player->graph, player->video_renderer,
+            L"Enhanced Video Renderer");
     }
     if (SUCCEEDED(hr)) {
-        /* MinGW's IVideoWindow_HideCursor macro names its parameter after
-         * the method, which breaks the expansion; call the vtable. */
-        video->lpVtbl->HideCursor(video, OATRUE);
+        hr = IBaseFilter_QueryInterface(player->video_renderer,
+            &IID_IMFGetService, (void **)&service);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = IMFGetService_GetService(service, &MR_VIDEO_RENDER_SERVICE,
+            &video_iid_display_control, (void **)&player->display);
+        IMFGetService_Release(service);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = IMFVideoDisplayControl_SetVideoWindow(player->display,
+            player->window);
+    }
+    if (SUCCEEDED(hr)) {
+        video_evr_prepare(player->display);
     }
     return hr;
+}
+
+/* Audio is optional: without a sound device the movie plays silently. */
+static void dshow_add_audio_renderer(IGraphBuilder *graph)
+{
+    IBaseFilter *audio = NULL;
+    if (FAILED(CoCreateInstance(&CLSID_DSoundRender, NULL,
+            CLSCTX_INPROC_SERVER, &IID_IBaseFilter, (void **)&audio))) {
+        return;
+    }
+    IGraphBuilder_AddFilter(graph, audio, L"Audio Renderer");
+    IBaseFilter_Release(audio);
+}
+
+/* source -> splitter -> decoders -> the renderers already in the graph. */
+static HRESULT dshow_render(IGraphBuilder *graph, const wchar_t *path)
+{
+    IBaseFilter *source = NULL;
+    IFilterGraph2 *graph2 = NULL;
+    IPin *output = NULL;
+    HRESULT hr = IGraphBuilder_AddSourceFilter(graph, path, L"Source", &source);
+    if (SUCCEEDED(hr)) {
+        output = dshow_find_pin(source, PINDIR_OUTPUT);
+        hr = output != NULL ? S_OK : VFW_E_CANNOT_RENDER;
+    }
+    if (SUCCEEDED(hr)) {
+        hr = dshow_query(graph, &IID_IFilterGraph2, (void **)&graph2);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = IFilterGraph2_RenderEx(graph2, output,
+            AM_RENDEREX_RENDERTOEXISTINGRENDERERS, NULL);
+    }
+    if (graph2 != NULL) {
+        IFilterGraph2_Release(graph2);
+    }
+    if (output != NULL) {
+        IPin_Release(output);
+    }
+    if (source != NULL) {
+        IBaseFilter_Release(source);
+    }
+    return hr;
+}
+
+static void dshow_read_video_info(DshowPlayer *player)
+{
+    SIZE size = { 0, 0 };
+    SIZE aspect = { 0, 0 };
+    VideoInfo *info = &player->base.info;
+    if (FAILED(IMFVideoDisplayControl_GetNativeVideoSize(player->display,
+            &size, &aspect))) {
+        return;
+    }
+    if (size.cx > 0 && size.cy > 0) {
+        info->width = (uint32_t)size.cx;
+        info->height = (uint32_t)size.cy;
+    }
 }
 
 HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
@@ -218,8 +271,19 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
     HRESULT hr = CoCreateInstance(&CLSID_FilterGraph, NULL,
         CLSCTX_INPROC_SERVER, &IID_IGraphBuilder, (void **)&player->graph);
     if (SUCCEEDED(hr)) {
+        step = "the Enhanced Video Renderer is unavailable";
+        hr = dshow_add_video_renderer(player);
+    }
+    if (SUCCEEDED(hr)) {
+        if (!mute) {
+            dshow_add_audio_renderer(player->graph);
+        }
         step = "DirectShow could not render the file";
-        hr = IGraphBuilder_RenderFile(player->graph, path, NULL);
+        hr = dshow_render(player->graph, path);
+    }
+    if (SUCCEEDED(hr) && !dshow_input_connected(player->video_renderer)) {
+        step = "no video stream";
+        hr = VFW_E_CANNOT_RENDER;
     }
     if (SUCCEEDED(hr)) {
         step = "DirectShow has no playback control";
@@ -230,32 +294,18 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
         hr = dshow_query(player->graph, &IID_IMediaEventEx,
             (void **)&player->events);
     }
-    if (SUCCEEDED(hr)) {
-        hr = dshow_query(player->graph, &IID_IVideoWindow,
-            (void **)&player->video_window);
-    }
-    if (SUCCEEDED(hr)) {
-        step = "no video stream";
-        hr = dshow_read_video_info(player->graph, &player->base.info);
-    }
-    if (SUCCEEDED(hr)) {
-        step = "DirectShow could not attach the video window";
-        hr = dshow_attach_window(player);
-    }
     if (FAILED(hr)) {
         dshow_reason(reason, reason_size, step, hr);
         dshow_release(player);
         HeapFree(GetProcessHeap(), 0, player);
         return hr;
     }
+    dshow_read_video_info(player);
     LONGLONG duration = 0;
     if (SUCCEEDED(dshow_query(player->graph, &IID_IMediaSeeking,
             (void **)&player->seeking)) &&
         SUCCEEDED(IMediaSeeking_GetDuration(player->seeking, &duration))) {
         player->base.info.duration_seconds = (double)duration / 1e7;
-    }
-    if (mute) {
-        dshow_mute(player->graph);
     }
     player->base.state = VIDEO_STATE_READY;
     *out = &player->base;

@@ -1,5 +1,5 @@
 /* Unit tests for src/video/video_core.c: movie lookup order, command line,
- * breadcrumb JSON, letterboxing, timeouts and controller sampling. */
+ * breadcrumb JSON, timeouts and controller sampling. */
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -310,27 +310,6 @@ static void test_breadcrumb(void)
     CHECK(strstr(json.data, "\"data\":null}") != NULL);
 }
 
-static bool rect_is(RECT rect, LONG left, LONG top, LONG right, LONG bottom)
-{
-    return rect.left == left && rect.top == top && rect.right == right &&
-        rect.bottom == bottom;
-}
-
-static void test_letterbox(void)
-{
-    RECT wide = { 0, 0, 1920, 1080 };
-    RECT portrait = { 0, 0, 1080, 1920 };
-    RECT offset = { 100, 50, 740, 530 };
-    RECT empty = { 0, 0, 0, 0 };
-    /* The originals are 320x192 (5:3) with square pixels. */
-    CHECK(rect_is(video_letterbox(&wide, 5, 3), 60, 0, 1860, 1080));
-    CHECK(rect_is(video_letterbox(&portrait, 5, 3), 0, 636, 1080, 1284));
-    CHECK(rect_is(video_letterbox(&offset, 4, 3), 100, 50, 740, 530));
-    CHECK(rect_is(video_letterbox(&offset, 16, 9), 100, 110, 740, 470));
-    CHECK(rect_is(video_letterbox(&wide, 0, 3), 0, 0, 1920, 1080));
-    CHECK(rect_is(video_letterbox(&empty, 5, 3), 0, 0, 0, 0));
-}
-
 static void test_timeouts(void)
 {
     CHECK(!video_timed_out(false, 15.0, 0));
@@ -391,7 +370,6 @@ int main(void)
     test_arguments();
     test_json();
     test_breadcrumb();
-    test_letterbox();
     test_timeouts();
     test_controller();
     if (failures != 0) {
@@ -399,6 +377,6 @@ int main(void)
         return 1;
     }
     printf("PASS: movie lookup order, command line, breadcrumb JSON, "
-        "letterboxing, timeouts and controller sampling.\n");
+        "timeouts and controller sampling.\n");
     return 0;
 }
