@@ -121,6 +121,7 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 #include "audio_menu_patch.c"
 #include "png_art.c"
 #include "startup_art.c"
+#include "dx_error.c"
 #include "ui_hd.c"
 #include "credits_patch.c"
 #include "sprite_patch.c"
@@ -374,6 +375,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     initialize_title();
     initialize_audio_menu();
     initialize_startup_art(root,(UINT)width,(UINT)height);
+    initialize_dx_error();
     initialize_ui_hd(root);
     initialize_hud_layout();
     if(refresh_active)simulation_active=wo_sim_initialize(image);
