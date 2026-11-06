@@ -492,15 +492,17 @@ bool wo_wad_parse(const uint8_t *data, size_t len, WoWad *out, WoError *error) {
         at += name_len + 1;
         size_t size = 0;
         if (!wad_record_size(data, len, at, &size, &at)) {
+            wo_fail(error, WO_ERR_FORMAT, "Invalid WAD directory record for \"%s\".",
+                    entries[i].name);
             wo_free(entries);
-            return wo_fail(error, WO_ERR_FORMAT, "Invalid WAD directory record for \"%s\".",
-                           entries[i].name);
+            return false;
         }
         for (size_t j = 0; j < i; j++) {
             if (wo_str_ieq(entries[j].name, entries[i].name)) {
+                wo_fail(error, WO_ERR_FORMAT, "The WAD archive lists \"%s\" twice.",
+                        entries[j].name);
                 wo_free(entries);
-                return wo_fail(error, WO_ERR_FORMAT, "The WAD archive lists \"%s\" twice.",
-                               entries[j].name);
+                return false;
             }
         }
         entries[i].size = size;

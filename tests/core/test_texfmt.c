@@ -333,6 +333,8 @@ static void test_wad(void) {
     wad_entry(&b, "A.TIM", 4, 1);
     wo_buf_append(&b, "xy", 2, NULL);
     CHECK_FAILS(wo_wad_parse(b.data, b.len, &wad, &error), &error, WO_ERR_FORMAT);
+    /* The message is formatted before the directory is freed (fuzzer find). */
+    CHECK(strstr(error.message, "\"a.tim\"") != NULL);
     wo_buf_free(&b);
 
     /* Size pair not found within 4..12 bytes after the name. */
@@ -340,6 +342,7 @@ static void test_wad(void) {
     wad_entry(&b, "far.tim", 13, 1);
     wo_buf_append_byte(&b, 'z', NULL);
     CHECK_FAILS(wo_wad_parse(b.data, b.len, &wad, &error), &error, WO_ERR_FORMAT);
+    CHECK(strstr(error.message, "\"far.tim\"") != NULL);
     wo_buf_free(&b);
 
     /* Names must end within 64 bytes. */
