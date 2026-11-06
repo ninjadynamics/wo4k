@@ -502,10 +502,11 @@ static bool allowed_key(const char *key) {
         "ShowFPS",       "ShadowLiftPercent",    "HighlightsPercent", "Soundtrack",
         "MusicVolume",   "EffectsVolume",        "Track",            "SoundMode",
         "EnableDDrawCompat", "LogLevel",         "DisplayResolution", "DisplayAspectRatio",
-        "FullscreenMode", "ResolutionScale",     "RenderColorDepth", "Antialiasing",
-        "TextureFilter", "ColorKeyMethod",       "FpsLimiter",       "VertexFixup",
-        "VertexBufferMemoryType", "SpriteDetection", "SpriteFilter",  "VSync",
-        "PresentDelay",  "CpuAffinity",          "CpuAffinityRotation", "BltFilter"};
+        "FullscreenMode", "AltTabFix",           "ResolutionScale",  "RenderColorDepth",
+        "Antialiasing",  "TextureFilter",        "ColorKeyMethod",   "FpsLimiter",
+        "VertexFixup",   "VertexBufferMemoryType", "SpriteDetection", "SpriteFilter",
+        "VSync",         "PresentDelay",         "CpuAffinity",      "CpuAffinityRotation",
+        "BltFilter"};
     for (size_t i = 0; i < WO_COUNT(allowed); i++) {
         if (wo_str_eq(key, allowed[i])) {
             return true;

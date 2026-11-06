@@ -57,6 +57,7 @@ static void fixture_write_code(DWORD *operand,DWORD value){
 #include "test_hud_layout.c"
 #include "test_startup_launch.c"
 #include "test_scene_lighting.c"
+#include "test_keyboard_focus.c"
 #include "test_native_transform_finish.c"
 #include "test_world_material_gpu.c"
 #include "test_hd_regions.c"
@@ -166,6 +167,7 @@ void __stdcall test_entry(void){
     *(SHORT *)(image+0x66496a)=0x3b;((RefreshVoidFn)(image+0x283f0))();
     if(observed_native_key!=0x3b || refresh_show_fps)ExitProcess(18);
     test_scene_lighting(image,race_ui_settings);
+    test_keyboard_focus(image);
     test_native_transform_finish(image);
     test_sprite_fades();
     test_ps1_native_emitters(image);

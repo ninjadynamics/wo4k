@@ -52,6 +52,7 @@ static float ui_panel_phase(void);
 static SHORT interpolate_menu_angle(const BYTE *object,int x,int y,int z,SHORT angle,SHORT pitch);
 static float particle_motion_x,particle_motion_y;
 static void controller_input(void);
+static void keyboard_focus(void);
 static BOOL title_input_active(void);
 static const char *title_prompt(const char *text);
 static void initialize_title(void);
@@ -113,6 +114,7 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 #include "race_ui_patch.c"
 #include "menu_model_motion.c"
 #include "controller_patch.c"
+#include "keyboard_focus.c"
 #include "movies_patch.c"
 #include "title_patch.c"
 #include "audio_menu_patch.c"
