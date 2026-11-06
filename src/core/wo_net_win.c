@@ -68,9 +68,47 @@ static void request_close(Request *r) {
     memset(r, 0, sizeof(*r));
 }
 
-static bool request_open(Request *r, const char *url, const char *accept, unsigned timeout_seconds,
-                         WoError *error) {
+/* The user's manual proxy or proxy script when one is set, otherwise a direct
+ * connection (or the machine-wide netsh proxy). Automatic proxy discovery
+ * (WPAD) is only a fallback: on networks without it, it can stall the first
+ * request of a session for about 20 seconds. */
+static HINTERNET open_session(bool discover, bool *can_discover) {
+    const wchar_t *agent = L"WO4K-Setup/" WO_VERSION_STRING_W;
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG user;
+    memset(&user, 0, sizeof(user));
+    bool have = WinHttpGetIEProxyConfigForCurrentUser(&user) != FALSE;
+    HINTERNET session;
+    if (discover || (have && user.lpszAutoConfigUrl)) {
+        session = WinHttpOpen(agent, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
+                              WINHTTP_NO_PROXY_BYPASS, 0);
+    } else if (have && user.lpszProxy) {
+        session = WinHttpOpen(agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY, user.lpszProxy,
+                              user.lpszProxyBypass ? user.lpszProxyBypass : WINHTTP_NO_PROXY_BYPASS,
+                              0);
+    } else {
+        session = WinHttpOpen(agent, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
+                              WINHTTP_NO_PROXY_BYPASS, 0);
+    }
+    *can_discover = !discover && have && user.fAutoDetect && !user.lpszAutoConfigUrl &&
+                    !user.lpszProxy;
+    DWORD code = session ? ERROR_SUCCESS : GetLastError();
+    if (user.lpszAutoConfigUrl) {
+        GlobalFree(user.lpszAutoConfigUrl);
+    }
+    if (user.lpszProxy) {
+        GlobalFree(user.lpszProxy);
+    }
+    if (user.lpszProxyBypass) {
+        GlobalFree(user.lpszProxyBypass);
+    }
+    SetLastError(code);
+    return session;
+}
+
+static bool request_try(Request *r, const char *url, const char *accept, unsigned timeout_seconds,
+                        bool discover, bool *can_discover, WoError *error) {
     memset(r, 0, sizeof(*r));
+    *can_discover = false;
     WoUrl parsed;
     if (!wo_url_parse(url, &parsed)) {
         return wo_fail(error, WO_ERR_UNSAFE, "Refusing a non-HTTPS or malformed address: %s", url);
@@ -86,8 +124,7 @@ static bool request_open(Request *r, const char *url, const char *accept, unsign
         return false;
     }
     bool ok = false;
-    r->session = WinHttpOpen(L"WO4K-Setup/" WO_VERSION_STRING_W, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                             WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    r->session = open_session(discover, can_discover);
     if (!r->session) {
         net_fail(error, GetLastError(), url);
         goto done;
@@ -165,6 +202,27 @@ done:
         request_close(r);
     }
     return ok;
+}
+
+/* A network that relies on automatic proxy discovery fails the direct
+ * attempt at the connection stage; only then is discovery tried. */
+static bool request_open(Request *r, const char *url, const char *accept, unsigned timeout_seconds,
+                         WoError *error) {
+    bool can_discover = false;
+    WoError first = {0};
+    if (request_try(r, url, accept, timeout_seconds, false, &can_discover, &first)) {
+        return true;
+    }
+    bool unreachable = first.kind == WO_ERR_NETWORK && (first.code == ERROR_WINHTTP_CANNOT_CONNECT ||
+                                                        first.code == ERROR_WINHTTP_TIMEOUT ||
+                                                        first.code == ERROR_WINHTTP_NAME_NOT_RESOLVED);
+    if (can_discover && unreachable) {
+        return request_try(r, url, accept, timeout_seconds, true, &can_discover, error);
+    }
+    if (error) {
+        *error = first;
+    }
+    return false;
 }
 
 typedef bool (*SinkFn)(void *context, const void *data, size_t len, WoError *error);
