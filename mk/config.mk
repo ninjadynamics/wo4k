@@ -18,7 +18,10 @@ DEPS_DIR ?= .work/deps
 
 # Windows path helpers for cmd.exe recipes.
 winpath = $(subst /,\,$(1))
-MKDIR = @if not exist "$(call winpath,$(1))" mkdir "$(call winpath,$(1))"
+# Parallel rules may create the same folder at once: a failed mkdir is fine
+# as long as the folder exists afterwards. Always a recipe line of its own.
+MKDIR = @(if not exist "$(call winpath,$(1))" mkdir "$(call winpath,$(1))" 2>nul) & \
+	if exist "$(call winpath,$(1))\" (exit 0) else (exit 1)
 RMFILE = @if exist "$(call winpath,$(1))" del /f /q "$(call winpath,$(1))"
 RMDIR = @if exist "$(call winpath,$(1))" rmdir /s /q "$(call winpath,$(1))"
 
