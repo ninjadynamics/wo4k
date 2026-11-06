@@ -1,5 +1,11 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.4
+
+- Fix track-side sprites, such as the striped pillars at the start of
+  Talon's Reach and Sagarmatha's trees, staying upright on the screen in the
+  first-person view instead of tilting with the scene when the ship banks.
+
 ## 0.2.0-beta.3
 
 - Fix the crash when returning to the menus after a race on Sagarmatha, and
