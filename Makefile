@@ -24,7 +24,7 @@ TEST_PROGRAMS :=
 DEPFILES :=
 CLEAN_FILES :=
 
-include $(sort $(wildcard src/*/module.mk)) $(wildcard tests/module.mk)
+include $(sort $(wildcard src/*/module.mk)) $(wildcard tests/module.mk) $(wildcard fuzz/module.mk)
 include $(wildcard mk/release.mk)
 
 .PHONY: all test clean help

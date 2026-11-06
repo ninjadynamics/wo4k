@@ -394,6 +394,14 @@ bool wo_cmp_decode(const uint8_t *data, size_t len, WoCmp *out, WoError *error) 
         sizes[i] = size;
         total += size;
     }
+    /* Every decoded byte costs at least one bit (a literal 9 bits, a match
+     * of up to 18 bytes 18 bits), so a larger declaration can never decode. */
+    size_t stream_bytes = len - 4 - (size_t)count * 4;
+    if (total / 8 > stream_bytes) {
+        wo_free(sizes);
+        wo_free(offsets);
+        return wo_fail(error, WO_ERR_FORMAT, "The CMP archive declares more data than it holds.");
+    }
     uint8_t *output = wo_alloc(total, error);
     if (!output) {
         wo_free(sizes);
