@@ -66,7 +66,12 @@ typedef struct VideoApp {
     /* Optional: signalled shortly before the start, while the game still
      * presents frames, to stage the window (see video_window_stage). */
     HANDLE stage_event;
+    /* Times the window followed the game in or out of the front (logged up
+     * to VIDEO_FOCUS_MOVES_LOGGED). */
+    unsigned focus_moves;
 } VideoApp;
+
+#define VIDEO_FOCUS_MOVES_LOGGED 32
 
 typedef struct VideoAttempt {
     bool opened;
@@ -221,8 +226,22 @@ static void video_log_fallback(VideoApp *app, const char *reason)
         json_ok(&json) ? json.data : NULL, false);
 }
 
+/* Keeps the window over the game while it is in front and behind any other
+ * program that is (see video_window_follow_focus). */
+static void video_follow_focus(VideoApp *app)
+{
+    VideoWindowMove move = video_window_follow_focus(&app->window);
+    if (move == VIDEO_WINDOW_STAYED ||
+        ++app->focus_moves > VIDEO_FOCUS_MOVES_LOGGED) {
+        return;
+    }
+    video_log_event(&app->log, move == VIDEO_WINDOW_RAISED ?
+        "video_window_raised" : "video_window_behind", NULL, false);
+}
+
 /* Sleeps until input, a window message, the skip or start event or the
- * game's exit, at most 15 ms, then dispatches the window's messages. */
+ * game's exit, at most 15 ms, then dispatches the window's messages and
+ * follows the game in and out of the front. */
 static void video_pump(VideoApp *app)
 {
     HANDLE handles[4];
@@ -243,6 +262,7 @@ static void video_pump(VideoApp *app)
         TranslateMessage(&message);
         DispatchMessageW(&message);
     }
+    video_follow_focus(app);
 }
 
 static VideoBackend *video_open_directshow(VideoApp *app, const wchar_t *path,

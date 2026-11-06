@@ -11,6 +11,7 @@
 
 typedef struct VideoWindow {
     HWND hwnd;
+    HWND owner;
     VideoBackend *backend;
     RECT bounds;
     bool probe;
@@ -22,7 +23,15 @@ typedef struct VideoWindow {
     bool destroyed;
     /* Set if the window was ever activated, which must never happen. */
     bool activated;
+    /* The other program's window it was last put behind, if any. */
+    HWND behind;
 } VideoWindow;
+
+typedef enum VideoWindowMove {
+    VIDEO_WINDOW_STAYED,
+    VIDEO_WINDOW_RAISED, /* back over the game */
+    VIDEO_WINDOW_BEHIND  /* behind another program in front */
+} VideoWindowMove;
 
 /* probe: a small 640x480 window centred on the primary monitor's work area,
  * not topmost. owner may be NULL. hidden: create it without showing it, so
@@ -38,6 +47,15 @@ bool video_window_stage(VideoWindow *window);
 /* Show (or make opaque) without activating, topmost unless probe; repeated
  * calls do nothing. */
 void video_window_show(VideoWindow *window);
+/* Follows which program is in front, without ever activating the window.
+ * While the game (or the player) is, the window stays topmost and above any
+ * of the game's windows covering it: DDrawCompat raises its presentation
+ * window when the game regains focus, which hid the movie. While another
+ * program is, the window leaves the topmost band and stays behind it.
+ * Does nothing for a probe window, without an owner, or before staging. */
+VideoWindowMove video_window_follow_focus(VideoWindow *window);
+/* The same, with the window in front given (NULL: leave it as it is). */
+VideoWindowMove video_window_arrange(VideoWindow *window, HWND foreground);
 void video_window_set_backend(VideoWindow *window, VideoBackend *backend);
 void video_window_destroy(VideoWindow *window);
 

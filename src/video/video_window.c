@@ -160,6 +160,7 @@ bool video_window_create(VideoWindow *window, HINSTANCE instance, HWND owner,
         ex_style |= WS_EX_LAYERED | WS_EX_TRANSPARENT;
     }
     window->probe = probe;
+    window->owner = owner;
     HWND hwnd = CreateWindowExW(ex_style, VIDEO_WINDOW_CLASS, L"WO4K video",
         style, bounds->left, bounds->top, bounds->right - bounds->left,
         bounds->bottom - bounds->top, owner, NULL, instance, window);
@@ -174,6 +175,29 @@ bool video_window_create(VideoWindow *window, HINSTANCE instance, HWND owner,
     return true;
 }
 
+/* The game's process, or the player's own: a window the movie belongs over. */
+static bool video_window_ours(const VideoWindow *window, HWND other)
+{
+    DWORD game = 0;
+    DWORD process = 0;
+    GetWindowThreadProcessId(window->owner, &game);
+    GetWindowThreadProcessId(other, &process);
+    return process != 0 &&
+        (process == game || process == GetCurrentProcessId());
+}
+
+/* Where a topmost window goes: over everything while the game is in front,
+ * else just behind the program that is. */
+static HWND video_window_insert_after(const VideoWindow *window)
+{
+    HWND foreground = GetForegroundWindow();
+    if (window->owner != NULL && foreground != NULL &&
+        !video_window_ours(window, foreground)) {
+        return foreground;
+    }
+    return HWND_TOPMOST;
+}
+
 /* SetWindowPos, not ShowWindow: the game's STARTUPINFO must not pick the
  * first show state, and nothing here may activate the window. */
 static void video_window_place(VideoWindow *window)
@@ -183,9 +207,65 @@ static void video_window_place(VideoWindow *window)
     if (window->probe) {
         flags |= SWP_NOZORDER;
     }
-    SetWindowPos(window->hwnd, window->probe ? NULL : HWND_TOPMOST,
-        bounds->left, bounds->top, bounds->right - bounds->left,
-        bounds->bottom - bounds->top, flags);
+    HWND after = window->probe ? NULL : video_window_insert_after(window);
+    window->behind = after == HWND_TOPMOST ? NULL : after;
+    SetWindowPos(window->hwnd, after, bounds->left, bounds->top,
+        bounds->right - bounds->left, bounds->bottom - bounds->top, flags);
+}
+
+/* A visible window of the game's above the player covering all of it, such
+ * as DDrawCompat's presentation window raised when the game regains focus.
+ * Smaller ones (a message box) and other programs' windows do not count. */
+static bool video_window_covered(const VideoWindow *window)
+{
+    RECT mine;
+    if (!GetWindowRect(window->hwnd, &mine)) {
+        return false;
+    }
+    for (HWND above = GetWindow(window->hwnd, GW_HWNDPREV); above != NULL;
+        above = GetWindow(above, GW_HWNDPREV)) {
+        RECT rect;
+        if (IsWindowVisible(above) && video_window_ours(window, above) &&
+            GetWindowRect(above, &rect) && rect.left <= mine.left &&
+            rect.top <= mine.top && rect.right >= mine.right &&
+            rect.bottom >= mine.bottom) {
+            return true;
+        }
+    }
+    return false;
+}
+
+VideoWindowMove video_window_arrange(VideoWindow *window, HWND foreground)
+{
+    if (window->hwnd == NULL || window->probe || window->owner == NULL ||
+        !(window->shown || window->staged) || foreground == NULL) {
+        return VIDEO_WINDOW_STAYED;
+    }
+    const UINT flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+    if (video_window_ours(window, foreground)) {
+        bool topmost = (GetWindowLongPtrW(window->hwnd, GWL_EXSTYLE) &
+            WS_EX_TOPMOST) != 0;
+        if (topmost && window->behind == NULL &&
+            !video_window_covered(window)) {
+            return VIDEO_WINDOW_STAYED;
+        }
+        window->behind = NULL;
+        SetWindowPos(window->hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
+        return VIDEO_WINDOW_RAISED;
+    }
+    if (window->behind == foreground) {
+        return VIDEO_WINDOW_STAYED;
+    }
+    /* After a window that is not topmost, the player leaves the topmost
+     * band too; programs brought to the front later go over it anyway. */
+    window->behind = foreground;
+    SetWindowPos(window->hwnd, foreground, 0, 0, 0, 0, flags);
+    return VIDEO_WINDOW_BEHIND;
+}
+
+VideoWindowMove video_window_follow_focus(VideoWindow *window)
+{
+    return video_window_arrange(window, GetForegroundWindow());
 }
 
 bool video_window_stage(VideoWindow *window)

@@ -25,16 +25,24 @@ video: $(VIDEO_EXE)
 
 # --- Tests (sources in tests/video) -----------------------------------------
 # test_video_core: unit tests of the pure helpers.
+# test_video_window: the player window's Z order, with invisible windows.
 # test_video_probe: drives the built player; its playback cases need movie
 # files from WO4K_TEST_MOVIES or wobble/movies and skip without them.
 VIDEO_TEST_CORE := $(BUILD)/tests/test_video_core.exe
+VIDEO_TEST_WINDOW := $(BUILD)/tests/test_video_window.exe
 VIDEO_TEST_PROBE := $(BUILD)/tests/test_video_probe.exe
 VIDEO_TEST_OBJECTS := $(BUILD)/obj/tests/video/test_video_core.o \
+	$(BUILD)/obj/tests/video/test_video_window.o \
 	$(BUILD)/obj/tests/video/test_video_probe.o
 
 $(VIDEO_TEST_CORE): $(BUILD)/obj/tests/video/test_video_core.o $(VIDEO_CORE_OBJECTS)
 	$(call MKDIR,$(@D))
 	$(CC) $(CONSOLE_LDFLAGS) $^ -o $@
+
+$(VIDEO_TEST_WINDOW): $(BUILD)/obj/tests/video/test_video_window.o \
+	$(BUILD)/obj/src/video/video_window.o
+	$(call MKDIR,$(@D))
+	$(CC) $(CONSOLE_LDFLAGS) $^ -luser32 -lgdi32 -o $@
 
 $(VIDEO_TEST_PROBE): $(BUILD)/obj/tests/video/test_video_probe.o $(VIDEO_CORE_OBJECTS)
 	$(call MKDIR,$(@D))
@@ -42,7 +50,7 @@ $(VIDEO_TEST_PROBE): $(BUILD)/obj/tests/video/test_video_probe.o $(VIDEO_CORE_OB
 
 $(VIDEO_TEST_PROBE).run: $(VIDEO_EXE)
 
-TEST_PROGRAMS += $(VIDEO_TEST_CORE) $(VIDEO_TEST_PROBE)
+TEST_PROGRAMS += $(VIDEO_TEST_CORE) $(VIDEO_TEST_WINDOW) $(VIDEO_TEST_PROBE)
 
 OUTPUTS += $(VIDEO_EXE)
 DEPFILES += $(patsubst %.o,%.d,$(filter-out %.res.o,$(VIDEO_OBJECTS)) \
