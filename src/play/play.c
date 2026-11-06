@@ -3,7 +3,9 @@
  * the log; crash details come from the runtime's own logs and the Windows
  * Application Error event for the game process.
  *
- *   Play.exe [--refresh-only] [--no-error-dialog] */
+ *   Play.exe [--refresh-only] [--no-error-dialog] [--root <mod folder>]
+ *
+ * --root runs against another mod folder (for testing and measurements). */
 #include "core/wo_win.h"
 
 #include <psapi.h>
@@ -25,6 +27,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
 typedef struct PlayOptions {
     bool refresh_only;
     bool no_dialog;
+    char *root; /* --root <dir> (testing), else NULL for the EXE's folder */
 } PlayOptions;
 
 static void parse_arguments(PlayOptions *options) {
@@ -35,6 +38,11 @@ static void parse_arguments(PlayOptions *options) {
             options->refresh_only = true;
         } else if (wcscmp(argv[i], L"--no-error-dialog") == 0) {
             options->no_dialog = true;
+        } else if (wcscmp(argv[i], L"--root") == 0 && i + 1 < argc && !options->root) {
+            i++;
+            char *given = wo_utf8(argv[i], NULL);
+            options->root = given ? wo_path_full(given, NULL) : NULL;
+            wo_free(given);
         }
     }
     LocalFree(argv);
@@ -259,7 +267,25 @@ static bool prepare_environment(const WoMod *mod, WoError *error) {
     return ok;
 }
 
-static int run_game(const WoMod *mod, WoError *error) {
+/* Milliseconds from this process's creation (as Windows recorded it) until
+ * now: how long Windows took to start Play.exe before its code ran. */
+static double since_process_created_ms(void) {
+    FILETIME created;
+    FILETIME exited;
+    FILETIME kernel;
+    FILETIME user;
+    if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) {
+        return -1.0;
+    }
+    FILETIME now;
+    GetSystemTimePreciseAsFileTime(&now);
+    uint64_t from = ((uint64_t)created.dwHighDateTime << 32) | created.dwLowDateTime;
+    uint64_t to = ((uint64_t)now.dwHighDateTime << 32) | now.dwLowDateTime;
+    /* FILETIME counts 100 ns units; 1000 of them are 0.1 ms. */
+    return to > from ? (double)((to - from) / 1000u) / 10.0 : 0.0;
+}
+
+static int run_game(const WoMod *mod, WoLaps *laps, WoError *error) {
     char *exe = wo_mod_game_path(mod, "Wipeout2097.exe", error);
     wchar_t *wide_exe = exe ? wo_wide_path(exe, error) : NULL;
     wchar_t *wide_dir = wide_exe ? wo_wide_path(mod->game, error) : NULL;
@@ -286,11 +312,13 @@ static int run_game(const WoMod *mod, WoError *error) {
         return -1;
     }
     CloseHandle(process.hThread);
+    wo_laps_mark(laps, "create_process_ms");
     WoJson *data = wo_json_new_object();
     wo_json_put_int(data, "pid", process.dwProcessId);
     wo_json_put_int(data, "process_bits", 32);
     wo_json_put_str(data, "message", "Waiting for the game to exit.");
     wo_log_event("game_started", data);
+    wo_laps_log(laps, "launch_timing");
     WaitForSingleObject(process.hProcess, INFINITE);
     DWORD code = 1;
     GetExitCodeProcess(process.hProcess, &code);
@@ -321,13 +349,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
     (void)previous;
     (void)command_line;
     (void)show;
+    double process_start_ms = since_process_created_ms();
+    WoLaps laps;
+    wo_laps_begin(&laps);
     PlayOptions options = {0};
     parse_arguments(&options);
-    wchar_t module[32768];
-    DWORD len = GetModuleFileNameW(NULL, module, (DWORD)WO_COUNT(module));
-    char *exe = (len > 0 && len < WO_COUNT(module)) ? wo_utf8(module, NULL) : NULL;
-    char *root = exe ? wo_path_parent(exe, NULL) : NULL;
-    wo_free(exe);
+    char *root = options.root;
+    if (!root) {
+        wchar_t module[32768];
+        DWORD len = GetModuleFileNameW(NULL, module, (DWORD)WO_COUNT(module));
+        char *exe = (len > 0 && len < WO_COUNT(module)) ? wo_utf8(module, NULL) : NULL;
+        root = exe ? wo_path_parent(exe, NULL) : NULL;
+        wo_free(exe);
+    }
     WoMod mod;
     if (!root || !wo_mod_init(&mod, root, NULL)) {
         MessageBoxW(NULL, L"Play could not determine the WO4K folder.", L"WO4K", MB_OK | MB_ICONERROR);
@@ -335,11 +369,14 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
         return 1;
     }
     wo_log_start("play", root);
+    wo_json_put(laps.fields, "process_start_ms", wo_json_new_number(process_start_ms));
+    wo_laps_mark(&laps, "log_start_ms");
     WoError error = {0};
     WoProgress progress = {NULL, NULL, NULL, WO_STAGE_GENERAL};
     WoReconcileResult result;
     wo_log_stage("Checking the installation");
     bool ok = wo_reconcile(&mod, false, &progress, &result, &error);
+    wo_laps_mark(&laps, "reconcile_ms");
     if (ok && !result.installed) {
         ok = wo_fail(&error, WO_ERR_NOT_FOUND, "Run Setup / Install / repair before playing.");
     }
@@ -349,16 +386,22 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
         wo_log_stage("Checking game dependencies");
         stage = WO_STAGE_RUNTIME;
         log_dependencies(&mod, &error);
+        wo_laps_mark(&laps, "dependencies_ms");
         ok = !wo_error_is_set(&error) && prepare_environment(&mod, &error);
+        wo_laps_mark(&laps, "environment_ms");
         if (ok) {
             wo_log_stage("Starting the game");
             stage = WO_STAGE_LAUNCH;
-            code = run_game(&mod, &error);
+            code = run_game(&mod, &laps, &error);
             ok = code == 0;
             if (code > 0 || code < -1) {
                 stage = WO_STAGE_GAME;
             }
         }
+    }
+    if (laps.fields) {
+        /* Refresh only, or the game was never started. */
+        wo_laps_log(&laps, "launch_timing");
     }
     save_game_logs(&mod);
     if (ok) {

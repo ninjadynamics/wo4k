@@ -559,7 +559,7 @@ static bool load_manifests(const WoMod *mod, WoJson **files, WoJson **patches, W
 }
 
 static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *progress,
-                            WoReconcileResult *result, WoError *error) {
+                            WoLaps *laps, WoReconcileResult *result, WoError *error) {
     memset(result, 0, sizeof(*result));
     if (wo_mod_game_running(mod)) {
         return wo_fail(error, WO_ERR_BUSY, "Close the game before reconciling its installation.");
@@ -584,8 +584,10 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
     WoJson *patches = NULL;
     WoJson *plan = NULL;
     ok = ok && load_manifests(mod, &files, &patches, &plan, error);
+    wo_laps_mark(laps, "config_ms");
     wo_progress(progress, WO_STAGE_GENERAL, 5, "Checking the configured installation...");
     bool healthy = ok && pc_installation_healthy(mod, receipt, files, patches, plan);
+    wo_laps_mark(laps, "check_ms");
     const WoJson *previous = wo_json_get(receipt, "configuration");
     char *old_game = wo_config_resolve_path(mod, wo_json_str(previous, "GameSource", ""), NULL);
     bool source_moved = old_game && old_game[0] && !wo_str_ieq(old_game, config.game_source);
@@ -602,6 +604,7 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
             wo_config_free(&config);
             ok = wo_receipt_load(mod, &receipt, error) && wo_config_load(mod, &config, error);
         }
+        wo_laps_mark(laps, "repair_ms");
     }
     char *ini = NULL;
     char *ddraw = NULL;
@@ -613,11 +616,14 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
         settings_missing = ok && (!wo_is_file(ini) || !wo_is_file(ddraw));
         wo_progress(progress, WO_STAGE_RUNTIME, 30, "Updating the mod runtime...");
         ok = ok && sync_runtime(mod, &result->runtime_updated, error);
+        wo_laps_mark(laps, "runtime_ms");
     }
     bool ps1_textures = false;
     ok = ok && ensure_native_textures(mod, &config, receipt, plan, progress, &ps1_textures, error);
+    wo_laps_mark(laps, "textures_ms");
     MusicResult music = {0};
     ok = ok && ensure_music(mod, &config, receipt, progress, &music, error);
+    wo_laps_mark(laps, "music_ms");
     if (ok && config.soundtrack == WO_SOUNDTRACK_PC && !music.pc_available) {
         config.soundtrack = music.psx_available ? WO_SOUNDTRACK_PSX : WO_SOUNDTRACK_NONE;
         WoConfig updated;
@@ -653,9 +659,11 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
         }
         ok = ok && wo_receipt_save(mod, receipt, error);
     }
+    wo_laps_mark(laps, "receipt_ms");
     if (ok) {
         int kept = 0;
         ok = wo_cleanup_retired(mod, &result->retired_removed, &kept, error);
+        wo_laps_mark(laps, "cleanup_ms");
     }
     result->installed = ok;
     wo_free(ini);
@@ -736,7 +744,7 @@ static bool migrate_layout(const WoMod *mod, int *removed, WoError *error) {
     return ok;
 }
 
-bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
+static bool refresh_assets(const WoMod *mod, WoProgress *progress, WoLaps *laps, WoError *error) {
     if (wo_mod_game_running(mod)) {
         return wo_fail(error, WO_ERR_BUSY,
                        "Close the game before refreshing its artwork or sound effects.");
@@ -759,6 +767,7 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
     }
     ok = ok && wo_load_manifest(mod, "manifests/patches.json", &patches, error) &&
          wo_load_manifest(mod, "manifests/hd-textures.json", &catalog, error);
+    wo_laps_mark(laps, "layout_ms");
     WoHdResult art = {0};
     if (ok && wo_json_bool(receipt, "hd_textures", false)) {
         set_stage(progress, WO_STAGE_HD_ART);
@@ -766,6 +775,7 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
         WoHdOptions options = {catalog, canonical, canonical, mod->game};
         ok = canonical && wo_hd_install(&options, &art, error);
         wo_free(canonical);
+        wo_laps_mark(laps, "art_ms");
     }
     WoSfxResult audio = {0};
     if (ok) {
@@ -773,6 +783,7 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
         WoSfxOptions options = {patches, effects, mod->game,
                                 !wo_json_bool(receipt, "clean_audio", true), true};
         ok = wo_sfx_install(&options, &audio, error);
+        wo_laps_mark(laps, "sfx_ms");
     }
     if (ok) {
         char stamp[40];
@@ -795,6 +806,7 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
         }
         wo_free(path);
         wo_log_event("asset_refresh", summary);
+        wo_laps_mark(laps, "summary_ms");
     }
     wo_hd_result_free(&art);
     wo_free(effects);
@@ -804,15 +816,23 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
     return ok;
 }
 
+bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
+    return refresh_assets(mod, progress, NULL, error);
+}
+
 bool wo_reconcile(const WoMod *mod, bool force_repair, WoProgress *progress,
                   WoReconcileResult *result, WoError *error) {
-    bool ok = reconcile_inner(mod, force_repair, progress, result, error);
+    WoLaps laps;
+    wo_laps_begin(&laps);
+    bool ok = reconcile_inner(mod, force_repair, progress, &laps, result, error);
     if (ok && result->installed) {
-        ok = wo_refresh_assets(mod, progress, error);
+        ok = refresh_assets(mod, progress, &laps, error);
     }
     if (ok) {
         wo_mod_prune(mod);
+        wo_laps_mark(&laps, "prune_ms");
         wo_progress(progress, WO_STAGE_GENERAL, 100, "Installation checked and ready.");
     }
+    wo_laps_log(&laps, "reconcile_timing");
     return ok;
 }
