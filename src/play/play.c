@@ -307,8 +307,6 @@ static bool prepare_environment(const WoMod *mod, WoError *error) {
     wo_log_event("installation", data);
     /* Runtime switches read by the game DLL. */
     SetEnvironmentVariableW(L"WO2097_HD_ART", wo_json_bool(receipt, "hd_textures", false) ? L"1" : L"0");
-    SetEnvironmentVariableW(L"WO2097_RENDER_TEST", L"1");
-    SetEnvironmentVariableW(L"WO2097_DISTANCE_TEST", L"1");
     SetEnvironmentVariableW(L"WO2097_SIM60_TEST", L"0");
     wo_json_free(receipt);
     char *ddraw = wo_mod_game_path(mod, "DDrawCompat-Wipeout2097.ini", error);

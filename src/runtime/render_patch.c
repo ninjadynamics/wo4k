@@ -1,5 +1,5 @@
-﻿/* Rendering-only widescreen prototype for the hash-verified original PC EXE.
- * Enabled only by WO2097_RENDER_TEST=1 in the separate test launcher.
+﻿/* Rendering-only patches for the hash-verified original PC EXE, always on.
+ * Nothing is changed unless every entry below verifies.
  * Original code is called through verified-instruction trampolines; simulation
  * state, AI, input and timing are never replaced here.
  */
@@ -321,10 +321,9 @@ static void __cdecl section_objects(void *unused,BYTE *camera) {
 }
 
 void wo_render_initialize(BYTE *image,const WCHAR *root) {
-    WCHAR enabled[8],settings[MAX_PATH];int width,height;float ratio;
+    WCHAR settings[MAX_PATH];int width,height;float ratio;
     IMAGE_NT_HEADERS32 *nt=(IMAGE_NT_HEADERS32 *)(image+((IMAGE_DOS_HEADER *)image)->e_lfanew);
     if(installed || nt->OptionalHeader.Magic!=0x10b || nt->OptionalHeader.SizeOfImage!=0x7ee000)return;
-    if(!GetEnvironmentVariableW(L"WO2097_RENDER_TEST",enabled,8) || enabled[0]!=L'1')return;
     game=image;
     render_entries=game+0x533c50;
     /* Validate every entry before changing anything. */

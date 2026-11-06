@@ -1,5 +1,5 @@
-/* Included by render_patch.c. Full-scene experiment, separately gated by
- * WO2097_DISTANCE_TEST=1. Uses original track tessellation and D3D submission.
+/* Included by render_patch.c. Full-scene drawing, always on. Uses original
+ * track tessellation and D3D submission.
  * Larger frame storage plus bounded native batches replace visibility limits.
  */
 #include "build/render_refs.h"
@@ -192,8 +192,6 @@ static void __cdecl release_matrices(void) {
 
 #define REF_COUNT(name) (sizeof(refs_##name)/sizeof(refs_##name[0]))
 static BOOL initialize_distance(void) {
-    WCHAR value[8];
-    if(!GetEnvironmentVariableW(L"WO2097_DISTANCE_TEST",value,8) || value[0]!=L'1')return FALSE;
 #define CHECK_REFS(name) if(!valid_refs(refs_##name,REF_COUNT(name)))return FALSE
     CHECK_REFS(queue);CHECK_REFS(primitive);CHECK_REFS(execute);CHECK_REFS(execute_state);
 #define CHECK_ENTRY(name) if(!equal(game+RVA_##name,entry_##name,sizeof(entry_##name)))return FALSE
