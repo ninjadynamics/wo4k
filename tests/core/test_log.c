@@ -29,6 +29,12 @@ static void test_session_log(void) {
     CHECK_OK(wo_write_file(game_log, game_text, strlen(game_text), &error), &error);
     wo_log_attach("game.log", game_log, true);
     CHECK(!wo_exists(game_log));
+    /* Short records after long ones reuse freed buffers full of old text. */
+    for (int i = 0; i < 40; i++) {
+        wo_log_text("long", "0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
+                            "0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz");
+        wo_log_text("s", "x");
+    }
 
     char *log_copy = wo_strdup(path, NULL);
     wo_log_end();
@@ -41,6 +47,21 @@ static void test_session_log(void) {
     CHECK(text && strstr(text, "\"event\":\"system\"") != NULL);
     CHECK(text && strstr(text, "\"event\":\"game_log_tail\"") != NULL);
     CHECK(text && strstr(text, "secret") == NULL);
+    /* Every record is exactly one JSON line, with nothing between records. */
+    int records = 0;
+    for (const char *line = text; line && *line; records++) {
+        const char *end = strstr(line, "\r\n");
+        CHECK(end != NULL);
+        if (!end) {
+            break;
+        }
+        WoJson *json = NULL;
+        WoError parse = {0};
+        CHECK_OK(wo_json_parse(line, (size_t)(end - line), &json, &parse), &parse);
+        wo_json_free(json);
+        line = end + 2;
+    }
+    CHECK(records > 80);
     wo_free(text);
 
     char *attachment = wo_format(NULL, "%.*s.game.log", (int)(strlen(log_copy) - 4), log_copy);

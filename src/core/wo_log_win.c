@@ -206,7 +206,7 @@ void wo_log_event(const char *event, WoJson *data) {
     wo_json_put(entry, "data", data ? data : wo_json_new_null());
     WoBuf line = {0};
     if (entry && wo_json_write(entry, false, &line, NULL) &&
-        wo_buf_append_str(&line, "\r\n", NULL)) {
+        wo_buf_append_str(&line, "\r\n", NULL) && wo_buf_terminate(&line, NULL)) {
         char *safe = wo_log_redact((const char *)line.data);
         if (safe) {
             write_line(safe);
