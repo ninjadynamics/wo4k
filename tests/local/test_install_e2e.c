@@ -111,7 +111,8 @@ static void compare_trees(const char *reference, const char *actual) {
         compared++;
         wo_free(other);
     }
-    printf("    compared %zu files: %zu differ, %zu missing\n", compared, mismatched, missing);
+    printf("    compared %zu files: %zu differ, %zu missing, %zu explained by a changed source\n",
+           compared, mismatched, missing, historical);
     CHECK(compared > 100);
     CHECK(mismatched == 0);
     CHECK(missing == 0);
