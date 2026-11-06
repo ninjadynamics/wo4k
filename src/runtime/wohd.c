@@ -27,12 +27,47 @@ static void appendnum(WCHAR *s,DWORD n) {
     do { b[i++]=L'0'+n%10; n/=10; } while(n);
     while(i) s[j++]=b[--i]; s[j]=0;
 }
+/* Every line ends with t=<milliseconds since the game process was created>,
+ * so startup phases can be lined up with Play's and the player's logs. */
+static LARGE_INTEGER log_clock_base,log_clock_frequency;
+static DWORD log_clock_offset_ms,log_clock_origin;
+static void logclock_start(void) {
+    FILETIME created,exited,kernel,user,now;
+    QueryPerformanceFrequency(&log_clock_frequency);QueryPerformanceCounter(&log_clock_base);
+    if(GetProcessTimes(GetCurrentProcess(),&created,&exited,&kernel,&user)) {
+        GetSystemTimeAsFileTime(&now);
+        ULONGLONG from=((ULONGLONG)created.dwHighDateTime<<32)|created.dwLowDateTime;
+        ULONGLONG to=((ULONGLONG)now.dwHighDateTime<<32)|now.dwLowDateTime;
+        /* Doubles: this freestanding x86 DLL has no 64-bit division helpers. */
+        if(to>from && to-from<(ULONGLONG)3600*10000000)log_clock_offset_ms=(DWORD)((double)(to-from)/10000.0);
+        /* t=0 as UTC milliseconds since midnight, to line up with the
+         * absolute times in the session and video logs. */
+        SYSTEMTIME utc;
+        if(FileTimeToSystemTime(&created,&utc))
+            log_clock_origin=((utc.wHour*60u+utc.wMinute)*60u+utc.wSecond)*1000u+utc.wMilliseconds;
+    }
+}
+static DWORD logclock_ms(void) {
+    LARGE_INTEGER now;
+    if(log_clock_frequency.QuadPart<=0)return 0;
+    QueryPerformanceCounter(&now);
+    double elapsed=(double)(now.QuadPart-log_clock_base.QuadPart)*1000.0/(double)log_clock_frequency.QuadPart;
+    return log_clock_offset_ms+(elapsed>0?(DWORD)elapsed:0);
+}
+static UINT appenddecimal(char *line,UINT n,DWORD value) {
+    char digits[16];UINT i=0;
+    do {digits[i++]='0'+value%10; value/=10;} while(value);
+    while(i) line[n++]=digits[--i];
+    return n;
+}
 static void logevent(const char *name,DWORD value) {
-    char line[128],digits[16]; DWORD n=0,i=0,written;
+    char line[128]; DWORD n=0,written;
     while(*name && n<90) line[n++]=*name++;
     line[n++]=' ';
-    do {digits[i++]='0'+value%10; value/=10;} while(value);
-    while(i) line[n++]=digits[--i]; line[n++]='\r'; line[n++]='\n';
+    n=appenddecimal(line,n,value);
+    line[n++]=' ';line[n++]='t';line[n++]='=';
+    n=appenddecimal(line,n,logclock_ms());
+    line[n++]='\r'; line[n++]='\n';
     if(logfile!=INVALID_HANDLE_VALUE) WriteFile(logfile,line,n,&written,0);
 }
 void wo_render_event(const char *name,DWORD value) {logevent(name,value);}
@@ -209,7 +244,7 @@ MMRESULT WINAPI wo_auxcaps(UINT_PTR id,LPAUXCAPSA caps,UINT size) {
 }
 BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID reserved) {
     if(reason==DLL_PROCESS_ATTACH) {
-        module=instance;
+        module=instance;logclock_start();
         /* Keep the game's short filename buffers safe. The EXE retains
          * relative roots and no longer changes CWD while assembling paths. */
         if(resolve_root()) {
@@ -222,6 +257,7 @@ BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID reserved) {
             }
             copyw(path+n,L"..\\logs\\game-crash.log");wo_crash_install(path);
             logevent("runtime_attached",1);
+            logevent("clock_origin_utc_ms_of_day",log_clock_origin);
             prepare_game_folder();
         }
     } else if(reason==DLL_PROCESS_DETACH) {
