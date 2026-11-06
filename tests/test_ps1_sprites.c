@@ -23,7 +23,7 @@ static void test_ps1_native_emitters(BYTE *image){
         if(*(DWORD *)(image+at)==addresses[j]){if(ref_count==32)ExitProcess(238);refs[ref_count]=at;original_refs[ref_count++]=addresses[j];*(DWORD *)(image+at)+=delta;at+=3;break;}
     }
     DWORD *trampoline_operand=(DWORD *)((BYTE *)old_draw_explosions+4),saved_operand=*trampoline_operand;
-    if(saved_operand!=0xa65110)ExitProcess(239);*trampoline_operand+=delta;
+    if(saved_operand!=0xa65110)ExitProcess(239);fixture_write_code(trampoline_operand,*trampoline_operand+delta);
     static BYTE position[96],skeleton[96],ships[12*240],texture[40];BYTE *camera=position;
     *(LONG *)(position+0x14)=100;*(LONG *)(position+0x18)=-200;*(LONG *)(position+0x1c)=400;*(BYTE **)(position+0x44)=skeleton;
     *(BYTE ***)(image+0x665110)=&camera;*(BYTE **)(image+0x518030)=ships;
@@ -60,7 +60,7 @@ static void test_ps1_native_emitters(BYTE *image){
     *(BYTE **)(image+0x665110)=saved_camera;*(BYTE **)(image+0x518030)=saved_ships;
     *(UINT *)(image+0x53f19c)=saved_queue;*(WORD *)(image+0xc8620)=saved_sets;
     for(UINT i=0;i<32;++i)((BYTE **)(image+0x66ad40))[i]=saved_textures[i];
-    *(BYTE **)(image+0x65d020)=saved_cursor;*trampoline_operand=saved_operand;
+    *(BYTE **)(image+0x65d020)=saved_cursor;fixture_write_code(trampoline_operand,saved_operand);
     for(UINT i=0;i<ref_count;++i)*(DWORD *)(image+refs[i])=original_refs[i];
 }
 

@@ -1,0 +1,11 @@
+LIBRARY WINMM.dll
+EXPORTS
+mciSendCommandA@16
+mciSendStringW@16
+joyGetPosEx@8
+joyGetNumDevs@0
+joyGetDevCapsA@12
+timeKillEvent@4
+timeGetDevCaps@8
+timeSetEvent@20
+timeGetTime@0

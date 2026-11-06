@@ -217,7 +217,7 @@ BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID reserved) {
             copyw(path,root);copyw(path+n,L"..\\logs\\game.log");
             logfile=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,0,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,0);
             if(logfile!=INVALID_HANDLE_VALUE) {
-                static const char version[]="mod_version " WO_MOD_VERSION "\r\n";DWORD written;
+                static const char version[]="mod_version " WO_VERSION_STRING "\r\n";DWORD written;
                 WriteFile(logfile,version,sizeof(version)-1,&written,0);
             }
             copyw(path+n,L"..\\logs\\game-crash.log");wo_crash_install(path);

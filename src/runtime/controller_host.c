@@ -1,4 +1,3 @@
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,9 +7,10 @@ _Static_assert(SDL_GAMEPAD_BUTTON_SOUTH==0 && SDL_GAMEPAD_BUTTON_EAST==1 &&
     SDL_GAMEPAD_BUTTON_WEST==2 && SDL_GAMEPAD_BUTTON_NORTH==3 &&
     SDL_GAMEPAD_BUTTON_START==6 && SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER==10 &&
     SDL_GAMEPAD_BUTTON_DPAD_UP==11 && SDL_GAMEPAD_BUTTON_DPAD_RIGHT==14,"SDL button ABI");
-int main(int argc,char **argv) {
+int wmain(int argc,wchar_t **argv);
+int wmain(int argc,wchar_t **argv) {
     if(argc!=2)return 2;
-    DWORD parent=(DWORD)strtoul(argv[1],0,10);char name[64];
+    DWORD parent=(DWORD)wcstoul(argv[1],0,10);char name[64];
     snprintf(name,sizeof(name),"Local\\WO2097Input-%lu",(unsigned long)parent);
     HANDLE process=OpenProcess(SYNCHRONIZE,FALSE,parent);
     HANDLE mapping=OpenFileMappingA(FILE_MAP_ALL_ACCESS,FALSE,name);
@@ -26,7 +26,8 @@ int main(int argc,char **argv) {
         if(pad && !SDL_GamepadConnected(pad)) {SDL_CloseGamepad(pad);pad=NULL;}
         if(!pad) {
             int count=0;SDL_JoystickID *ids=SDL_GetGamepads(&count);
-            for(int i=0;ids && i<count && !pad;++i)pad=SDL_OpenGamepad(ids[i]);SDL_free(ids);
+            for(int i=0;ids && i<count && !pad;++i)pad=SDL_OpenGamepad(ids[i]);
+            SDL_free(ids);
             if(pad && log) {fprintf(log,"Connected: %s\n",SDL_GetGamepadName(pad));fflush(log);}
         }
         ControllerWire state={0};state.magic=CONTROLLER_MAGIC;state.timestamp=GetTickCount();state.connected=pad!=NULL;
@@ -40,6 +41,7 @@ int main(int argc,char **argv) {
         wire->x=state.x;wire->y=state.y;wire->left=state.left;wire->right=state.right;
         InterlockedIncrement(&wire->sequence);Sleep(4);
     }
-    if(pad)SDL_CloseGamepad(pad);SDL_Quit();if(log)fclose(log);
+    if(pad)SDL_CloseGamepad(pad);
+    SDL_Quit();if(log)fclose(log);
     UnmapViewOfFile(wire);CloseHandle(mapping);CloseHandle(process);return 0;
 }

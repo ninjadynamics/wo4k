@@ -1,7 +1,7 @@
 /* Bounded, allocation-free x86 exception breadcrumbs. Never recover from or
  * suppress an exception: first-chance observations may be handled elsewhere.
  * No process memory dump, paths, or raw stack contents are recorded. */
-#include "build/runtime_version.h"
+#include "wo_version.h"
 static HANDLE wo_crash_file=INVALID_HANDLE_VALUE;
 static LPTOP_LEVEL_EXCEPTION_FILTER wo_crash_previous;
 static volatile LONG wo_crash_busy,wo_crash_count;
@@ -44,9 +44,28 @@ static void wo_crash_address(const char *name,DWORD address) {
     line[n++]='\r';line[n++]='\n';
     if(wo_crash_file!=INVALID_HANDLE_VALUE)WriteFile(wo_crash_file,line,n,&written,0);
 }
+/* A corrupt EBP chain or stack slot may point anywhere. Read directly, but
+ * only when every region the bytes span is committed and readable. */
+static BOOL wo_crash_readable(DWORD address,UINT bytes) {
+    const DWORD readable=PAGE_READONLY|PAGE_READWRITE|PAGE_WRITECOPY|
+        PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY;
+    MEMORY_BASIC_INFORMATION info;UINT_PTR at=address,end,next;
+    if(!bytes || bytes-1>0xffffffffu-address)return FALSE;
+    end=(UINT_PTR)address+bytes;
+    while(at<end) {
+        if(VirtualQuery((void *)at,&info,sizeof(info))!=sizeof(info))return FALSE;
+        if(info.State!=MEM_COMMIT || (info.Protect&(PAGE_GUARD|PAGE_NOACCESS)) || !(info.Protect&readable))return FALSE;
+        next=(UINT_PTR)info.BaseAddress+info.RegionSize;
+        if(next<=at)return FALSE;
+        at=next;
+    }
+    return TRUE;
+}
 static BOOL wo_crash_read(DWORD address,void *out,UINT bytes) {
-    SIZE_T read=0;
-    return ReadProcessMemory(GetCurrentProcess(),(void *)(UINT_PTR)address,out,bytes,&read) && read==bytes;
+    const volatile BYTE *source=(const volatile BYTE *)(UINT_PTR)address;BYTE *target=out;UINT i;
+    if(!wo_crash_readable(address,bytes))return FALSE;
+    for(i=0;i<bytes;++i)target[i]=source[i];
+    return TRUE;
 }
 static BOOL wo_crash_executable(DWORD address) {
     MEMORY_BASIC_INFORMATION info;
@@ -118,7 +137,7 @@ static LONG WINAPI wo_crash_unhandled(EXCEPTION_POINTERS *exception) {
 static void wo_crash_install(const WCHAR *path) {
     wo_crash_started=GetTickCount();
     wo_crash_file=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,0,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,0);
-    wo_crash_string("mod_version",WO_MOD_VERSION);
+    wo_crash_string("mod_version",WO_VERSION_STRING);
     wo_crash_value("diagnostics_version",1,8);
     wo_crash_value("process_bits",32,8);
     wo_crash_observer=AddVectoredExceptionHandler(1,wo_crash_observe);

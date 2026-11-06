@@ -27,9 +27,13 @@ static void sim_jump(BYTE *entry,const void *target) {entry[0]=0xe9;*(LONG *)(en
 static void *sim_hook(UINT rva,const BYTE *prefix,UINT bytes,const void *target) {
     BYTE *entry=sim_image+rva;DWORD protection,ignored;
     if(!sim_equal(entry,prefix,bytes))return 0;
-    BYTE *trampoline=VirtualAlloc(0,bytes+5,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
-    if(!trampoline || !VirtualProtect(entry,bytes,PAGE_EXECUTE_READWRITE,&protection))return 0;
+    /* Never writable and executable at once: write, then seal as code. */
+    BYTE *trampoline=VirtualAlloc(0,bytes+5,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
+    if(!trampoline)return 0;
     sim_copy(trampoline,entry,bytes);sim_jump(trampoline+bytes,entry+bytes);
+    if(!VirtualProtect(trampoline,bytes+5,PAGE_EXECUTE_READ,&ignored)){VirtualFree(trampoline,0,MEM_RELEASE);return 0;}
+    FlushInstructionCache(GetCurrentProcess(),trampoline,bytes+5);
+    if(!VirtualProtect(entry,bytes,PAGE_EXECUTE_READWRITE,&protection)){VirtualFree(trampoline,0,MEM_RELEASE);return 0;}
     sim_jump(entry,target);for(UINT i=5;i<bytes;++i)entry[i]=0x90;
     VirtualProtect(entry,bytes,protection,&ignored);FlushInstructionCache(GetCurrentProcess(),entry,bytes);
     return trampoline;

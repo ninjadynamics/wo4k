@@ -46,7 +46,7 @@ static void test_native_transform_finish(BYTE *image) {
         if(*operand>=0x400000 && *operand<0xbee000)*operand+=delta;
     }
     DWORD *fade_operand=(DWORD *)((BYTE *)old_finish_transform+4),saved_fade_operand=*fade_operand;
-    if(*fade_operand!=0x919290)ExitProcess(157);*fade_operand+=delta;
+    if(*fade_operand!=0x919290)ExitProcess(157);fixture_write_code(fade_operand,*fade_operand+delta);
     const UINT globals[]={0x53f190,0x53f1a0,0x631d54,0x631d50,0xc8610,0x63f820,0x631d48,0x8f8dc};
     DWORD saved_globals[sizeof(globals)/sizeof(globals[0])];
     for(UINT i=0;i<sizeof(globals)/sizeof(globals[0]);++i)saved_globals[i]=*(DWORD *)(image+globals[i]);
@@ -96,6 +96,6 @@ static void test_native_transform_finish(BYTE *image) {
     ui_hd_pages[100]=(UiHdPage){0};ui_hd_opaque_pages[100]=(UiHdPage){0};
     for(UINT i=0;i<sizeof(globals)/sizeof(globals[0]);++i)*(DWORD *)(image+globals[i])=saved_globals[i];
     image[0x519290]=saved_fade;shadows_active=saved_shadows;exhaust_active=saved_exhaust;refresh_race=saved_race;
-    distance_execute[0]=saved_buffer;*fade_operand=saved_fade_operand;
+    distance_execute[0]=saved_buffer;fixture_write_code(fade_operand,saved_fade_operand);
     for(UINT i=0;i<sizeof(refs)/sizeof(refs[0]);++i)*(DWORD *)(image+refs[i])=saved_refs[i];
 }

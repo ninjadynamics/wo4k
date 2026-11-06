@@ -1,5 +1,5 @@
 /* Read replacements directly; source PNG files are never rewritten or cached. */
-#include "build/hd_catalog.h"
+#include "hd_catalog.h"
 static WCHAR ui_hd_game_root[MAX_PATH];
 static BOOL hd_append(WCHAR *out,UINT capacity,const WCHAR *text) {
     UINT n=0;while(n<capacity && out[n])++n;

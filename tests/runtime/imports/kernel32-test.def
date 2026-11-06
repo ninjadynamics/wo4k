@@ -1,0 +1,9 @@
+; KERNEL32 functions the 32-bit test fixtures use beyond the runtime's own
+; imports (src/runtime/imports/kernel32.def).
+LIBRARY KERNEL32.dll
+EXPORTS
+ExitProcess@4
+SetErrorMode@4
+RaiseException@16
+LoadLibraryW@4
+GetProcAddress@8

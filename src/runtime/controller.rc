@@ -1,0 +1,8 @@
+/* Version resource and manifest for the SDL3 controller host. */
+#include <winuser.h>
+#define WO_FILE_DESCRIPTION "WO4K controller host"
+#define WO_INTERNAL_NAME "wo2097-controller"
+#define WO_ORIGINAL_FILENAME "wo2097-controller.exe"
+#define WO_FILE_TYPE VFT_APP
+#include "version.rc"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "app.manifest"

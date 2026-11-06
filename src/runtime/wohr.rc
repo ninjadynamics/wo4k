@@ -1,0 +1,6 @@
+/* Version resource for the 32-bit in-process runtime (compiled for pe-i386). */
+#define WO_FILE_DESCRIPTION "WO4K game runtime"
+#define WO_INTERNAL_NAME "wohr"
+#define WO_ORIGINAL_FILENAME "wohr.dll"
+#define WO_FILE_TYPE VFT_DLL
+#include "version.rc"
