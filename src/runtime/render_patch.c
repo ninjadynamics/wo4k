@@ -68,6 +68,7 @@ static void hud_layout_finish(void);
 static void apply_race_preferences(void);
 static void finish_race_ui_effects(void);
 static void ui_hd_finish(void);
+static void ui_hd_presented(void);
 static void hd_world_finish(void);
 static BOOL ui_hd_frame_page(UINT slot);
 static float credits_motion_y;

@@ -64,9 +64,29 @@ static BOOL ui_hd_frame_art(UiHdFrameArt *art){
     art->right_inner=ui_hd_pages[3].frame_art.right_inner;
     art->right_outer=ui_hd_pages[3].frame_art.right_outer;return TRUE;
 }
+/* The game executes a frame's buffers during the NEXT present. When a race or
+ * the attract demo ends, its last frame is still queued while the menu pages
+ * load over the track's slots, and that queued frame names the replaced HD
+ * pages' texture handles. Released at once, a handle that no new texture had
+ * reused reached D3D dead: system DirectDraw faulted in D3dDrawPrimitives2
+ * (Sagarmatha frees four, the menu frame art reuses three). Keep replaced
+ * pages until a present has completed, then release them. */
+enum {UI_HD_RETIRED_COUNT=1024};
+static IUnknown *ui_hd_retired[UI_HD_RETIRED_COUNT];
+static UINT ui_hd_retired_count;
+static BOOL ui_hd_deferred_release; /* a present hook calls ui_hd_presented */
+static void ui_hd_retire(IUnknown *object) {
+    if(!object)return;
+    if(ui_hd_deferred_release && ui_hd_retired_count<UI_HD_RETIRED_COUNT){ui_hd_retired[ui_hd_retired_count++]=object;return;}
+    object->lpVtbl->Release(object);
+}
+static void ui_hd_presented(void) {
+    for(UINT i=0;i<ui_hd_retired_count;++i)ui_hd_retired[i]->lpVtbl->Release(ui_hd_retired[i]);
+    ui_hd_retired_count=0;
+}
 static void ui_hd_release(UiHdPage *page) {
-    if(page->texture)page->texture->lpVtbl->Release(page->texture);
-    if(page->surface)page->surface->lpVtbl->Release(page->surface);
+    ui_hd_retire((IUnknown *)page->texture);
+    ui_hd_retire((IUnknown *)page->surface);
     page->texture=0;page->surface=0;page->handle=0;page->width=0;
     page->frame_art.valid=FALSE;
     page->world=FALSE;
@@ -426,6 +446,7 @@ static void initialize_ui_hd(const WCHAR *root) {
     for(UINT i=0;i<=n;++i)ui_hd_game_root[i]=root[i];
     const WCHAR *suffix=L"..\\assets\\hd\\";while((*((WCHAR *)ui_hd_directory+n++)=*suffix++)) {}
     hd_load_region_index();
+    ui_hd_deferred_release=refresh_active;
     old_ui_native_load=(UiNativeLoadFn)hook(RVA_ui_native_load,entry_ui_native_load,sizeof(entry_ui_native_load),ui_native_load);
     wo_render_event("ui_hd_loader_hook",old_ui_native_load!=0);
 }

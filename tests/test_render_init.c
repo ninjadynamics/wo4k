@@ -62,6 +62,7 @@ static void fixture_write_code(DWORD *operand,DWORD value){
 #include "test_world_material_gpu.c"
 #include "test_hd_regions.c"
 #include "test_shadow_menu_motion.c"
+#include "test_hd_retire.c"
 void wo_render_event(const char *name,DWORD value){
     const char *wanted="render_race_ui_clock";while(*name && *name==*wanted){++name;++wanted;}if(!*name && !*wanted)race_ui_event=value;
 }
@@ -393,6 +394,7 @@ void __stdcall test_entry(void){
     if(refresh_present()!=123 || queued_executions!=2 || native_presents!=1 || *(UINT *)(image+0x8f8dc)!=2)ExitProcess(58);
     title_active=FALSE;title_order=0;expect_title_execute=FALSE;
     if(refresh_present()!=123 || queued_executions!=2 || native_presents!=2)ExitProcess(59);
+    test_hd_retire(image);
     WCHAR art_root[MAX_PATH];
     if(GetEnvironmentVariableW(L"WO_TEST_ART_ROOT",art_root,MAX_PATH)){
         const WCHAR *names[]={L"font-and-numbers.png",L"hud-gauges.png",L"notice.png",L"title.png"};
