@@ -1,0 +1,15 @@
+LIBRARY USER32.dll
+EXPORTS
+GetSystemMetrics@4
+GetForegroundWindow@0
+GetWindowThreadProcessId@8
+SetCursor@4
+SetClassLongA@12
+SetWindowLongA@12
+CallWindowProcA@20
+SetForegroundWindow@4
+PeekMessageA@20
+TranslateMessage@4
+DispatchMessageA@4
+PostQuitMessage@4
+ShowWindow@8

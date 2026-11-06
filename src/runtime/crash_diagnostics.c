@@ -1,7 +1,7 @@
 /* Bounded, allocation-free x86 exception breadcrumbs. Never recover from or
  * suppress an exception: first-chance observations may be handled elsewhere.
  * No process memory dump, paths, or raw stack contents are recorded. */
-#include "build/runtime_version.h"
+#include "wo_version.h"
 static HANDLE wo_crash_file=INVALID_HANDLE_VALUE;
 static LPTOP_LEVEL_EXCEPTION_FILTER wo_crash_previous;
 static volatile LONG wo_crash_busy,wo_crash_count;
@@ -118,7 +118,7 @@ static LONG WINAPI wo_crash_unhandled(EXCEPTION_POINTERS *exception) {
 static void wo_crash_install(const WCHAR *path) {
     wo_crash_started=GetTickCount();
     wo_crash_file=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ,0,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,0);
-    wo_crash_string("mod_version",WO_MOD_VERSION);
+    wo_crash_string("mod_version",WO_VERSION_STRING);
     wo_crash_value("diagnostics_version",1,8);
     wo_crash_value("process_bits",32,8);
     wo_crash_observer=AddVectoredExceptionHandler(1,wo_crash_observe);

@@ -1,0 +1,40 @@
+; Hand-made x86 import list for wohr.dll. Names carry their stdcall
+; argument size; llvm-dlltool -k strips the decoration on import.
+LIBRARY KERNEL32.dll
+EXPORTS
+GetModuleFileNameW@12
+GetModuleHandleW@4
+SetCurrentDirectoryW@4
+GetFileAttributesW@4
+GetPrivateProfileIntW@16
+WritePrivateProfileStringW@16
+GetEnvironmentVariableW@12
+VirtualAlloc@16
+VirtualFree@12
+ReadFile@20
+GetFileSizeEx@8
+VirtualProtect@16
+GetCurrentProcess@0
+FlushInstructionCache@12
+QueryPerformanceCounter@4
+QueryPerformanceFrequency@4
+Sleep@4
+CreateFileW@28
+WriteFile@20
+CloseHandle@4
+GetCurrentProcessId@0
+CreateFileMappingW@24
+MapViewOfFile@20
+CreateProcessW@40
+GetTickCount@0
+GetSystemDirectoryW@8
+WaitForSingleObject@8
+GetExitCodeProcess@8
+AddVectoredExceptionHandler@8
+RemoveVectoredExceptionHandler@4
+SetUnhandledExceptionFilter@4
+VirtualQuery@12
+ReadProcessMemory@20
+GetCurrentThreadId@0
+GlobalMemoryStatusEx@4
+FlushFileBuffers@4
