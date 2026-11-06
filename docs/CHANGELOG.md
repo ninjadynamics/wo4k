@@ -2,6 +2,12 @@
 
 ## 0.2.0-beta.3
 
+- Fix the crash when returning to the menus after a race on Sagarmatha, and
+  when the title screen's attract demo returned to the title. Replaced HD
+  artwork was freed while the race's last frame still used it.
+- Close the game cleanly when DirectX reports an error it cannot recover from
+  (some systems still lose the screen when switching back after Alt+Tab),
+  instead of crashing on the way out. The log now names the failing call.
 - Keep each game session in a single log file that works like a dashcam:
   everything from start-up until you first leave the title screen, then the
   most recent 256 KB. The game, graphics, crash, debug and video logs are
