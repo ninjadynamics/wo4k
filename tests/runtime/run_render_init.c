@@ -261,7 +261,6 @@ int main(void)
             hd_regions ? L"1" : NULL) &&
         SetEnvironmentVariableW(L"WO2097_RENDER_TEST", L"1") &&
         SetEnvironmentVariableW(L"WO2097_DISTANCE_TEST", L"1") &&
-        SetEnvironmentVariableW(L"WO2097_REFRESH_TEST", L"1") &&
         SetEnvironmentVariableW(L"WO2097_SIM60_TEST", L"0");
     /* Never an inherited bridge root: it could start the real, full-screen
      * movie player. The stand-in is set up below, for the final run only. */

@@ -1,6 +1,7 @@
-﻿/* Separate high-refresh experiment. Original simulation functions still run
- * only at30Hz; render matrices interpolate between their completed states.
- * No game pose is overwritten to manufacture an intermediate frame. */
+﻿/* High-refresh rendering, always on with the renderer. Original simulation
+ * functions still run only at 30 Hz; render matrices interpolate between
+ * their completed states. No game pose is overwritten to manufacture an
+ * intermediate frame. */
 typedef int (__cdecl *RefreshClockFn)(int);
 typedef void (__cdecl *RefreshVoidFn)(void);
 typedef const BYTE *(__cdecl *RefreshSkeletonFn)(BYTE *);
@@ -358,8 +359,6 @@ static void draw_refresh_stats(void) {
     hud_layout_finish();
 }
 static void initialize_refresh(const WCHAR *settings) {
-    WCHAR enabled[8];
-    if(!GetEnvironmentVariableW(L"WO2097_REFRESH_TEST",enabled,8) || enabled[0]!=L'1')return;
     if(!QueryPerformanceFrequency(&refresh_frequency) || !refresh_frequency.QuadPart)return;
     /* This read serves only the race/pause menu card rotations, not physics. */
     if(*(DWORD *)(game+0x2bca9)!=0x489c7c)return;
