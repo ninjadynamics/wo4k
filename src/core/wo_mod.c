@@ -175,7 +175,11 @@ static void prune_old_files(const WoMod *mod, const char *folder, uint64_t max_a
 }
 
 static bool log_name(const char *name) {
-    /* Session logs and their attachments: <operation>-<date>-...log[.*] */
+    /* Session logs and their attachments: <operation>-<date>-...log[.*].
+     * Logs of real crashes are kept for good (only --purge removes them). */
+    if (wo_str_iends_with(name, WO_LOG_CRASH_SUFFIX)) {
+        return false;
+    }
     return strstr(name, ".log") != NULL || wo_str_iends_with(name, ".txt");
 }
 

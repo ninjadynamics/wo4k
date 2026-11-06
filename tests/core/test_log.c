@@ -1,4 +1,5 @@
 #include <string.h>
+#include <windows.h>
 
 #include "core/wo_fs.h"
 #include "core/wo_log.h"
@@ -27,9 +28,11 @@ static void test_session_log(void) {
                             "adapter {01234567-89ab-cdef-0123-456789abcdef} ok\r\n";
     WoError error = {0};
     CHECK_OK(wo_write_file(game_log, game_text, strlen(game_text), &error), &error);
-    wo_log_attach("game.log", game_log, true);
+    wo_log_attach("game.log", game_log, true, WO_LOG_MAX_BYTES, NULL);
     CHECK(!wo_exists(game_log));
-    /* ANSI text and a NUL still give valid JSON; an oversized log keeps its end. */
+    /* ANSI text and a NUL still give valid JSON. Without a start marker, a
+     * long log keeps its first WO_LOG_START_MAX_BYTES and its most recent
+     * lines, like a dashcam. */
     char *big_log = wo_format(NULL, "%s\\DDrawCompat.log", dir);
     WoBuf big = {0};
     wo_buf_append_str(&big, "Ger\xE4t name\r\nnul\x01", NULL);
@@ -38,18 +41,19 @@ static void test_session_log(void) {
     char filler[1001];
     memset(filler, 'f', 1000);
     filler[1000] = 0;
-    for (int i = 0; i < 9000; i++) { /* about 9 MB, over the 8 MB limit */
+    for (int i = 0; i < 9000; i++) { /* about 9 MB */
         wo_buf_printf(&big, NULL, "%s %d\r\n", filler, i);
     }
     wo_buf_append_str(&big, "the end\r\n", NULL);
     CHECK_OK(wo_write_file(big_log, big.data, big.len, &error), &error);
     wo_buf_free(&big);
-    wo_log_attach("DDrawCompat.log", big_log, true);
+    size_t wrote = wo_log_attach("DDrawCompat.log", big_log, true, 64u << 10, NULL);
+    CHECK(wrote > 60000 && wrote <= 64u << 10);
     CHECK(!wo_exists(big_log));
     wo_free(big_log);
     char *small_log = wo_format(NULL, "%s\\video.log", dir);
     CHECK_OK(wo_write_file(small_log, "Ger\xE4t\r\n", 6, &error), &error);
-    wo_log_attach("video.log", small_log, true);
+    wo_log_attach("video.log", small_log, true, WO_LOG_MAX_BYTES, NULL);
     wo_free(small_log);
     /* Short records after long ones reuse freed buffers full of old text. */
     for (int i = 0; i < 40; i++) {
@@ -63,9 +67,13 @@ static void test_session_log(void) {
 
     char *text = NULL;
     CHECK_OK(wo_read_text(log_copy, 64u << 20, &text, &error), &error);
-    CHECK(text && strstr(text, "\"only_last_bytes\":true") != NULL);
-    CHECK(text && strstr(text, "\"event\":\"DDrawCompat.log\",\"data\":\"the end\"") != NULL);
+    CHECK(text && strstr(text, "{\"event\":\"DDrawCompat.log\",\"data\":\"Ger?t name\"}") != NULL);
+    CHECK(text && strstr(text, "fff 0\"") != NULL);    /* the start is kept */
+    CHECK(text && strstr(text, "fff 4000\"") == NULL); /* the middle is not */
+    CHECK(text && strstr(text, "\"event\":\"game_log_gap\"") != NULL);
+    CHECK(text && strstr(text, "\r\n{\"event\":\"DDrawCompat.log\",\"data\":\"the end\"}") != NULL);
     CHECK(text && strstr(text, "\"event\":\"video.log\",\"data\":\"Ger?t\"") != NULL);
+    CHECK(text && strlen(text) < WO_LOG_START_MAX_BYTES + (64u << 10) + (32u << 10));
     CHECK(text && strstr(text, "\"event\":\"session\"") != NULL);
     CHECK(text && strstr(text, "%MODROOT%\\\\wobble\\\\Wipeout2097.exe") != NULL);
     CHECK(text && strstr(text, "\"kind\":\"access\"") != NULL);
@@ -103,6 +111,80 @@ static void test_session_log(void) {
     wo_free(inside);
 }
 
+static size_t count_logs(const char *dir, const char *suffix) {
+    char *logs = wo_path_join(dir, "logs", NULL);
+    WoDirList list = {0};
+    size_t count = 0;
+    if (logs && wo_list_dir(logs, &list, NULL)) {
+        for (size_t i = 0; i < list.count; i++) {
+            count += wo_str_iends_with(list.items[i].name, suffix);
+        }
+    }
+    wo_dirlist_free(&list);
+    wo_free(logs);
+    return count;
+}
+
+/* game.log's start runs through the first title_left line; after it only
+ * the most recent lines that fit the rolling window are kept. */
+static void test_start_then_rolling(void) {
+    const char *dir = wo_test_dir("log-rolling");
+    if (!dir) {
+        return;
+    }
+    CHECK(wo_log_start("unit", dir));
+    char *game_log = wo_format(NULL, "%s\\game.log", dir);
+    WoBuf text = {0};
+    wo_buf_append_str(&text, "boot a t=1\r\nboot b t=2\r\ntitle_left 1 t=3\r\n", NULL);
+    for (int i = 0; i < 5000; i++) {
+        wo_buf_printf(&text, NULL, "race %d t=%d\r\n", i, 100 + i);
+    }
+    WoError error = {0};
+    CHECK_OK(wo_write_file(game_log, text.data, text.len, &error), &error);
+    wo_buf_free(&text);
+    size_t wrote = wo_log_attach("game.log", game_log, true, 8u << 10, "title_left ");
+    CHECK(wrote > 0 && wrote <= 8u << 10);
+    char *path = wo_strdup(wo_log_path(), NULL);
+    wo_log_mark_crash(); /* a crash: renamed at once, kept for good */
+    CHECK(wo_str_iends_with(wo_log_path(), WO_LOG_CRASH_SUFFIX) && wo_exists(wo_log_path()));
+    CHECK(!wo_exists(path));
+    char *crash = wo_strdup(wo_log_path(), NULL);
+    wo_log_end();
+    char *saved = NULL;
+    CHECK_OK(wo_read_text(crash, 1 << 20, &saved, &error), &error);
+    CHECK(saved && strstr(saved, "{\"event\":\"game.log\",\"data\":\"boot a t=1\"}") != NULL);
+    CHECK(saved && strstr(saved, "\"data\":\"title_left 1 t=3\"") != NULL);
+    CHECK(saved && strstr(saved, "\"data\":\"race 0 t=100\"") == NULL);
+    CHECK(saved && strstr(saved, "\"data\":\"race 4999 t=5099\"") != NULL);
+    CHECK(saved && strstr(saved, "\"lines_omitted\"") != NULL);
+    wo_free(saved);
+    wo_free(crash);
+    wo_free(path);
+    wo_free(game_log);
+}
+
+/* Clean sessions become .ok.log, and only the newest two are kept; a crash
+ * log is not counted among them. --purge removes everything. */
+static void test_clean_sessions_and_purge(void) {
+    const char *dir = wo_test_dir("log-clean");
+    if (!dir) {
+        return;
+    }
+    CHECK(wo_log_start("unit", dir));
+    wo_log_mark_crash();
+    wo_log_end();
+    for (int i = 0; i < 4; i++) {
+        Sleep(5); /* distinct millisecond time stamps in the names */
+        CHECK(wo_log_start("unit", dir));
+        wo_log_text("clean", "nothing went wrong");
+        wo_log_end();
+    }
+    CHECK(count_logs(dir, WO_LOG_CLEAN_SUFFIX) == 2);
+    CHECK(count_logs(dir, WO_LOG_CRASH_SUFFIX) == 1);
+    CHECK(wo_log_purge(dir) >= 3);
+    CHECK(count_logs(dir, ".log") == 0);
+}
+
 static void test_timestamp_format(void) {
     char stamp[40];
     wo_log_timestamp(stamp);
@@ -120,6 +202,8 @@ static void test_system_info(void) {
 
 int main(void) {
     RUN(test_session_log);
+    RUN(test_start_then_rolling);
+    RUN(test_clean_sessions_and_purge);
     RUN(test_timestamp_format);
     RUN(test_system_info);
     return wo_test_finish();

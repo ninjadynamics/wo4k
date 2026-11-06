@@ -2,22 +2,28 @@
 
 #include <dxgi.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/wo_fs.h"
 #include "core/wo_win.h"
 #include "wo_version.h"
 
-#define ATTACHMENT_MAX_BYTES (8u << 20)
-
+/* Read limit for an attached log; longer sessions lose their beginning. */
+#define ATTACHMENT_READ_MAX_BYTES (32u << 20)
+/* Clean sessions kept per operation (play, setup). */
+#define CLEAN_LOGS_KEPT 2
 
 static SRWLOCK log_lock = SRWLOCK_INIT;
 static HANDLE log_file = INVALID_HANDLE_VALUE;
 static char *log_path;
+static char *log_operation; /* "play", "setup": the file name's prefix */
 static char *log_root;
 static char *log_profile;
 static char *log_temp;
 static uint64_t log_started; /* FILETIME ticks, UTC */
+static uint64_t log_bytes;   /* written to log_file so far */
+static bool log_keep;        /* a failure was logged, or the caller asked */
 static bool log_system_written;
 
 static uint64_t now_ticks(void) {
@@ -109,7 +115,10 @@ bool wo_log_start(const char *operation, const char *mod_root) {
     wo_log_end();
     AcquireSRWLockExclusive(&log_lock);
     log_started = now_ticks();
+    log_bytes = 0;
+    log_keep = false;
     log_system_written = false;
+    log_operation = wo_strdup(operation, NULL);
     log_root = wo_path_full(mod_root, NULL);
     log_profile = env_path(L"USERPROFILE");
     log_temp = env_path(L"TEMP");
@@ -152,8 +161,106 @@ bool wo_log_start(const char *operation, const char *mod_root) {
     return ok;
 }
 
+static size_t purge_folder(const char *folder) {
+    WoDirList entries = {0};
+    size_t removed = 0;
+    if (folder && wo_list_dir(folder, &entries, NULL)) {
+        for (size_t i = 0; i < entries.count; i++) {
+            const WoDirEntry *entry = &entries.items[i];
+            if (entry->is_dir || entry->is_link) {
+                continue;
+            }
+            char *path = wo_path_join(folder, entry->name, NULL);
+            if (path && wo_delete_file(path, NULL)) {
+                removed++;
+            }
+            wo_free(path);
+        }
+    }
+    wo_dirlist_free(&entries);
+    return removed;
+}
+
+size_t wo_log_purge(const char *mod_root) {
+    char *root = wo_path_full(mod_root, NULL);
+    char *logs = root ? wo_path_join(root, "logs", NULL) : NULL;
+    char *temp = env_path(L"TEMP");
+    char *fallback = temp ? wo_path_join(temp, "WO4K\\logs", NULL) : NULL;
+    size_t removed = purge_folder(logs) + purge_folder(fallback);
+    wo_free(fallback);
+    wo_free(temp);
+    wo_free(logs);
+    wo_free(root);
+    return removed;
+}
+
 const char *wo_log_path(void) {
     return log_path;
+}
+
+uint64_t wo_log_size(void) {
+    return log_bytes;
+}
+
+/* <base>.log -> <base><suffix>, renaming the open file (it is shared for
+ * deletion, which allows that). */
+static void rename_log(const char *suffix) {
+    size_t len = strlen(log_path);
+    if (len < 4 || !wo_str_iends_with(log_path, ".log")) {
+        return;
+    }
+    char *renamed = wo_format(NULL, "%.*s%s", (int)(len - 4), log_path, suffix);
+    if (renamed && wo_move(log_path, renamed, NULL)) {
+        wo_free(log_path);
+        log_path = renamed;
+    } else {
+        wo_free(renamed);
+    }
+}
+
+void wo_log_mark_crash(void) {
+    AcquireSRWLockExclusive(&log_lock);
+    log_keep = true;
+    if (log_path && !wo_str_iends_with(log_path, WO_LOG_CRASH_SUFFIX)) {
+        rename_log(WO_LOG_CRASH_SUFFIX);
+    }
+    ReleaseSRWLockExclusive(&log_lock);
+}
+
+static int compare_names(const void *a, const void *b) {
+    return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+/* Delete all but the newest CLEAN_LOGS_KEPT clean logs of this operation.
+ * Names start with <operation>-<yyyymmdd-hhmmss-mmm>, so they sort by age. */
+static void prune_clean_logs(void) {
+    char *folder = wo_path_parent(log_path, NULL);
+    char *prefix = wo_format(NULL, "%s-", log_operation ? log_operation : "");
+    WoDirList entries = {0};
+    WoStrList clean = {0};
+    if (folder && prefix && wo_list_dir(folder, &entries, NULL)) {
+        for (size_t i = 0; i < entries.count; i++) {
+            const WoDirEntry *entry = &entries.items[i];
+            if (!entry->is_dir && !entry->is_link && wo_str_istarts_with(entry->name, prefix) &&
+                wo_str_iends_with(entry->name, WO_LOG_CLEAN_SUFFIX)) {
+                wo_strlist_push(&clean, entry->name, NULL);
+            }
+        }
+    }
+    if (clean.count > CLEAN_LOGS_KEPT) {
+        qsort(clean.items, clean.count, sizeof(*clean.items), compare_names);
+        for (size_t i = 0; i + CLEAN_LOGS_KEPT < clean.count; i++) {
+            char *path = wo_path_join(folder, clean.items[i], NULL);
+            if (path) {
+                wo_delete_file(path, NULL);
+            }
+            wo_free(path);
+        }
+    }
+    wo_strlist_free(&clean);
+    wo_dirlist_free(&entries);
+    wo_free(prefix);
+    wo_free(folder);
 }
 
 void wo_log_end(void) {
@@ -161,7 +268,14 @@ void wo_log_end(void) {
     if (log_file != INVALID_HANDLE_VALUE) {
         CloseHandle(log_file);
         log_file = INVALID_HANDLE_VALUE;
+        /* Crashes and failures keep their log; clean sessions only the last few. */
+        if (!log_keep && log_path) {
+            rename_log(WO_LOG_CLEAN_SUFFIX);
+            prune_clean_logs();
+        }
     }
+    wo_free(log_operation);
+    log_operation = NULL;
     wo_free(log_path);
     wo_free(log_root);
     wo_free(log_profile);
@@ -228,22 +342,25 @@ static void write_line(const char *line) {
     if (log_file != INVALID_HANDLE_VALUE) {
         size_t len = strlen(line);
         DWORD wrote = 0;
-        if (len < UINT32_MAX) {
-            WriteFile(log_file, line, (DWORD)len, &wrote, NULL);
+        if (len < UINT32_MAX && WriteFile(log_file, line, (DWORD)len, &wrote, NULL)) {
+            log_bytes += wrote;
         }
     }
     ReleaseSRWLockExclusive(&log_lock);
 }
 
-void wo_log_event(const char *event, WoJson *data) {
+/* Attached log lines carry their own timing, so they are written untimed. */
+static void log_record(const char *event, WoJson *data, bool timed) {
     if (log_file == INVALID_HANDLE_VALUE) {
         wo_json_free(data);
         return;
     }
-    char stamp[40];
-    wo_log_timestamp(stamp);
     WoJson *entry = wo_json_new_object();
-    wo_json_put_str(entry, "time", stamp);
+    if (timed) {
+        char stamp[40];
+        wo_log_timestamp(stamp);
+        wo_json_put_str(entry, "time", stamp);
+    }
     wo_json_put_str(entry, "event", event);
     wo_json_put(entry, "data", data ? data : wo_json_new_null());
     WoBuf line = {0};
@@ -258,6 +375,10 @@ void wo_log_event(const char *event, WoJson *data) {
     }
     wo_buf_free(&line);
     wo_json_free(entry);
+}
+
+void wo_log_event(const char *event, WoJson *data) {
+    log_record(event, data, true);
 }
 
 void wo_log_text(const char *event, const char *text) {
@@ -276,6 +397,7 @@ static const char *kind_name(WoErrorKind kind) {
 }
 
 void wo_log_failure(const char *stage, const WoError *error) {
+    log_keep = true;
     WoJson *data = wo_json_new_object();
     wo_json_put_str(data, "stage", stage);
     wo_json_put_str(data, "message", error ? error->message : "");
@@ -493,16 +615,16 @@ static size_t utf8_length(const unsigned char *s, size_t left) {
     return n;
 }
 
-/* The whole log, or its last ATTACHMENT_MAX_BYTES from the first complete
- * line when it is larger: the end matters most. NUL bytes become spaces. */
-static char *read_log(const char *path, bool *truncated, WoError *error) {
+/* The whole log, or its last max_bytes from the first complete line when it
+ * is larger: the end matters most. NUL bytes become spaces. */
+static char *read_log(const char *path, size_t max_bytes, bool *truncated, WoError *error) {
     *truncated = false;
     WoFile *file = NULL;
     if (!wo_file_open_read(path, &file, error)) {
         return NULL;
     }
     uint64_t size = wo_file_size(file);
-    uint64_t offset = size > ATTACHMENT_MAX_BYTES ? size - ATTACHMENT_MAX_BYTES : 0;
+    uint64_t offset = size > max_bytes ? size - max_bytes : 0;
     size_t len = (size_t)(size - offset);
     char *text = wo_alloc(len + 1, error);
     bool ok = text && (len == 0 || wo_file_read_at(file, offset, text, len, error));
@@ -529,39 +651,58 @@ static char *read_log(const char *path, bool *truncated, WoError *error) {
     return text;
 }
 
-void wo_log_attach(const char *name, const char *path, bool current_session_only) {
+/* Bytes a JSON string takes once escaped, without its quotes. */
+static size_t json_string_size(const char *text) {
+    size_t size = 0;
+    for (const unsigned char *s = (const unsigned char *)text; *s; s++) {
+        size += (*s == '"' || *s == '\\' || *s == '\n' || *s == '\r' || *s == '\t') ? 2
+                : *s < 0x20                                                          ? 6
+                                                                                     : 1;
+    }
+    return size;
+}
+
+/* Indexes [first, count) of the most recent lines whose records fit budget. */
+static size_t recent_lines(const WoStrList *lines, size_t from, size_t overhead, size_t budget) {
+    size_t first = lines->count;
+    size_t used = 0;
+    while (first > from) {
+        size_t record = overhead + json_string_size(lines->items[first - 1]);
+        if (used + record > budget) {
+            break;
+        }
+        used += record;
+        first--;
+    }
+    return first;
+}
+
+size_t wo_log_attach(const char *name, const char *path, bool current_session_only,
+                     size_t rolling_bytes, const char *start_marker) {
     if (!log_path) {
-        return;
+        return 0;
     }
     WoFileInfo info;
     if (!wo_stat(path, &info, NULL) || !info.exists || info.is_dir) {
-        return;
+        return 0;
     }
     /* File times come from a coarse clock; allow two seconds of slack. */
     uint64_t slack = 2ull * 10000000ull;
     if (current_session_only && info.mtime + slack < log_started) {
-        return;
+        return 0;
     }
     WoError error = {0};
     bool truncated = false;
-    char *text = read_log(path, &truncated, &error);
+    char *text = read_log(path, ATTACHMENT_READ_MAX_BYTES, &truncated, &error);
     if (!text) {
         WoJson *data = wo_json_new_object();
         wo_json_put_str(data, "file", name);
         wo_json_put_str(data, "message", error.message);
         wo_log_event("game_log_unavailable", data);
-        return;
+        return 0;
     }
-    WoJson *header = wo_json_new_object();
-    wo_json_put_str(header, "file", name);
-    wo_json_put_int(header, "bytes", (int64_t)info.size);
-    if (truncated) {
-        wo_json_put_bool(header, "only_last_bytes", true);
-    }
-    wo_log_event("game_log", header);
-    /* One event per line, named after the file; wo_log_event redacts paths. */
+    WoStrList lines = {0};
     WoBuf clean = {0};
-    size_t lines = 0;
     const char *line = text;
     while (*line) {
         const char *end = line + strcspn(line, "\n");
@@ -585,17 +726,58 @@ void wo_log_attach(const char *name, const char *path, bool current_session_only
                 }
             }
             if (wo_buf_terminate(&clean, NULL)) {
-                wo_log_text(name, (const char *)clean.data);
-                lines++;
+                wo_strlist_push(&lines, (const char *)clean.data, NULL);
             }
         }
         line = *end ? end + 1 : end;
     }
     wo_buf_free(&clean);
     wo_free(text);
-    WoJson *footer = wo_json_new_object();
-    wo_json_put_str(footer, "file", name);
-    wo_json_put_int(footer, "lines", (int64_t)lines);
-    wo_log_event("game_log_end", footer);
+    /* Like a dashcam: start-up in full (through the first start_marker line,
+     * or everything when there is none, up to WO_LOG_START_MAX_BYTES), then
+     * the most recent lines that fit rolling_bytes. */
+    size_t overhead = sizeof("{\"event\":\"\",\"data\":\"\"}\r\n") - 1 + json_string_size(name);
+    size_t start_end = lines.count;
+    if (start_marker && !truncated) {
+        for (size_t i = 0; i < lines.count; i++) {
+            if (wo_str_starts_with(lines.items[i], start_marker)) {
+                start_end = i + 1;
+                break;
+            }
+        }
+    } else if (truncated) {
+        start_end = 0; /* the beginning was beyond what could be read */
+    }
+    size_t kept_start = 0;
+    size_t start_bytes = 0;
+    while (kept_start < start_end) {
+        size_t record = overhead + json_string_size(lines.items[kept_start]);
+        if (start_bytes + record > WO_LOG_START_MAX_BYTES) {
+            break;
+        }
+        start_bytes += record;
+        kept_start++;
+    }
+    size_t first = recent_lines(&lines, kept_start, overhead, rolling_bytes);
+    WoJson *header = wo_json_new_object();
+    wo_json_put_str(header, "file", name);
+    wo_json_put_int(header, "bytes", (int64_t)info.size);
+    wo_json_put_int(header, "lines", (int64_t)(kept_start + lines.count - first));
+    wo_log_event("game_log", header);
+    for (size_t i = 0; i < kept_start; i++) {
+        log_record(name, wo_json_new_string(lines.items[i]), false);
+    }
+    if (truncated || first > kept_start) {
+        WoJson *gap = wo_json_new_object();
+        wo_json_put_str(gap, "file", name);
+        wo_json_put_int(gap, "lines_omitted", (int64_t)(first - kept_start));
+        log_record("game_log_gap", gap, false);
+    }
+    uint64_t before = log_bytes;
+    for (size_t i = first; i < lines.count; i++) {
+        log_record(name, wo_json_new_string(lines.items[i]), false);
+    }
+    wo_strlist_free(&lines);
     wo_delete_file(path, NULL);
+    return (size_t)(log_bytes - before);
 }

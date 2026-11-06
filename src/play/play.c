@@ -28,6 +28,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
 typedef struct PlayOptions {
     bool refresh_only;
     bool no_dialog;
+    bool purge; /* --purge: delete every log, crash logs included, and exit */
     char *root; /* --root <dir> (testing), else NULL for the EXE's folder */
 } PlayOptions;
 
@@ -39,6 +40,8 @@ static void parse_arguments(PlayOptions *options) {
             options->refresh_only = true;
         } else if (wcscmp(argv[i], L"--no-error-dialog") == 0) {
             options->no_dialog = true;
+        } else if (wcscmp(argv[i], L"--purge") == 0) {
+            options->purge = true;
         } else if (wcscmp(argv[i], L"--root") == 0 && i + 1 < argc && !options->root) {
             i++;
             char *given = wo_utf8(argv[i], NULL);
@@ -246,26 +249,46 @@ static void log_crash_event(DWORD pid, FILETIME started) {
                 "breadcrumbs may still identify the fault.");
 }
 
+/* The game's own logs go into the session log: each one's start in full,
+ * then a share of the rolling window for its most recent lines. game.log
+ * comes last, so it gets whatever the small logs leave of the window, and
+ * its start runs until the player first leaves the title screen. */
 static void save_game_logs(const WoMod *mod) {
-    static const char *const game_logs[] = {"Debug.txt", "DDrawCompat-Wipeout2097.log"};
-    static const char *const mod_logs[] = {"game.log",       "game-crash.log",  "game-debug.txt",
-                                           "video-intro.log", "video-xtro1.log", "video-xtro2.log",
-                                           "video-xtro3.log", "video-xtro4.log", "video-error.log"};
-    for (size_t i = 0; i < WO_COUNT(game_logs); i++) {
-        char *path = wo_mod_game_path(mod, game_logs[i], NULL);
-        if (path) {
-            wo_log_attach(game_logs[i], path, true);
-        }
-        wo_free(path);
-    }
-    for (size_t i = 0; i < WO_COUNT(mod_logs); i++) {
-        char *relative = wo_format(NULL, "logs/%s", mod_logs[i]);
-        char *path = relative ? wo_mod_path(mod, relative, NULL) : NULL;
-        if (path) {
-            wo_log_attach(mod_logs[i], path, true);
-        }
-        wo_free(path);
+    static const struct {
+        const char *name;
+        bool in_game_folder;
+        const char *start_marker;
+    } logs[] = {{"game-crash.log", false, NULL},  {"game-debug.txt", false, NULL},
+                {"Debug.txt", true, NULL},        {"DDrawCompat-Wipeout2097.log", true, NULL},
+                {"video-intro.log", false, NULL}, {"video-xtro1.log", false, NULL},
+                {"video-xtro2.log", false, NULL}, {"video-xtro3.log", false, NULL},
+                {"video-xtro4.log", false, NULL}, {"video-error.log", false, NULL},
+                {"game.log", false, "title_left "}};
+    char *paths[WO_COUNT(logs)] = {0};
+    size_t present = 0;
+    for (size_t i = 0; i < WO_COUNT(logs); i++) {
+        char *relative = logs[i].in_game_folder ? NULL : wo_format(NULL, "logs/%s", logs[i].name);
+        paths[i] = logs[i].in_game_folder ? wo_mod_game_path(mod, logs[i].name, NULL)
+                   : relative             ? wo_mod_path(mod, relative, NULL)
+                                          : NULL;
         wo_free(relative);
+        if (paths[i] && wo_is_file(paths[i])) {
+            present++;
+        } else {
+            wo_free(paths[i]);
+            paths[i] = NULL;
+        }
+    }
+    size_t left = WO_LOG_MAX_BYTES;
+    for (size_t i = 0; i < WO_COUNT(logs); i++) {
+        if (!paths[i]) {
+            continue;
+        }
+        size_t wrote = wo_log_attach(logs[i].name, paths[i], true, left / present,
+                                     logs[i].start_marker);
+        left -= wrote < left ? wrote : left;
+        present--;
+        wo_free(paths[i]);
     }
 }
 
@@ -366,6 +389,8 @@ static int run_game(const WoMod *mod, WoLaps *laps, WoError *error) {
     }
     wo_log_event("game_exit", exit_data);
     if (code != 0) {
+        /* Renamed before the failure message shows the log's path. */
+        wo_log_mark_crash();
         log_crash_event(process.dwProcessId, started);
         char *description = exit_description(code);
         wo_fail(error, WO_ERR_INTERNAL, "%s", description ? description : "The game exited with an error.");
@@ -398,6 +423,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
         MessageBoxW(NULL, L"Play could not determine the WO4K folder.", L"WO4K", MB_OK | MB_ICONERROR);
         wo_free(root);
         return 1;
+    }
+    if (options.purge) {
+        size_t removed = wo_log_purge(root);
+        if (!options.no_dialog) {
+            wchar_t text[96];
+            _snwprintf(text, WO_COUNT(text) - 1, L"Deleted %lu WO4K log file%ls.",
+                       (unsigned long)removed, removed == 1 ? L"" : L"s");
+            text[WO_COUNT(text) - 1] = 0;
+            MessageBoxW(NULL, text, L"WO4K", MB_OK | MB_ICONINFORMATION);
+        }
+        wo_mod_free(&mod);
+        wo_free(root);
+        return 0;
     }
     wo_log_start("play", root);
     wo_json_put(laps.fields, "process_start_ms", wo_json_new_number(process_start_ms));

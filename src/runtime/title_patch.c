@@ -19,11 +19,14 @@ static DWORD __cdecl title_clock_frame(void) {
 __attribute__((naked)) static void title_input(void) {
     __asm__ volatile("pushal\n\tcall _title_clock_frame\n\tmovl %eax,16(%esp)\n\tpopal\n\tjmp *_old_title_input");
 }
+static UINT title_left_count;
 static void __cdecl title_screen(void) {
     movie_before_title();
     title_active=TRUE;title_clock_started=FALSE;
     old_title_screen();
     title_active=FALSE;title_clock_started=FALSE;
+    /* The first one ends start-up in Play's report; later lines roll. */
+    wo_render_event("title_left",++title_left_count);
 }
 static void initialize_title(void) {
     static const BYTE entry[]={0x81,0xec,0x00,0x01,0x00,0x00};

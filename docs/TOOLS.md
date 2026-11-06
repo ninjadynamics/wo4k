@@ -10,6 +10,7 @@ refreshing assets) is built into them.
 Play.exe --refresh-only       :: check and repair the installation, then exit
 Play.exe --no-error-dialog    :: report failures only in logs\
 Play.exe --root <folder>      :: use the installation in another mod folder
+Play.exe --purge              :: delete every log, crash logs included, and exit
 ```
 
 Setting the environment variable `WO2097_VIDEO_PREPARE=0` before starting Play

@@ -256,8 +256,10 @@ Repairs stage an installation before replacing it and preserve saves and
 preferences. WO4K keeps its disk use bounded: `backups/` holds the most recent
 previous game installation (without its music, which Repair rebuilds from your
 sources) and the three most recent update backups. Successful install sessions
-are removed from `.work/` straight away, other leftovers there after 7 days,
-and logs after 30 days. Installed game files, private work, logs, backups,
+are removed from `.work/` straight away, other leftovers there after 7 days.
+Logs are kept as described under [logs](#source-tools-and-builds): crash logs
+for good, other failure logs for 30 days, and the last two clean sessions.
+Installed game files, private work, logs, backups,
 exports and `dist/` release artifacts are excluded from Git. Keep the mod
 folder together when moving it.
 
@@ -279,10 +281,21 @@ packages the distributable ZIP, checksum and file inventory under `dist/`.
 Pushing a matching version tag triggers the GitHub Actions release workflow,
 which publishes the release; a normal branch push builds and tests only. GitHub's generated source archives are not update packages.
 
-Every launch, installation and update writes a local diagnostic log in `logs/`.
+Every launch, installation and update writes a local diagnostic log in `logs/`,
+one file per session, which works like a dashcam: it holds everything from
+start-up until you first leave the title screen, then the most recent 256 KB.
+What is kept depends on how the session went:
+
+| Session | Log | Kept |
+| --- | --- | --- |
+| The game crashed | `play-….crash.log` | Always, until you delete it |
+| Another failure (install, update, launch) | `….log` | 30 days |
+| Nothing went wrong | `….ok.log` | The two most recent of each kind |
+
 If an operation fails, a popup shows the exact log location; launch failures
 include the Windows error or game exit code. If the mod folder is unwritable,
-the popup points to a fallback log under `%TEMP%/WO4K`.
+the popup points to a fallback log under `%TEMP%/WO4K`. `Play.exe --purge`
+deletes every log, crash logs included.
 
 Support logs include Windows edition/build/architecture, CPU model and core
 counts, RAM capacity, GPU model/driver, and the mod version and startup stages.
@@ -290,10 +303,10 @@ They do not query machine/account names, serial numbers, UUIDs, MAC/IP addresses
 or hardware device IDs. Common personal paths are redacted. Logs stay local and
 are never uploaded automatically. Review them before sharing.
 
-For a game crash, share the **`play-*.log` shown in the popup**: each game
-session is a single file. When the game exits, Play adds the session's
-complete game, graphics, native exception, debug and video logs to it, one
-line per entry, and removes the separate files. Play records the game's exit code and peak
+For a game crash, share the **`play-….crash.log` shown in the popup**: it is the
+whole report. When the game exits, Play adds the session's game, graphics,
+native exception, debug and video logs to it, one line per entry, and removes
+the separate files. Play records the game's exit code and peak
 memory use, the size and signature status of each runtime file and the relevant
 settings, and checks Windows Application Error events for the same child process. Native fault reports distinguish first-chance
 observations (which may be handled) from unhandled exceptions and record the
