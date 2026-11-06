@@ -5,6 +5,9 @@ static UINT dx_error_native_calls;
 static char dx_error_long[200];
 static void __cdecl fixture_dx_error(void){++dx_error_native_calls;}
 static const char *__cdecl fixture_dx_error_text(HRESULT result){(void)result;return dx_error_long;}
+static UINT dx_restore_calls;
+static HRESULT dx_restore_result;
+static HRESULT WINAPI fixture_dx_restore(IDirectDrawSurface *surface){(void)surface;++dx_restore_calls;return dx_restore_result;}
 static void test_dx_error(BYTE *image){
     if(!old_dx_error || !old_dx_error_text || image[RVA_dx_error]!=0xe9 || image[RVA_dx_error_text]!=0xe9)ExitProcess(189);
     if(image+RVA_dx_error+5+*(LONG *)(image+RVA_dx_error+1)!=(BYTE *)dx_error)ExitProcess(190);
@@ -20,5 +23,27 @@ static void test_dx_error(BYTE *image){
     *result=0;((RefreshVoidFn)(image+RVA_dx_error))();
     *result=(HRESULT)0x887601c2;*line=1573;((RefreshVoidFn)(image+RVA_dx_error))();
     if(dx_error_native_calls!=2)ExitProcess(209); /* every call still reaches the game's handler */
+    /* A lost primary at the Flip drops the frame instead of quitting: after
+     * a Restore, or while DDrawCompat says the game is not the active
+     * fullscreen window; the next good Flip ends the episode. */
+    static IDirectDrawSurfaceVtbl primary_vtable={.Restore=fixture_dx_restore};
+    IDirectDrawSurface primary={&primary_vtable};
+    IDirectDrawSurface **primary_slot=(IDirectDrawSurface **)(image+0x8f8d8),*saved_primary=*primary_slot;
+    *primary_slot=&primary;dx_error_native_calls=0;
+    const HRESULT restores[2]={0,(HRESULT)0x887600e1};
+    for(UINT i=0;i<2;++i){
+        dx_restore_result=restores[i];*result=(HRESULT)0x887601c2;*line=1573;
+        ((RefreshVoidFn)(image+RVA_dx_error))();
+        if(dx_error_native_calls || *result || dx_restore_calls!=i+1 || dx_error_dropped!=i+1)ExitProcess(243);
+    }
+    *result=0;((RefreshVoidFn)(image+RVA_dx_error))();
+    if(dx_error_native_calls!=1 || dx_error_dropped)ExitProcess(244);
+    /* Any other Restore failure, or a lost surface elsewhere, stays fatal. */
+    dx_restore_result=(HRESULT)0x80004005;*result=(HRESULT)0x887601c2;
+    ((RefreshVoidFn)(image+RVA_dx_error))();
+    if(dx_error_native_calls!=2 || *result!=(HRESULT)0x887601c2)ExitProcess(245);
+    *line=1667;((RefreshVoidFn)(image+RVA_dx_error))();
+    if(dx_error_native_calls!=3 || dx_restore_calls!=3)ExitProcess(246);
+    *primary_slot=saved_primary;dx_error_dropped=dx_error_streak=0;
     *result=saved_result;*line=saved_line;old_dx_error=native;old_dx_error_text=native_text;
 }
