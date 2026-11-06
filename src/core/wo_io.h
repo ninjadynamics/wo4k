@@ -30,4 +30,8 @@ bool wo_source_read_alloc(const WoSource *source, uint64_t offset, size_t len, s
                           uint8_t **out, WoError *error);
 void wo_source_close(WoSource *source);
 
+/* Receives produced bytes in order (an extractor's output); returning false
+ * stops the producer and passes that error on. */
+typedef bool (*WoSinkFn)(void *context, const void *data, size_t len, WoError *error);
+
 #endif

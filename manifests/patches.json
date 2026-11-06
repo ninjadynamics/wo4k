@@ -6,12 +6,12 @@
                         {
                             "source_sha256":  "bb998d2b3ee810852a801e4216250396212d7fa25966cdd811fba6c64e92514d",
                             "source_size":  752128,
-                            "patch":  "patches/exe-bb998d2b3ee8.wodiff"
+                            "patch":  "patches/exe-bb998d2b3ee8.json"
                         },
                         {
                             "source_sha256":  "f70b5caa39361cd73fbf4f26192f5fe38c9a1c4299bb3388f0334a2ec0b02efd",
                             "source_size":  769024,
-                            "patch":  "patches/exe-f70b5caa3936.wodiff"
+                            "patch":  "patches/exe-f70b5caa3936.json"
                         }
                     ],
     "audio":  [
