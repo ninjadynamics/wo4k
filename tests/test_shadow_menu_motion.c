@@ -5,7 +5,7 @@ static void shadow_menu_relocate(BYTE *image){
     for(UINT i=0;i<sizeof(native_shadow_menu_refs)/sizeof(native_shadow_menu_refs[0]);++i){
         UINT rva=native_shadow_menu_refs[i].rva;
         DWORD *operand=rva==RVA_draw_shadow+2?(DWORD *)((BYTE *)old_draw_shadow+2):(DWORD *)(image+rva);
-        if(*operand==native_shadow_menu_refs[i].expected)*operand+=delta;
+        if(*operand==native_shadow_menu_refs[i].expected)fixture_write_code(operand,*operand+delta);
         else if(*operand!=native_shadow_menu_refs[i].expected+delta)ExitProcess(221);
     }
 }

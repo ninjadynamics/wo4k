@@ -88,10 +88,13 @@ static void jump(BYTE *at,const void *to) {at[0]=0xe9;*(LONG *)(at+1)=(LONG)((co
 static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) {
     BYTE *entry=game+rva,*trampoline;DWORD protection,ignored;
     if(!equal(entry,expected,n))return 0;
-    trampoline=VirtualAlloc(0,n+5,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
+    /* Never writable and executable at once: write, then seal as code. */
+    trampoline=VirtualAlloc(0,n+5,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
     if(!trampoline)return 0;
     copy(trampoline,entry,n);jump(trampoline+n,entry+n);
-    if(!VirtualProtect(entry,n,PAGE_EXECUTE_READWRITE,&protection))return 0;
+    if(!VirtualProtect(trampoline,n+5,PAGE_EXECUTE_READ,&ignored)){VirtualFree(trampoline,0,MEM_RELEASE);return 0;}
+    FlushInstructionCache(GetCurrentProcess(),trampoline,n+5);
+    if(!VirtualProtect(entry,n,PAGE_EXECUTE_READWRITE,&protection)){VirtualFree(trampoline,0,MEM_RELEASE);return 0;}
     jump(entry,replacement);for(UINT i=5;i<n;++i)entry[i]=0x90;
     VirtualProtect(entry,n,protection,&ignored);
     FlushInstructionCache(GetCurrentProcess(),entry,n);

@@ -44,6 +44,14 @@ static void fixture_logo_poly(BYTE *p,BOOL second){
     *(SHORT *)(p+10)=*(SHORT *)(p+18)=76;*(SHORT *)(p+26)=*(SHORT *)(p+34)=140;
     p[20]=p[36]=(BYTE)width;p[13]=p[21]=(BYTE)top;p[29]=p[37]=(BYTE)(top+64);
 }
+/* Production trampolines are sealed PAGE_EXECUTE_READ. Relocate operands
+ * copied into them the way a loader would: briefly writable, then sealed. */
+static void fixture_write_code(DWORD *operand,DWORD value){
+    DWORD protection,ignored;
+    if(!VirtualProtect(operand,sizeof(*operand),PAGE_EXECUTE_READWRITE,&protection))ExitProcess(247);
+    *operand=value;VirtualProtect(operand,sizeof(*operand),protection,&ignored);
+    FlushInstructionCache(GetCurrentProcess(),operand,sizeof(*operand));
+}
 #include "test_menu_frame.c"
 #include "test_menu_art_alignment.c"
 #include "test_hud_layout.c"
@@ -291,7 +299,8 @@ void __stdcall test_entry(void){
         DWORD *operand=(DWORD *)(image+native_font_refs[i]);
         if(*operand>=0x400000 && *operand<0xbee000)*operand+=(DWORD)(UINT_PTR)image-0x400000;
     }
-    *(DWORD *)((BYTE *)old_scaled_vertex+7)+=(DWORD)(UINT_PTR)image-0x400000;
+    DWORD *scaled_vertex_data=(DWORD *)((BYTE *)old_scaled_vertex+7);
+    fixture_write_code(scaled_vertex_data,*scaled_vertex_data+(DWORD)(UINT_PTR)image-0x400000);
     ((void (__cdecl *)(void))(image+0xb610))();
     BYTE *native_vertices=VirtualAlloc(0,0x40000,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
     if(!native_vertices)ExitProcess(54);

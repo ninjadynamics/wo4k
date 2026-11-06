@@ -10,7 +10,7 @@ static void test_menu_frame(BYTE *image,BYTE *buffer){
     }
     DWORD *vertex_data=(DWORD *)((BYTE *)old_vertex+7);
     if(*vertex_data!=0xa6add8)ExitProcess(92);
-    *vertex_data+=delta;
+    fixture_write_code(vertex_data,*vertex_data+delta);
     /* Execute the original InitMenuBackPolys, including SetPolyFT4 and all
      * fourteen native rectangles. No synthetic replacement geometry. */
     ((void (__cdecl *)(void))(image+0x3cb30))();

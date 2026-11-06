@@ -34,7 +34,6 @@ AddVectoredExceptionHandler@8
 RemoveVectoredExceptionHandler@4
 SetUnhandledExceptionFilter@4
 VirtualQuery@12
-ReadProcessMemory@20
 GetCurrentThreadId@0
 GlobalMemoryStatusEx@4
 FlushFileBuffers@4

@@ -90,7 +90,60 @@ $(ICONV_DLL): $(SDL3_DIR)/bin/libiconv-2.dll
 runtime: $(RUNTIME_DLL) $(RUNTIME_MAP)
 controller: $(CONTROLLER_EXE) $(ICONV_DLL)
 
+# --- Tests (sources in tests/ and tests/runtime) ----------------------------
+# 32-bit fixtures compile like the runtime and link its import libraries plus
+# the few KERNEL32 functions in tests/runtime/imports/kernel32-test.def. A
+# 64-bit driver runs each fixture and checks the result.
+X86_TEST_LIB := $(X86_BUILD)/lib/kernel32-test.lib
+X86_TEST_LDFLAGS := /nologo /machine:x86 /subsystem:console \
+	/entry:test_entry@0 /nodefaultlib
+CRASH_FIXTURE := $(BUILD)/tests/crash_fixture.exe
+RENDER_FIXTURE := $(BUILD)/tests/render_init_fixture.exe
+X86_TEST_OBJECTS := $(X86_BUILD)/tests/test_crash_diagnostics.o \
+	$(X86_BUILD)/tests/test_render_init.o
+RUNTIME_TEST_CRASH := $(BUILD)/tests/run_crash_diagnostics.exe
+RUNTIME_TEST_RENDER := $(BUILD)/tests/run_render_init.exe
+
+$(X86_TEST_LIB): tests/runtime/imports/kernel32-test.def
+	$(call MKDIR,$(@D))
+	$(DLLTOOL) -m i386 -k -d $< -l $@
+
+$(X86_BUILD)/tests/%.o: tests/%.c
+	$(x86_include_check)
+	$(call MKDIR,$(@D))
+	$(CLANG) $(X86_CFLAGS) -MMD -MP -c $< -o $@
+
+$(X86_BUILD)/tests/test_render_init.o: $(GENERATED)/hd_catalog.h
+
+$(CRASH_FIXTURE): $(X86_BUILD)/tests/test_crash_diagnostics.o \
+	$(X86_BUILD)/lib/kernel32.lib $(X86_TEST_LIB)
+	$(call MKDIR,$(@D))
+	$(LLD_LINK) $(X86_TEST_LDFLAGS) /out:$@ $^
+
+# The renderer fixture keeps the fixed base its PowerShell build used.
+$(RENDER_FIXTURE): $(X86_BUILD)/tests/test_render_init.o \
+	$(X86_BUILD)/lib/kernel32.lib $(X86_TEST_LIB) \
+	$(X86_BUILD)/lib/user32.lib $(X86_BUILD)/lib/ole32.lib
+	$(call MKDIR,$(@D))
+	$(LLD_LINK) $(X86_TEST_LDFLAGS) /base:0x10000000 /dynamicbase:no /out:$@ $^
+
+$(RUNTIME_TEST_CRASH): $(BUILD)/obj/tests/runtime/run_crash_diagnostics.o
+	$(call MKDIR,$(@D))
+	$(CC) $(CONSOLE_LDFLAGS) $^ -o $@
+
+$(RUNTIME_TEST_RENDER): $(BUILD)/obj/tests/runtime/run_render_init.o
+	$(call MKDIR,$(@D))
+	$(CC) $(CONSOLE_LDFLAGS) $^ -o $@
+
+$(RUNTIME_TEST_CRASH).run: $(CRASH_FIXTURE)
+$(RUNTIME_TEST_RENDER).run: $(RENDER_FIXTURE)
+
+TEST_PROGRAMS += $(RUNTIME_TEST_CRASH) $(RUNTIME_TEST_RENDER)
+
 OUTPUTS += $(RUNTIME_DLL) $(RUNTIME_MAP) $(CONTROLLER_EXE) $(ICONV_DLL)
-DEPFILES += $(X86_OBJECTS:.o=.d) $(BUILD)/obj/src/runtime/controller_host.d
+DEPFILES += $(X86_OBJECTS:.o=.d) $(X86_TEST_OBJECTS:.o=.d) \
+	$(BUILD)/obj/src/runtime/controller_host.d \
+	$(BUILD)/obj/tests/runtime/run_crash_diagnostics.d \
+	$(BUILD)/obj/tests/runtime/run_render_init.d
 CLEAN_FILES += $(RUNTIME_DLL) $(RUNTIME_MAP) $(CONTROLLER_EXE) $(ICONV_DLL)
 HELP_TARGETS += runtime controller
