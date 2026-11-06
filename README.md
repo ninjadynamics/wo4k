@@ -10,8 +10,8 @@ while retaining the original game's 30 Hz simulation and gameplay pace.
 [Report a bug](https://github.com/ninjadynamics/wo4k/issues) ·
 [Code signing policy](#code-signing-policy)
 
-This repository contains the mod's source code, artwork, Makefile and installer
-scripts. Compiled EXEs/DLLs and other generated build outputs are excluded from
+This repository contains the mod's C source code, artwork, Makefile and patch
+recipes. Compiled EXEs/DLLs and other generated build outputs are excluded from
 Git. Ready-to-use ZIP packages and their SHA-256 checksums belong in
 **Releases**. To play, download a release ZIP rather than GitHub's automatic
 “Source code” archive.
@@ -155,9 +155,8 @@ Drop in `intro.mp4` (or `WXLINTR.mp4`), `XTRO1.mp4`, `XTRO2.mp4`, `XTRO3.mp4`,
 or `XTRO4.mp4` to replace any video, including with HD artwork. MP4 takes priority;
 the corresponding original `WXLINTR.MPG` / `XTRO1.MPG`–`XTRO4.MPG` is the fallback,
 including when Windows cannot decode a replacement. Setup preserves your MP4
-replacements. When ffmpeg is available on PATH, Setup and Play convert the five
-original MPEGs to H.264/AAC MP4, validate them, and remove the copied MPEG
-intermediates. Without an encoder, original MPEG playback remains available.
+replacements. WO4K's own player (`wo4k-video.exe`) plays the original MPEGs
+with Windows' built-in decoders; no conversion, encoder or codec pack is needed.
 Videos fit the screen without stretching. Skip with **Esc**,
 **Enter**, **Space**, or a controller button. The cursor stays hidden during
 videos and in-game, and movies have no tooltip. Music pauses during cutscenes.
@@ -195,17 +194,17 @@ Full trails are the default. FPS visibility and trail selection are remembered.
 
 ## Updates and links
 
-The **GitHub** logo opens this source repository. **Update** uses Windows
-`curl.exe` to download and verify a newer release, backing up changed files and
-preserving installed game data, audio, saves, preferences and URL configuration.
-It finishes with **Install / repair**, even when the latest release is already
-installed. Downloading a release ZIP and overwriting the mod folder is also
-supported: the next Play or Setup launch reconciles the installation locally.
-Both launchers remove retired, unchanged mod-owned files and empty directories
-using the previous release inventory. Modified/custom files and saves are kept.
-Close the game before updating. Setup reopens automatically after the update
-and Install / repair complete successfully. When upgrading from beta.19 or
-earlier, reopen Setup manually once after that first update.
+The **GitHub** logo opens this source repository. **Update** downloads a newer
+release over HTTPS with Windows' built-in networking, verifies it, backs up
+changed files and preserves installed game data, audio, saves, preferences and
+URL configuration. When the installed copy is signed, an update's binaries must
+be signed by the same publisher. Update finishes with **Install / repair**,
+even when the latest release is already installed. Downloading a release ZIP and
+overwriting the mod folder is also supported: the next Play or Setup launch
+reconciles the installation locally. Both launchers remove retired, unchanged
+mod-owned files and empty directories using the previous release inventory.
+Modified/custom files and saves are kept. Close the game before updating. Setup
+reopens automatically after the update and Install / repair complete successfully.
 It does not check for updates or download anything automatically at startup.
 
 The supplied plain-text configuration files contain one HTTPS URL each:
@@ -222,66 +221,66 @@ GitHub prereleases are available manually on the Releases page. See
 
 ## Files and local data
 
-The package contains the mod's code/runtime, checksum-guarded executable binary
-differences, supplied HD artwork and licensed compatibility/controller dependencies.
-It does not contain an original game executable, game data, music or sound effects.
-Setup reads your source files without modifying them and patches your executable
-locally. Installation needs no network, administrator access, external installer,
-Python or FFmpeg. The optional Update action downloads mod releases.
+The package contains Setup, Play, the mod runtime, checksum-guarded executable
+patch recipes, supplied HD artwork and licensed compatibility/controller
+dependencies. It contains no scripts, and no original game executable, game
+data, music or sound effects. Setup reads your source files without modifying
+them and patches your executable locally. Installation needs no network,
+administrator access, external installer or other software. The optional
+Update action downloads mod releases.
 
 ```text
+Setup.exe, Play.exe          setup window and game launcher
 assets/hd/                   editable supplied HD PNGs
-scripts/                     PowerShell setup, extraction, install and build tools
-src/                         C runtime, controller, audio and launcher source
-runtime/                     built mod runtime and dependencies
-patches/                     checksum-guarded binary differences
+runtime/                     mod runtime, controller host, video player, DDrawCompat
+patches/                     checksum-guarded executable patch recipes
+manifests/, licenses/        file catalogues, provenance and third-party licenses
 wobble/                      created locally by Setup
-  Wipeout2097.exe             patched from your supplied PC executable
+  Wipeout2097.exe            patched from your supplied PC executable
   music/pc/                  PC soundtrack
   music/psx/                 optional PlayStation soundtrack
   audio/                     sound effects; source/ retains original inputs
   textures/sd/               original artwork/texture containers
 ```
 
-Repairs stage an installation before replacing it, preserve saves/preferences and
-retain the previous installation in `backups/`. Successful extraction sessions
-are cleaned; failed sessions in `.work/` and `logs/` help diagnose problems.
-Installed game files, private work, logs, backups, exports and `dist/` release
-artifacts are excluded from Git. Keep the mod folder together when moving it.
+Repairs stage an installation before replacing it and preserve saves and
+preferences. WO4K keeps its disk use bounded: `backups/` holds the most recent
+previous game installation (without its music, which Repair rebuilds from your
+sources) and the three most recent update backups. Successful install sessions
+are removed from `.work/` straight away, other leftovers there after 7 days,
+and logs after 30 days. Installed game files, private work, logs, backups,
+exports and `dist/` release artifacts are excluded from Git. Keep the mod
+folder together when moving it.
 
 ## Source, tools and builds
 
-All setup, extraction, installation, build and verification scripts are `.ps1`.
-Setup.exe and Play.exe are thin launchers for Windows PowerShell 5.1. The audio
-processor is included as C source and processes effects locally during setup.
+Everything is written in C: Setup, Play, the installer, updater, format
+readers, audio processor, video player and game runtime. Setup draws its window
+with [raylib](https://www.raylib.com/). No PowerShell, .NET or Python is needed
+to build, install or play.
 
-- [Standalone extraction and installation commands](docs/TOOLS.md)
-- [How to compile: Makefile or optional local WinGet bootstrap](HOW-TO-COMPILE.md)
+- [Advanced use and maintainer tools](docs/TOOLS.md)
+- [How to compile](HOW-TO-COMPILE.md)
 - [Build dependencies and release assembly](docs/BUILD.md)
 - [Updater configuration and release publishing](docs/UPDATES.md)
 - [Changelog](docs/CHANGELOG.md)
 
-Use `make` with an existing toolchain, or optional `.\compile.ps1` to fetch
-missing compilers/Make into `.tools/` and run Make. `make release` builds,
-tests and packages. Pushing a matching version tag triggers the GitHub Actions
-release workflow; a normal branch push updates source only.
-
-Build scripts write the distributable ZIP, checksum and file inventory under
-`dist/`. Publish the ZIP and its `.zip.sha256` sidecar together in this repository's
-Releases; GitHub's generated source archives are not update packages.
+Build with `make` and a MinGW-w64 toolchain. `make release` builds, tests and
+packages the distributable ZIP, checksum and file inventory under `dist/`.
+Pushing a matching version tag triggers the GitHub Actions release workflow,
+which signs and publishes the release; a normal branch push builds and tests
+only. GitHub's generated source archives are not update packages.
 
 Every launch, installation and update writes a local diagnostic log in `logs/`.
 If an operation fails, a popup shows the exact log location; launch failures
-include the Windows error or game exit code. The native launchers also capture
-PowerShell startup/parse errors. If the mod folder is unwritable, the popup
-points to a fallback log under `%TEMP%/WO4K`.
+include the Windows error or game exit code. If the mod folder is unwritable,
+the popup points to a fallback log under `%TEMP%/WO4K`.
 
 Support logs include Windows edition/build/architecture, CPU model and core
 counts, RAM capacity, GPU model/driver, and the mod version and startup stages.
 They do not query machine/account names, serial numbers, UUIDs, MAC/IP addresses
-or hardware device IDs. Common personal paths are redacted in script logs;
-bootstrap errors may include script paths. Logs stay local and are never
-uploaded automatically. Review them before sharing.
+or hardware device IDs. Common personal paths are redacted. Logs stay local and
+are never uploaded automatically. Review them before sharing.
 
 For a game crash, share the **main `play-*.log` shown in the popup**. It includes
 current-session tails of graphics, native exception and video logs; the complete
@@ -296,10 +295,12 @@ The release's `runtime/wohr.map` maps runtime addresses back to its exact build.
 The main report and each saved attachment identify the mod version; native crash
 logs record the version compiled into the DLL, including before graphics starts.
 
-Existing players: click **Update**, then **Play** when Setup reopens. Update
-repairs the installed game and preserves saves/preferences. Interfaces from
-beta.19 or earlier need one manual close/reopen after their first upgrade.
-Logging is automatic; there is no diagnostic option to enable.
+Existing players on beta.24 or earlier: the old updater cannot install this
+release, so download the ZIP once and extract it over your mod folder, replacing
+files. Then open Setup or Play; it repairs the installation, keeps your saves
+and preferences, and removes the retired PowerShell files. Later updates work
+through **Update** again. Logging is automatic; there is no diagnostic option
+to enable.
 
 WO4K is a beta. Report the mod version, Windows version, source type, symptoms
 and relevant `logs/` through [Issues](https://github.com/ninjadynamics/wo4k/issues).
@@ -334,8 +335,8 @@ Release binaries are built from this repository's source by the GitHub Actions
 release workflow and signed only after a maintainer approves each signing
 request. The signed files are `Setup.exe`, `Play.exe`, `runtime/wohr.dll`,
 `runtime/wo2097-controller.exe` and `runtime/wo4k-video.exe`. The third-party
-DDrawCompat `runtime/ddraw.dll` is included unmodified and unsigned, as
-published by its upstream project.
+DDrawCompat `runtime/ddraw.dll` and GNU libiconv `runtime/libiconv-2.dll` are
+included unmodified and unsigned, as published by their upstream projects.
 
 Team roles:
 
@@ -355,6 +356,9 @@ Huge thanks to the people who made this work possible:
   modern Windows.
 - **[SDL3](https://github.com/libsdl-org/SDL) and its contributors,** including
   its HIDAPI integration, for modern controller support.
+- **[raylib](https://github.com/raysan5/raylib), by Ramon Santamaria and
+  contributors,** for the Setup window, and **[miniz](https://github.com/richgel999/miniz)**
+  for ZIP handling.
 - The original **Psygnosis developers, artists, musicians and designers**, and
   the WipEout community keeping these games alive.
 

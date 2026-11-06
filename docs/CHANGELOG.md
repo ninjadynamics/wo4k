@@ -1,5 +1,29 @@
 ﻿# Beta release changes
 
+## 0.1.0-beta.25
+
+- Rewrite Setup, Play, the installer, updater, disc/format readers and audio
+  processor in C. No PowerShell, .NET or script runs any more, and the release
+  contains only binaries, artwork and data. Installs produce the same files as
+  before, in seconds.
+- Draw Setup natively with raylib, keeping its layout and dark style; small
+  text is slightly larger for high-resolution displays.
+- Play the original MPEG videos with WO4K's own player through Windows'
+  built-in decoders instead of converting them with FFmpeg. MP4 replacements
+  still take priority.
+- Update through Windows' built-in HTTPS instead of curl. A signed copy only
+  accepts updates signed by the same publisher.
+- Bound disk use: keep the most recent game backup (without its music) and
+  three update backups, remove install scratch after success, other scratch
+  after 7 days and logs after 30 days.
+- Build, test and fuzz every release in CI from a clean checkout, with
+  reproducible ZIPs, and submit the binaries for SignPath code signing.
+- Fix a previous WO4K installation used as the PC source nesting a second copy
+  of its texture tree.
+- Players on beta.24 or earlier: download this release once and extract it
+  over the mod folder; the old updater cannot install it. The next launch
+  removes the retired PowerShell files.
+
 ## 0.1.0-beta.24
 
 - Project ship shadows from the same interpolated position as the rendered

@@ -6,27 +6,22 @@
 inheritance to its pipe and NUL handles. This fixes intermittent atomic rename
 failures with concurrent PNG workers; filtering and defaults are unchanged.
 
-Build from the repository root in Windows PowerShell:
+The PowerShell build helper was retired with the rest of the PowerShell
+tooling. Build with the Makefile against static libpng, libjpeg-turbo and zlib,
+for example from the MSYS2 MINGW64 shell:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/deband/Build.ps1
+```sh
+pacman -S mingw-w64-x86_64-libpng mingw-w64-x86_64-libjpeg-turbo mingw-w64-x86_64-zlib
+mingw32-make -C tools/deband static
 ```
 
-The helper uses the existing x64 UCRT MinGW compiler at `C:/mingw64/bin`.
-Override `-CompilerDirectory` if necessary; CMake and Ninja must be available.
-7-Zip at `C:/Program Files/7-Zip/7z.exe` decompresses the package archives on
-Windows versions whose `tar.exe` lacks built-in zstd support. Override `-SevenZip`
-or supply zstd-enabled tar if necessary.
-
-The build downloads checksum-pinned [libpng source](https://github.com/pnggroup/libpng),
+`dependencies.json` still records the checksum-pinned
+[libpng source](https://github.com/pnggroup/libpng),
 [libjpeg-turbo](https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-libjpeg-turbo)
-and [zlib](https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-zlib) according
-to `dependencies.json`. libpng is compiled with the same compiler to avoid a
-newer prebuilt library's CRT import incompatibility. Dependencies, their license
-files, compiled intermediates and `build-info.json` stay in ignored
-`.work/deband-build/`. The resulting `tools/deband/deband.exe` links the image
-libraries statically; only Windows system DLLs are needed. FFmpeg remains an
-optional separate executable on PATH.
+and [zlib](https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-zlib)
+versions the previous helper used. The resulting `tools/deband/deband.exe` links
+the image libraries statically; only Windows system DLLs are needed. FFmpeg
+remains an optional separate executable on PATH.
 
 Run the regression fixtures (Pillow/numpy needed for verification only):
 

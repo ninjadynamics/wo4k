@@ -1,129 +1,78 @@
 # How to compile WO4K
 
-Build on Windows 10/11 x64. The repository contains C/PowerShell source,
-artwork, configuration, licenses and text patch recipes. Compiled EXEs/DLLs,
-generated ICOs, binary differences and release inventories are ignored by Git.
-Ready-to-use binaries are distributed through GitHub Releases.
+WO4K is plain C built with GNU Make on Windows 10/11 x64. No PowerShell,
+Python or .NET is involved. Ready-to-use packages are published on the
+[Releases](https://github.com/ninjadynamics/wo4k/releases) page.
 
-## Optional local bootstrap
+## Toolchain
 
-From Windows PowerShell in the repository root:
+You need a MinGW-w64 toolchain with GCC, Clang, lld (`lld-link`),
+`llvm-dlltool`, `windres` and GNU Make (`mingw32-make`). Either of these works:
 
-```powershell
-.\compile.ps1
-# Build, run offline checks, and create a distributable:
-.\compile.ps1 -Target release
+- **WinLibs** (portable ZIP, nothing installed system-wide):
+  `winget download --id BrechtSanders.WinLibs.POSIX.MSVCRT.LLVM`, unpack it,
+  and pass its `bin` folder as `TOOLCHAIN=...` (or put it on PATH).
+- **MSYS2**, MINGW64 environment: `pacman -S mingw-w64-x86_64-gcc
+  mingw-w64-x86_64-clang mingw-w64-x86_64-llvm mingw-w64-x86_64-lld
+  mingw-w64-x86_64-make` (this is what the release workflow uses).
+
+Run Make from Command Prompt or any shell; the recipes use `cmd.exe`.
+
+## Build
+
+```bat
+mingw32-make deps          :: fetch the pinned third-party archives (once)
+mingw32-make               :: build everything
+mingw32-make test          :: build and run the automated tests
+mingw32-make release       :: build, test and package dist\
+mingw32-make TOOLCHAIN=C:/mingw64/bin release
 ```
-
-`compile.ps1` checks **only `.tools/`** for a complete compiler/Make bundle.
-If missing, it uses WinGet to download the portable
-`BrechtSanders.WinLibs.POSIX.MSVCRT.LLVM` ZIP and unpacks it under
-`.tools/toolchain/`. This bundle includes GCC, Clang/LLVM and GNU Make.
-WinGet verifies the download against its package manifest. The script then
-runs that local `mingw32-make.exe`. It reuses the local tools on later runs.
-
-It does not install a compiler globally, edit persistent PATH, or require an
-administrator terminal. PATH changes last only for that script. WinGet itself
-must already be available through Windows App Installer. Downloads need network
-access and disk space for the portable compiler bundle. A failed download/build
-stops the script; it never falls back to an unrelated global installer.
-
-You can change the local tools directory with `-ToolsDirectory`, or select
-`-Target all`, `test`, `package`, `release`, `clean` or `help`.
-
-## Existing toolchain: Make directly
-
-Experienced users do not need `compile.ps1` or `.tools/`. Use your own
-MinGW-w64 GCC, Clang, llvm-dlltool, lld-link, windres and native GNU Make.
-The compiler directory must include MinGW Windows headers in its sibling
-`include/` or `x86_64-w64-mingw32/include/` tree. Windows PowerShell 5.1,
-Windows curl.exe and Windows tar.exe are used by the build scripts.
-
-```powershell
-# With gcc.exe on PATH (make may be called mingw32-make.exe):
-make
-make test
-make release
-
-# Or select a compiler directory explicitly:
-C:\mingw64\bin\mingw32-make.exe release TOOLCHAIN=C:/mingw64/bin
-```
-
-The Makefile is the build entry point; its implementation scripts are `.ps1`.
-It uses native Windows cmd/PowerShell, so run it from PowerShell or Command
-Prompt. `make all` downloads missing dependencies and builds the mod without
-packaging it. `make release` builds, tests, and packages. Individual targets:
 
 | Target | Result |
 | --- | --- |
-| `deps` | Download/check cached third-party dependencies |
-| `runtime` | Build the 32-bit in-process mod DLL |
-| `controller` | Build the 64-bit SDL3 controller host |
-| `audio` | Build the local C audio processor |
-| `launchers` | Generate multi-size icons and embed them in Setup/Play |
-| `patches` | Compile text XOR recipes into checksum-guarded `.wodiff` files |
-| `test` | Script/GUI, installer primitives and offline updater checks |
-| `package` | Package existing outputs without rebuilding |
-| `release` | Build, test and package |
-| `clean` | Remove named generated mod outputs; retain game data/tools/cache |
+| `deps` | Download and verify SDL3, libiconv, DDrawCompat, raylib and zstd into `.work/deps` |
+| `all` (default) | `Setup.exe`, `Play.exe`, `runtime/wohr.dll`, `runtime/wo2097-controller.exe`, `runtime/wo4k-video.exe` |
+| `test` | Unit, golden and integration tests (`tests/core`, `tests/runtime`, `tests/video`) |
+| `test-local` | Slow end-to-end install from this machine's configured game sources, compared with its existing installation |
+| `fuzz-smoke` | Run every parser fuzz harness over its seeds (full libFuzzer runs happen in CI on Linux) |
+| `package` | `dist/wo4k-<VERSION>.zip`, its `.sha256` and `release-files.json` |
+| `release` | `test` followed by `package` |
+| `clean` | Remove build outputs (keeps dependencies, game data and your installation) |
+| `help` | List targets |
 
-## Dependencies and outputs
+`VERSION` is the single version source. `make deps` checks every archive and
+an extracted marker file against the SHA-256 values in
+`manifests/dependencies.json`; nothing is installed outside `.work/deps`.
 
-`make deps` fetches pinned, SHA-256-verified archives into `.work/deps/`:
-SDL3 3.4.16, libiconv 1.18, DDrawCompat 0.7.2 and a portable zstd unpacking
-helper. Archive URLs and both archive/extracted-file hashes are recorded in
-`manifests/dependencies.json`. Third-party build/runtime downloads stay out of
-Git. The SDL host links static SDL3 and uses the replaceable libiconv DLL;
-DDrawCompat is an unmodified upstream runtime dependency.
+No original game files are needed to build or to run `make test`; tests that
+use real game data skip themselves when it is absent.
 
-The runtime, audio processor and launchers are built from this repository's
-source. No original game files are needed to compile or run the default offline
-tests. Text patch recipes in `src/patches/` encode only binary differences and
-original/output checksums. The installer applies them to the user's own game.
-Maintainers authoring new game patches can run Prepare-Release.ps1; it also
-exports their reviewable JSON recipes with Export-PatchRecipes.ps1.
-
-Build outputs remain in their runtime/launcher locations for local testing and
-release assembly. Packaging creates:
+## Layout
 
 ```text
-dist/wo4k-<VERSION>.zip
-dist/wo4k-<VERSION>.zip.sha256
-dist/release-files.json
+src/core/      shared library: formats, installer, updater, logging, settings
+src/setup/     Setup.exe (raylib window)
+src/play/      Play.exe
+src/runtime/   32-bit game DLL (wohr.dll) and the SDL3 controller host
+src/video/     wo4k-video.exe, the native movie player
+src/tools/     wo4k-build, the build-time helper (icons, deps, packaging)
+src/common/    version resource and application manifest
+tests/, fuzz/  automated tests and fuzz harnesses
+patches/       executable patch recipes (JSON, applied to your own game)
 ```
 
-`VERSION` is the version source of truth. An explicit `VERSION=...` Make override must match that file, so installer receipts and package labels agree. Use a matching version tag for publication. The package includes source, runtime binaries, artwork,
-licenses and setup scripts, but no original game executable/data/audio.
+## Publishing a release
 
-`tests/Test-Movies.ps1` verifies extraction from a supplied PC source and can
-probe real Windows decoding for all five clips, broken-MP4 fallback, and (with
-`-Mp4Fixture path/to/video.mp4`) actual replacement playback. Run it in Windows
-PowerShell with `-STA`. The native `Test-RenderInit.ps1` integration test checks
-all four ending events against the patched race CALL, unchanged achievement
-flags, startup order, HD title/text ordering, and the real-clock title counter.
+A normal push builds and tests only. To publish:
 
-Tests that inspect the actual game or launch it require your local installation
-and are separate from `make test`; see the scripts under `tests/`. Rebuilding a
-mod does not establish that gameplay was tested on a real desktop.
-
-## Publish a GitHub Release
-
-A normal `git push` updates source only; it does not create a release.
-After committing the intended sources and setting `VERSION`:
-
-```powershell
-git push origin master
-git tag v0.1.0-beta.13
-git push origin v0.1.0-beta.13
+```bat
+git tag v0.1.0-beta.25
+git push origin v0.1.0-beta.25
 ```
 
-The tag workflow in `.github/workflows/release.yml` builds from a fresh source
-checkout on Windows, runs offline checks, and creates a full GitHub Release
-with the ZIP and checksum. A full release with a beta version name is used so
-Setup's `/releases/latest` updater can discover it. The workflow needs Actions
-enabled and `contents: write`; it uses GitHub's job token, not a stored secret.
-A manual workflow run keeps build artifacts without publishing a release.
-
-Alternatively, upload a locally verified ZIP and its `.zip.sha256` sidecar to
-a release through GitHub's UI or `gh release create`. GitHub's automatic source
-archives are not install/update packages. See [docs/UPDATES.md](docs/UPDATES.md).
+The tag must match `VERSION`. The release workflow builds from a clean
+checkout, runs the tests and fuzzers, submits the five WO4K binaries to
+SignPath for signing (when `SIGNPATH_API_TOKEN` is configured; a maintainer
+approves each request in SignPath), packages the signed files and publishes
+the GitHub Release with the ZIP and its checksum. See the
+[code signing policy](README.md#code-signing-policy).

@@ -49,11 +49,9 @@ reused from PC. The current selection is 262 PS1 artwork variants and 222
 byte-identical PC originals. Picker choices do not modify the game until
 applied; exporting includes hidden/filtered items as well.
 
-For an existing installation, without reinstalling sound/music:
-
-```powershell
-./scripts/Install-NativeTextures.ps1 -PsxSource 'D:/WipEout 2097.cue'
-```
+To add PS1 artwork to an existing installation, open Setup, click **Repair**,
+select the PlayStation source and click **Install**. Saves and preferences are
+kept.
 
 For maintainers, the offline audit is reproducible from extracted originals:
 
