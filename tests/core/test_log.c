@@ -29,6 +29,28 @@ static void test_session_log(void) {
     CHECK_OK(wo_write_file(game_log, game_text, strlen(game_text), &error), &error);
     wo_log_attach("game.log", game_log, true);
     CHECK(!wo_exists(game_log));
+    /* ANSI text and a NUL still give valid JSON; an oversized log keeps its end. */
+    char *big_log = wo_format(NULL, "%s\\DDrawCompat.log", dir);
+    WoBuf big = {0};
+    wo_buf_append_str(&big, "Ger\xE4t name\r\nnul\x01", NULL);
+    wo_buf_append_byte(&big, 0, NULL);
+    wo_buf_append_str(&big, "byte\r\n", NULL);
+    char filler[1001];
+    memset(filler, 'f', 1000);
+    filler[1000] = 0;
+    for (int i = 0; i < 9000; i++) { /* about 9 MB, over the 8 MB limit */
+        wo_buf_printf(&big, NULL, "%s %d\r\n", filler, i);
+    }
+    wo_buf_append_str(&big, "the end\r\n", NULL);
+    CHECK_OK(wo_write_file(big_log, big.data, big.len, &error), &error);
+    wo_buf_free(&big);
+    wo_log_attach("DDrawCompat.log", big_log, true);
+    CHECK(!wo_exists(big_log));
+    wo_free(big_log);
+    char *small_log = wo_format(NULL, "%s\\video.log", dir);
+    CHECK_OK(wo_write_file(small_log, "Ger\xE4t\r\n", 6, &error), &error);
+    wo_log_attach("video.log", small_log, true);
+    wo_free(small_log);
     /* Short records after long ones reuse freed buffers full of old text. */
     for (int i = 0; i < 40; i++) {
         wo_log_text("long", "0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
@@ -40,12 +62,20 @@ static void test_session_log(void) {
     wo_log_end();
 
     char *text = NULL;
-    CHECK_OK(wo_read_text(log_copy, 1 << 20, &text, &error), &error);
+    CHECK_OK(wo_read_text(log_copy, 64u << 20, &text, &error), &error);
+    CHECK(text && strstr(text, "\"only_last_bytes\":true") != NULL);
+    CHECK(text && strstr(text, "\"event\":\"DDrawCompat.log\",\"data\":\"the end\"") != NULL);
+    CHECK(text && strstr(text, "\"event\":\"video.log\",\"data\":\"Ger?t\"") != NULL);
     CHECK(text && strstr(text, "\"event\":\"session\"") != NULL);
     CHECK(text && strstr(text, "%MODROOT%\\\\wobble\\\\Wipeout2097.exe") != NULL);
     CHECK(text && strstr(text, "\"kind\":\"access\"") != NULL);
     CHECK(text && strstr(text, "\"event\":\"system\"") != NULL);
-    CHECK(text && strstr(text, "\"event\":\"game_log_tail\"") != NULL);
+    /* The attached log is in the session log itself, one record per line. */
+    CHECK(text && strstr(text, "\"event\":\"game_log\",\"data\":{\"file\":\"game.log\"") != NULL);
+    CHECK(text && strstr(text, "\"event\":\"game.log\",\"data\":\"line one\"") != NULL);
+    CHECK(text && strstr(text, "[identifier omitted]") != NULL);
+    CHECK(text && strstr(text, "89ab-cdef") == NULL);
+    CHECK(text && strstr(text, "\"lines\":2") != NULL);
     CHECK(text && strstr(text, "secret") == NULL);
     /* Every record is exactly one JSON line, with nothing between records. */
     int records = 0;
@@ -64,12 +94,9 @@ static void test_session_log(void) {
     CHECK(records > 80);
     wo_free(text);
 
+    /* No separate files beside the session log. */
     char *attachment = wo_format(NULL, "%.*s.game.log", (int)(strlen(log_copy) - 4), log_copy);
-    CHECK_OK(wo_read_text(attachment, 1 << 20, &text, &error), &error);
-    CHECK(text && strstr(text, "line one") != NULL);
-    CHECK(text && strstr(text, "secret") == NULL);
-    CHECK(text && strstr(text, "[identifier omitted]") != NULL);
-    wo_free(text);
+    CHECK(attachment && !wo_exists(attachment));
     wo_free(attachment);
     wo_free(log_copy);
     wo_free(game_log);

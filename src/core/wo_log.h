@@ -31,10 +31,10 @@ WoJson *wo_log_system_info(void);
 /* Replace the mod root, %USERPROFILE% and %TEMP% with placeholders. */
 char *wo_log_redact(const char *text);
 
-/* Copy a game/runtime log next to the session log as
- * <session>.<name>, redacting device identifiers and personal paths, then
- * delete the original and record its last lines. Files older than the
- * session start are skipped when current_session_only is set. */
+/* Append a game/runtime log to the session log in full, one event per line
+ * named after it, redacting device identifiers and personal paths, then
+ * delete the original: a session is always a single file to share. Files
+ * older than the session start are skipped when current_session_only is set. */
 void wo_log_attach(const char *name, const char *path, bool current_session_only);
 
 /* Current UTC time as ISO 8601 with 100 ns precision ("o" format). */

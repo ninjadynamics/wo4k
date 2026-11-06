@@ -290,9 +290,10 @@ They do not query machine/account names, serial numbers, UUIDs, MAC/IP addresses
 or hardware device IDs. Common personal paths are redacted. Logs stay local and
 are never uploaded automatically. Review them before sharing.
 
-For a game crash, share the **main `play-*.log` shown in the popup**. It includes
-current-session tails of graphics, native exception and video logs; the complete
-attachments share its filename prefix. Play records the game's exit code and peak
+For a game crash, share the **`play-*.log` shown in the popup**: each game
+session is a single file. When the game exits, Play adds the session's
+complete game, graphics, native exception, debug and video logs to it, one
+line per entry, and removes the separate files. Play records the game's exit code and peak
 memory use, the size and signature status of each runtime file and the relevant
 settings, and checks Windows Application Error events for the same child process. Native fault reports distinguish first-chance
 observations (which may be handled) from unhandled exceptions and record the
@@ -300,8 +301,8 @@ instruction's module/offset, access type/address, registers and bounded code-add
 candidates. No memory dump is created. These diagnostics provide evidence for
 investigation; an access violation alone does not establish a RAM/video problem.
 The release's `runtime/wohr.map` maps runtime addresses back to its exact build.
-The main report and each saved attachment identify the mod version; native crash
-logs record the version compiled into the DLL, including before graphics starts.
+The report identifies the mod version; native crash entries record the version
+compiled into the DLL, including before graphics starts.
 
 Existing players on 0.1.0-beta.24 or earlier: the old updater cannot install this
 release, so download the ZIP once and extract it over your mod folder, replacing

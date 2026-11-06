@@ -9,7 +9,7 @@
 #include "wo_version.h"
 
 #define ATTACHMENT_MAX_BYTES (8u << 20)
-#define TAIL_LINES 80
+
 
 static SRWLOCK log_lock = SRWLOCK_INIT;
 static HANDLE log_file = INVALID_HANDLE_VALUE;
@@ -472,6 +472,63 @@ static bool sensitive_line(const char *line, size_t len) {
     return false;
 }
 
+/* Length of the valid UTF-8 sequence at s, or 0 if invalid. */
+static size_t utf8_length(const unsigned char *s, size_t left) {
+    unsigned char c = s[0];
+    size_t n = c < 0x80 ? 1 : c >= 0xC2 && c <= 0xDF ? 2 : c >= 0xE0 && c <= 0xEF ? 3
+                              : c >= 0xF0 && c <= 0xF4 ? 4 : 0;
+    if (n == 0 || n > left) {
+        return 0;
+    }
+    for (size_t i = 1; i < n; i++) {
+        if ((s[i] & 0xC0) != 0x80) {
+            return 0;
+        }
+    }
+    /* Overlong forms, surrogates and code points above U+10FFFF. */
+    if ((c == 0xE0 && s[1] < 0xA0) || (c == 0xED && s[1] > 0x9F) ||
+        (c == 0xF0 && s[1] < 0x90) || (c == 0xF4 && s[1] > 0x8F)) {
+        return 0;
+    }
+    return n;
+}
+
+/* The whole log, or its last ATTACHMENT_MAX_BYTES from the first complete
+ * line when it is larger: the end matters most. NUL bytes become spaces. */
+static char *read_log(const char *path, bool *truncated, WoError *error) {
+    *truncated = false;
+    WoFile *file = NULL;
+    if (!wo_file_open_read(path, &file, error)) {
+        return NULL;
+    }
+    uint64_t size = wo_file_size(file);
+    uint64_t offset = size > ATTACHMENT_MAX_BYTES ? size - ATTACHMENT_MAX_BYTES : 0;
+    size_t len = (size_t)(size - offset);
+    char *text = wo_alloc(len + 1, error);
+    bool ok = text && (len == 0 || wo_file_read_at(file, offset, text, len, error));
+    wo_file_close(file, NULL);
+    if (!ok) {
+        wo_free(text);
+        return NULL;
+    }
+    text[len] = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (text[i] == 0) {
+            text[i] = ' ';
+        }
+    }
+    size_t skip = 0;
+    if (offset > 0) {
+        *truncated = true;
+        char *first = strchr(text, '\n');
+        skip = first ? (size_t)(first + 1 - text) : len;
+    } else if (len >= 3 && memcmp(text, "\xEF\xBB\xBF", 3) == 0) {
+        skip = 3;
+    }
+    memmove(text, text + skip, len - skip + 1);
+    return text;
+}
+
 void wo_log_attach(const char *name, const char *path, bool current_session_only) {
     if (!log_path) {
         return;
@@ -485,71 +542,60 @@ void wo_log_attach(const char *name, const char *path, bool current_session_only
     if (current_session_only && info.mtime + slack < log_started) {
         return;
     }
-    char *text = NULL;
     WoError error = {0};
-    if (!wo_read_text(path, ATTACHMENT_MAX_BYTES, &text, &error)) {
+    bool truncated = false;
+    char *text = read_log(path, &truncated, &error);
+    if (!text) {
         WoJson *data = wo_json_new_object();
         wo_json_put_str(data, "file", name);
         wo_json_put_str(data, "message", error.message);
         wo_log_event("game_log_unavailable", data);
         return;
     }
+    WoJson *header = wo_json_new_object();
+    wo_json_put_str(header, "file", name);
+    wo_json_put_int(header, "bytes", (int64_t)info.size);
+    if (truncated) {
+        wo_json_put_bool(header, "only_last_bytes", true);
+    }
+    wo_log_event("game_log", header);
+    /* One event per line, named after the file; wo_log_event redacts paths. */
     WoBuf clean = {0};
-    wo_buf_printf(&clean, NULL, "# WO4K mod_version=%s\r\n", WO_VERSION_STRING);
-    WoJson *tail = wo_json_new_array();
+    size_t lines = 0;
     const char *line = text;
     while (*line) {
         const char *end = line + strcspn(line, "\n");
         size_t len = (size_t)(end - line);
-        if (!sensitive_line(line, len)) {
+        while (len > 0 && (line[len - 1] == '\r' || line[len - 1] == ' ')) {
+            len--;
+        }
+        if (len > 0 && !sensitive_line(line, len)) {
+            wo_buf_clear(&clean);
             for (size_t i = 0; i < len; i++) {
+                size_t valid = utf8_length((const unsigned char *)line + i, len - i);
                 if (i + 36 <= len && guid_at(line + i)) {
                     wo_buf_append_str(&clean, "[identifier omitted]", NULL);
                     i += 35;
+                } else if (valid == 0) {
+                    /* ANSI text from the game or a driver: keep the record valid JSON. */
+                    wo_buf_append_byte(&clean, '?', NULL);
                 } else {
-                    wo_buf_append_byte(&clean, (uint8_t)line[i], NULL);
+                    wo_buf_append(&clean, line + i, valid, NULL);
+                    i += valid - 1;
                 }
             }
-            wo_buf_append_byte(&clean, '\n', NULL);
-            size_t trimmed = len;
-            while (trimmed > 0 && (line[trimmed - 1] == '\r' || line[trimmed - 1] == ' ')) {
-                trimmed--;
-            }
-            if (trimmed > 0) {
-                char *copy = wo_strndup(line, trimmed, NULL);
-                if (copy) {
-                    if (wo_json_length(tail) == TAIL_LINES) {
-                        wo_json_free(tail->items[0]);
-                        memmove(tail->items, tail->items + 1,
-                                (tail->count - 1) * sizeof(*tail->items));
-                        tail->count--;
-                    }
-                    wo_json_push_str(tail, copy);
-                    wo_free(copy);
-                }
+            if (wo_buf_terminate(&clean, NULL)) {
+                wo_log_text(name, (const char *)clean.data);
+                lines++;
             }
         }
         line = *end ? end + 1 : end;
     }
-    wo_free(text);
-    wo_buf_terminate(&clean, NULL);
-    char *safe = wo_log_redact(clean.data ? (const char *)clean.data : "");
     wo_buf_free(&clean);
-    char *target = wo_format(NULL, "%.*s.%s", (int)(strlen(log_path) - strlen(".log")), log_path,
-                             name);
-    bool saved = safe && target && wo_write_file(target, safe, strlen(safe), NULL);
-    if (saved) {
-        wo_delete_file(path, NULL);
-        WoJson *data = wo_json_new_object();
-        wo_json_put_str(data, "file", wo_path_basename(target));
-        wo_log_event("game_log_saved", data);
-        WoJson *tail_data = wo_json_new_object();
-        wo_json_put_str(tail_data, "file", wo_path_basename(target));
-        wo_json_put(tail_data, "lines", tail);
-        tail = NULL;
-        wo_log_event("game_log_tail", tail_data);
-    }
-    wo_json_free(tail);
-    wo_free(target);
-    wo_free(safe);
+    wo_free(text);
+    WoJson *footer = wo_json_new_object();
+    wo_json_put_str(footer, "file", name);
+    wo_json_put_int(footer, "lines", (int64_t)lines);
+    wo_log_event("game_log_end", footer);
+    wo_delete_file(path, NULL);
 }
