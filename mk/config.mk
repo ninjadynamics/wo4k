@@ -67,8 +67,9 @@ $(file >$(GENERATED)/wo_version.h,$(WO_VERSION_H_TEXT))
 endif
 
 # --- Flags for the 64-bit programs and the shared core library -------------
+# __USE_MINGW_ANSI_STDIO gives C99 printf (%zu, %lld) on msvcrt and UCRT alike.
 WIN_DEFINES := -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -DNOMINMAX \
-	-D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DCOBJMACROS
+	-D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DCOBJMACROS -D__USE_MINGW_ANSI_STDIO=1
 WARNINGS := -Wall -Wextra -Werror -Wshadow -Wformat=2 -Wvla \
 	-Wimplicit-fallthrough -Wstrict-prototypes -Wmissing-prototypes \
 	-Wpointer-arith -Wcast-qual -Wundef

@@ -13,6 +13,8 @@ SHELL := cmd.exe
 .DEFAULT_GOAL := all
 .SUFFIXES:
 .DELETE_ON_ERROR:
+# Keep intermediate objects so tests and tools are not rebuilt every run.
+.SECONDARY:
 
 include mk/config.mk
 
