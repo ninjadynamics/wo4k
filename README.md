@@ -62,8 +62,9 @@ unsupported binaries are rejected before an installation is committed.
 1. Download a ZIP from [Releases](https://github.com/ninjadynamics/wo4k/releases)
    and extract it into a writable folder outside Program Files.
 2. Open **Setup.exe**. It searches common local folders in the background.
-   Use the browse button to select a file/folder or the animated ✨ button to
-   search again. No match leaves a field silently empty. Hover over settings
+   Use the browse button to select a file/folder, drop one onto the window, or
+   use the animated ✨ button to search again. No match leaves a field silently
+   empty. Hover over settings
    labels for explanations.
 3. Select the PC game source once. Optionally add a PlayStation game source,
    then choose available PC/PlayStation music or **No music**.
@@ -268,8 +269,8 @@ to build, install or play.
 Build with `make` and a MinGW-w64 toolchain. `make release` builds, tests and
 packages the distributable ZIP, checksum and file inventory under `dist/`.
 Pushing a matching version tag triggers the GitHub Actions release workflow,
-which signs and publishes the release; a normal branch push builds and tests
-only. GitHub's generated source archives are not update packages.
+which publishes the release, signed through SignPath once that is configured;
+a normal branch push builds and tests only. GitHub's generated source archives are not update packages.
 
 Every launch, installation and update writes a local diagnostic log in `logs/`.
 If an operation fails, a popup shows the exact log location; launch failures
@@ -284,9 +285,9 @@ are never uploaded automatically. Review them before sharing.
 
 For a game crash, share the **main `play-*.log` shown in the popup**. It includes
 current-session tails of graphics, native exception and video logs; the complete
-attachments share its filename prefix. Play samples game memory and loaded module
-versions, records relevant settings, and checks Windows Application Error events
-for the same child process. Native fault reports distinguish first-chance
+attachments share its filename prefix. Play records the game's exit code and peak
+memory use, the size and signature status of each runtime file and the relevant
+settings, and checks Windows Application Error events for the same child process. Native fault reports distinguish first-chance
 observations (which may be handled) from unhandled exceptions and record the
 instruction's module/offset, access type/address, registers and bounded code-address
 candidates. No memory dump is created. These diagnostics provide evidence for

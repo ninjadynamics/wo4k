@@ -5,12 +5,14 @@
 #   make package       dist/wo4k-<VERSION>.zip (+ .sha256, release-files.json)
 #                      SIGNED=build/signed uses the signed binaries instead
 #   make release       build, test and package
+#   make release-notes build/release-notes.md from the VERSION section of
+#                      docs/CHANGELOG.md (fails when there is none)
 
 SIGNED ?=
 DIST := dist
 
-.PHONY: deps manifests sign-input package release
-HELP_TARGETS += deps sign-input package release
+.PHONY: deps manifests sign-input package release release-notes
+HELP_TARGETS += deps sign-input package release release-notes
 
 deps: $(BUILD_TOOL)
 	$(call winpath,$(BUILD_TOOL)) fetch manifests/dependencies.json $(DEPS_DIR)
@@ -32,3 +34,6 @@ package: manifests
 	$(call winpath,$(BUILD_TOOL)) package $(VERSION) $(DIST) $(SIGNED)
 
 release: test package
+
+release-notes: $(BUILD_TOOL)
+	$(call winpath,$(BUILD_TOOL)) release-notes docs/CHANGELOG.md $(VERSION) $(BUILD)/release-notes.md

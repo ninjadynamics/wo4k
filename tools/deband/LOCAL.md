@@ -25,7 +25,7 @@ remains an optional separate executable on PATH.
 
 Run the regression fixtures (Pillow/numpy needed for verification only):
 
-```powershell
+```bat
 python tools/deband/Test.py
 ```
 
@@ -36,7 +36,7 @@ They use generated images under `.work/`; they do not process game artwork.
 
 To process an export into a separate directory:
 
-```powershell
+```bat
 .\tools\deband\deband.exe -j 4 -o .\exports\upscale-textures\debanded .\exports\upscale-textures\textures
 ```
 

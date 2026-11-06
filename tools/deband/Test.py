@@ -1,7 +1,8 @@
 """Smoke-check the local debander on generated fixtures, never game artwork.
 
 Requires Pillow and numpy for verification only. The deband executable itself
-does not depend on Python. Run from the repository root after Build.ps1.
+does not depend on Python. Run from the repository root after building it
+(see LOCAL.md).
 """
 import hashlib
 import json

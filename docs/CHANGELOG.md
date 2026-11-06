@@ -2,6 +2,10 @@
 
 ## 0.1.0-beta.25
 
+- **Players on beta.24 or earlier:** download this release once and extract it
+  over the mod folder, replacing files; the old updater cannot install it.
+  The next launch repairs the installation, keeps saves and preferences, and
+  removes the retired PowerShell files. Later updates work through Update.
 - Rewrite Setup, Play, the installer, updater, disc/format readers and audio
   processor in C. No PowerShell, .NET or script runs any more, and the release
   contains only binaries, artwork and data. Installs produce the same files as
@@ -20,9 +24,6 @@
   reproducible ZIPs, and submit the binaries for SignPath code signing.
 - Fix a previous WO4K installation used as the PC source nesting a second copy
   of its texture tree.
-- Players on beta.24 or earlier: download this release once and extract it
-  over the mod folder; the old updater cannot install it. The next launch
-  removes the retired PowerShell files.
 
 ## 0.1.0-beta.24
 

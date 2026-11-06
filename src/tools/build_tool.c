@@ -9,6 +9,8 @@
  *   wo4k-build sign-input <folder>
  *   wo4k-build package <version> <dist folder> [<signed folder>]
  *       See build_fetch.c and build_package.c.
+ *   wo4k-build release-notes <CHANGELOG.md> <version> <output>
+ *       The changelog's "## <version>" section, for the GitHub release.
  *
  * Maintainer commands (they read game files you own and never modify them):
  *
@@ -86,6 +88,54 @@ static bool hd_catalog(const char *manifest_path, const char *output, WoError *e
     return ok;
 }
 
+static bool line_is_heading(const char *line, const char *version) {
+    size_t len = strlen(version);
+    if (strncmp(line, "## ", 3) != 0 || strncmp(line + 3, version, len) != 0) {
+        return false;
+    }
+    const char *rest = line + 3 + len; /* "beta.2" must not match "beta.25" */
+    return *rest == 0 || *rest == '\r' || *rest == '\n';
+}
+
+static bool release_notes(const char *changelog, const char *version, const char *output,
+                          WoError *error) {
+    char *text = NULL;
+    if (!wo_read_text(changelog, 1u << 20, &text, error)) {
+        return false;
+    }
+    const char *start = NULL;
+    const char *end = NULL;
+    for (const char *line = text; *line && !end;) {
+        const char *next = strchr(line, '\n');
+        next = next ? next + 1 : line + strlen(line);
+        if (start && strncmp(line, "## ", 3) == 0) {
+            end = line;
+        } else if (!start && line_is_heading(line, version)) {
+            start = next;
+        }
+        line = next;
+    }
+    if (start && !end) {
+        end = start + strlen(start);
+    }
+    while (start && start < end && (*start == '\r' || *start == '\n')) {
+        start++;
+    }
+    while (start && end > start && (end[-1] == '\r' || end[-1] == '\n' || end[-1] == ' ')) {
+        end--;
+    }
+    bool ok = start && end > start;
+    if (!ok) {
+        wo_fail(error, WO_ERR_NOT_FOUND, "%s has no \"## %s\" section.", changelog, version);
+    }
+    WoBuf notes = {0};
+    ok = ok && wo_buf_append(&notes, start, (size_t)(end - start), error) &&
+         wo_buf_append_str(&notes, "\r\n", error) && write_if_changed(output, notes.data, notes.len, error);
+    wo_buf_free(&notes);
+    wo_free(text);
+    return ok;
+}
+
 int wmain(int argc, wchar_t **argv);
 
 int wmain(int argc, wchar_t **argv) {
@@ -109,6 +159,8 @@ int wmain(int argc, wchar_t **argv) {
         ok = build_sign_input(args[2], &error);
     } else if ((argc == 4 || argc == 5) && wo_str_eq(args[1], "package")) {
         ok = build_package(args[2], args[3], argc == 5 ? args[4] : NULL, &error);
+    } else if (argc == 5 && wo_str_eq(args[1], "release-notes")) {
+        ok = release_notes(args[2], args[3], args[4], &error);
     } else if (argc == 4 && wo_str_eq(args[1], "export-textures")) {
         ok = wo_sd_extract(args[2], args[3], &error) && wo_sd_export_png(args[3], &error);
     } else if (argc == 5 && wo_str_eq(args[1], "extract-music") &&
@@ -123,6 +175,7 @@ int wmain(int argc, wchar_t **argv) {
                         "       wo4k-build manifests\n"
                         "       wo4k-build sign-input <folder>\n"
                         "       wo4k-build package <version> <dist> [<signed folder>]\n"
+                        "       wo4k-build release-notes <CHANGELOG.md> <version> <output>\n"
                         "       wo4k-build export-textures <game folder> <output folder>\n"
                         "       wo4k-build extract-music <source> <output folder> pc|psx\n");
         ok = false;

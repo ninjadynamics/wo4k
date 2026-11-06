@@ -70,6 +70,14 @@ jobs:
           set PATH=%TOOLCHAIN%;%PATH%
           mingw32-make -j4 TOOLCHAIN=%TOOLCHAIN:\=/% all
 
+      # Fails early (before signing) when docs/CHANGELOG.md has no section
+      # for this version.
+      - name: Extract the release notes
+        if: github.ref_type == 'tag'
+        run: |
+          set PATH=%TOOLCHAIN%;%PATH%
+          mingw32-make TOOLCHAIN=%TOOLCHAIN:\=/% release-notes
+
       - name: Test
         run: |
           set PATH=%TOOLCHAIN%;%PATH%
@@ -130,8 +138,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           (
+            echo.
             echo Windows binaries are built from this tag by GitHub Actions.
             echo.
             echo See the [code signing policy](https://github.com/${{ github.repository }}#code-signing-policy^).
-          ) > build\release-notes.md
+          ) >> build\release-notes.md
           gh release create "%GITHUB_REF_NAME%" "dist/wo4k-%VERSION%.zip" "dist/wo4k-%VERSION%.zip.sha256" --verify-tag --title "WO4K %VERSION%" --notes-file build\release-notes.md --generate-notes --latest

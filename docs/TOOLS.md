@@ -33,8 +33,9 @@ In a source checkout, double-click `assets/hd/trim.cmd` with FFmpeg on PATH.
 It processes PNGs beside the script, verifies decoded pixels/alpha and bit
 depth, preserves PNG colour-profile chunks, and replaces only smaller outputs.
 Editing metadata is removed. Animated PNGs are skipped. Use `--no-pause` from a
-terminal to suppress the final keypress prompt. This maintainer script is kept
-in Git and excluded from game release ZIPs.
+terminal to suppress the final keypress prompt. This maintainer script runs
+through Windows PowerShell; it is kept in Git and excluded from game release
+ZIPs.
 
 ## Maintainer commands
 

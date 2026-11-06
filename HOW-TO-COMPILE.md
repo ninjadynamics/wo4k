@@ -34,9 +34,13 @@ mingw32-make TOOLCHAIN=C:/mingw64/bin release
 | `all` (default) | `Setup.exe`, `Play.exe`, `runtime/wohr.dll`, `runtime/wo2097-controller.exe`, `runtime/wo4k-video.exe` |
 | `test` | Unit, golden and integration tests (`tests/core`, `tests/runtime`, `tests/video`) |
 | `test-local` | Slow end-to-end install from this machine's configured game sources, compared with its existing installation |
-| `fuzz-smoke` | Run every parser fuzz harness over its seeds (full libFuzzer runs happen in CI on Linux) |
-| `package` | `dist/wo4k-<VERSION>.zip`, its `.sha256` and `release-files.json` |
+| `fuzz` / `fuzz-smoke` | Build the parser fuzz harnesses / run each over its seeds (full libFuzzer runs happen in CI on Linux) |
+| `Setup.exe`, `Play.exe`, `core`, `runtime`, `controller`, `video` | Build one component |
+| `tools` | `build/tools/wo4k-build.exe`, the build helper, which also has [maintainer commands](docs/TOOLS.md#maintainer-commands) |
+| `sign-input` | Copy the five WO4K binaries to sign into `build/unsigned` |
+| `package` | `dist/wo4k-<VERSION>.zip`, its `.sha256` and `release-files.json`; `SIGNED=<folder>` packages signed binaries from that folder |
 | `release` | `test` followed by `package` |
+| `release-notes` | `build/release-notes.md` from this version's section of `docs/CHANGELOG.md` |
 | `clean` | Remove build outputs (keeps dependencies, game data and your installation) |
 | `help` | List targets |
 
@@ -55,10 +59,14 @@ src/setup/     Setup.exe (raylib window)
 src/play/      Play.exe
 src/runtime/   32-bit game DLL (wohr.dll) and the SDL3 controller host
 src/video/     wo4k-video.exe, the native movie player
-src/tools/     wo4k-build, the build-time helper (icons, deps, packaging)
+src/tools/     wo4k-build: icons, deps, packaging and maintainer commands
 src/common/    version resource and application manifest
+third_party/   vendored miniz source
 tests/, fuzz/  automated tests and fuzz harnesses
 patches/       executable patch recipes (JSON, applied to your own game)
+assets/        supplied HD artwork, icons and Setup artwork
+manifests/     dependency pins, file catalogues and artwork provenance
+tools/         optional maintainer tools (texture audit, debander)
 ```
 
 ## Publishing a release
@@ -70,8 +78,9 @@ git tag v0.1.0-beta.25
 git push origin v0.1.0-beta.25
 ```
 
-The tag must match `VERSION`. The release workflow builds from a clean
-checkout, runs the tests and fuzzers, submits the five WO4K binaries to
+The tag must match `VERSION`, and `docs/CHANGELOG.md` needs a
+`## <VERSION>` section: it becomes the release notes. The release workflow
+builds from a clean checkout, runs the tests and fuzzers, submits the five WO4K binaries to
 SignPath for signing (when `SIGNPATH_API_TOKEN` is configured; a maintainer
 approves each request in SignPath), packages the signed files and publishes
 the GitHub Release with the ZIP and its checksum. See the

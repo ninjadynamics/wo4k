@@ -55,7 +55,7 @@ kept.
 
 For maintainers, the offline audit is reproducible from extracted originals:
 
-```powershell
+```bat
 python tools/Build-TextureSelection.py --pc-root wobble --ps1-root .work/psx-sprite-source --output manifests/texture-selection.json --audit docs/texture-selection-audit.json
 ```
 
@@ -70,7 +70,7 @@ native texture placements.
 
 For a local batch-upscaling workspace, export the complete installed selection:
 
-```powershell
+```bat
 python tools/Export-UpscaleTextures.py --game-root wobble --output exports/upscale-textures
 ```
 
@@ -97,8 +97,8 @@ as `kind: "region"` entries, alongside the existing UI aliases. Each entry gives
 its original dimensions and every native sheet/page rectangle. The three legacy
 `screen0` screenshot sections are marked as reference images, not installable
 texture slots. No original game image pixels are included in the manifest.
-The fifteen current edited signs, logos and lucky
-cats are in `assets/hd/` at half their edited export dimensions (2x native).
+The 27 edited signs, logos, lucky cats and scene textures currently in
+`assets/hd/` are mostly at half their edited export dimensions (2x native).
 The two cat billboards use alpha cutouts from their edge-connected near-black
 matte; faint background grain is removed while enclosed dark details stay opaque.
 The original full-size edited PNGs stay in the local export workspace.
