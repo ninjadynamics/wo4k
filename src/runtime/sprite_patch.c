@@ -95,12 +95,28 @@ static BOOL soft_sprite_submission(BYTE *s,void *v,int n,void *t,void *quads,int
 }
 /* Native billboards rotate only around world Y. Construct the camera-facing
  * axes through the inverse queue matrix, keeping original texture dimensions
- * and bottom anchor. Pitch and banking can no longer flatten the sprite. */
+ * and bottom anchor. Pitch and banking can no longer flatten the sprite.
+ * Camera-facing must not mean screen-upright, though: like the native ones,
+ * and like the scenery around them, sprites keep standing along world Y, so
+ * roll the camera's axes onto the view direction of world Y (row 1 of the
+ * queue matrix). The first-person view rolls with the ship; the chase view
+ * does not, so its sprites are unchanged. */
+static float sprite_sqrt(float x) {double y;__asm__("fsqrt":"=t"(y):"0"((double)x));return (float)y;}
 static void correct_billboards(LitVertex *v,int count,const BYTE *quads,const float *m) {
     float a=m[0],b=m[4],c=m[8],d=m[1],e=m[5],f=m[9],g=m[2],h=m[6],i=m[10];
     float det=a*(e*i-f*h)-b*(d*i-f*g)+c*(d*h-e*g);if(det>-.000001f && det<.000001f)return;
     float right[3]={(e*i-f*h)/det,(f*g-d*i)/det,(d*h-e*g)/det};
     float up[3]={(c*h-b*i)/det,(a*i-c*g)/det,(b*g-a*h)/det};
+    /* World Y seen from the camera: (b,e) across and down the screen. Looking
+     * straight along it there is no roll to follow; keep the camera's axes. */
+    float roll=b*b+e*e;
+    if(roll>.000001f) {
+        float length=1/sprite_sqrt(roll),across=b*length,down=e*length;
+        for(UINT axis=0;axis<3;++axis) {
+            float r=right[axis],u=up[axis];
+            right[axis]=down*r-across*u;up[axis]=across*r+down*u;
+        }
+    }
     for(int q=0;q<count;++q) {
         const SHORT *s=(const SHORT *)(quads+q*32);
         float width=s[8]*s[10]*(4.0f/256/4096),height=s[9]*s[11]*(1.0f/256/4096);
