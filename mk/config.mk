@@ -85,4 +85,4 @@ RCFLAGS := -I$(GENERATED) -Isrc/common -O coff
 # System libraries used by the core library (all part of Windows).
 CORE_SYSLIBS := -lwinhttp -lbcrypt -lcrypt32 -lwintrust -lwindowscodecs \
 	-lole32 -loleaut32 -luuid -lshell32 -lshlwapi -luser32 -lgdi32 \
-	-lversion -ladvapi32
+	-lversion -ladvapi32 -ldxgi

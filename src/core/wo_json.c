@@ -596,7 +596,15 @@ static bool write_value(const WoJson *v, bool pretty, int depth, WoBuf *out, WoE
         if (!isfinite(v->number)) {
             return wo_buf_append_str(out, "null", error);
         }
-        return wo_buf_printf(out, error, "%.17g", v->number);
+        /* Shortest precision that reads back exactly (63.65, not 63.649999…). */
+        for (int precision = 15; precision <= 17; precision++) {
+            char text[40];
+            snprintf(text, sizeof(text), "%.*g", precision, v->number);
+            if (precision == 17 || strtod(text, NULL) == v->number) {
+                return wo_buf_append_str(out, text, error);
+            }
+        }
+        return wo_fail(error, WO_ERR_INTERNAL, "Number formatting failed.");
     case WO_JSON_STRING:
         return write_string(out, v->string ? v->string : "", error);
     case WO_JSON_ARRAY:
