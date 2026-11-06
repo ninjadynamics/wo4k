@@ -3,7 +3,7 @@
  *   wo4k-build manifests
  *       Refresh manifests/artwork.json and manifests/third-party.json.
  *   wo4k-build sign-input <folder>
- *       Copy the binaries SignPath signs into <folder>, keeping their paths.
+ *       Copy the binaries to sign into <folder>, keeping their paths.
  *   wo4k-build package <version> <dist> [<signed folder>]
  *       dist/wo4k-<version>.zip with release-files.json and a .sha256
  *       sidecar. Signed binaries, when given, replace the local builds.

@@ -46,10 +46,10 @@ need no game to build or test.
 
 `VERSION` labels releases. Push a matching `v<VERSION>` tag after the source
 commit to trigger `.github/workflows/release.yml`. It builds a fresh checkout,
-runs the tests and fuzzers, has SignPath sign the five WO4K binaries (after a
-maintainer approves the request), packages the signed files and attaches the
-ZIP and checksum to a GitHub Release, using this version's section of
-`CHANGELOG.md` as the release notes. A branch push alone never publishes
+runs the tests and fuzzers, packages the binaries and attaches the ZIP and
+checksum to a GitHub Release, using this version's section of `CHANGELOG.md`
+as the release notes. Releases are currently unsigned; an optional SignPath
+signing step runs only when a `SIGNPATH_API_TOKEN` secret is configured. A branch push alone never publishes
 binaries.
 
 `source.url` and `release.url` point to this WO4K repository and its latest

@@ -1,8 +1,9 @@
 name: Build and release WO4K
 
 # Every push and pull request builds and tests. A version tag (v<VERSION>)
-# also signs the binaries through SignPath (when configured) and publishes
-# a GitHub Release. No PowerShell is used anywhere in the pipeline.
+# also publishes a GitHub Release, signing the binaries through SignPath only
+# when a SIGNPATH_API_TOKEN secret is configured (releases are currently
+# unsigned). No PowerShell is used anywhere in the pipeline.
 on:
   push:
     branches: ['**']
@@ -141,6 +142,6 @@ jobs:
             echo.
             echo Windows binaries are built from this tag by GitHub Actions.
             echo.
-            echo See the [code signing policy](https://github.com/${{ github.repository }}#code-signing-policy^).
+            echo See [verifying downloads](https://github.com/${{ github.repository }}#verifying-downloads^) to check the ZIP against its checksum.
           ) >> build\release-notes.md
           gh release create "%GITHUB_REF_NAME%" "dist/wo4k-%VERSION%.zip" "dist/wo4k-%VERSION%.zip.sha256" --verify-tag --title "WO4K %VERSION%" --notes-file build\release-notes.md --generate-notes --latest

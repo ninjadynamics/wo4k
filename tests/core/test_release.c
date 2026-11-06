@@ -66,6 +66,8 @@ static void test_versions(void) {
     CHECK(compare("0.1.0-beta.10", "0.1.0-beta.9") > 0);
     CHECK(compare("v0.1.0", "0.1.0-beta.99") > 0);
     CHECK(compare("0.2.0-alpha", "0.1.9") > 0);
+    CHECK(compare("0.2.0-beta.1", "0.1.0-beta.24") > 0);
+    CHECK(compare("0.2.0", "0.2.0-beta.1") > 0);
     CHECK(compare("1.0.0-alpha", "1.0.0-alpha.1") < 0);
     CHECK(compare("1.0.0-alpha.1", "1.0.0-alpha.beta") < 0);
     CHECK(compare("1.0.0-rc.1", "1.0.0-beta.11") > 0);

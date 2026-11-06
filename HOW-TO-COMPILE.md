@@ -75,14 +75,15 @@ tools/         optional maintainer tools (texture audit, debander)
 A normal push builds and tests only. To publish:
 
 ```bat
-git tag v0.1.0-beta.25
-git push origin v0.1.0-beta.25
+git tag v0.2.0-beta.1
+git push origin v0.2.0-beta.1
 ```
 
 The tag must match `VERSION`, and `docs/CHANGELOG.md` needs a
 `## <VERSION>` section: it becomes the release notes. The release workflow
-builds from a clean checkout, runs the tests and fuzzers, submits the five WO4K binaries to
-SignPath for signing (when `SIGNPATH_API_TOKEN` is configured; a maintainer
-approves each request in SignPath), packages the signed files and publishes
-the GitHub Release with the ZIP and its checksum. See the
-[code signing policy](README.md#code-signing-policy).
+builds from a clean checkout, runs the tests and fuzzers, packages the
+binaries and publishes the GitHub Release with the ZIP and its checksum.
+Releases are currently unsigned (see
+[verifying downloads](README.md#verifying-downloads)). The workflow keeps an
+optional SignPath signing step, which runs only when a `SIGNPATH_API_TOKEN`
+secret is configured.

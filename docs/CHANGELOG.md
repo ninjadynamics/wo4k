@@ -1,8 +1,8 @@
 ﻿# Beta release changes
 
-## 0.1.0-beta.25
+## 0.2.0-beta.1
 
-- **Players on beta.24 or earlier:** download this release once and extract it
+- **Players on 0.1.0-beta.24 or earlier:** download this release once and extract it
   over the mod folder, replacing files; the old updater cannot install it.
   The next launch repairs the installation, keeps saves and preferences, and
   removes the retired PowerShell files. Later updates work through Update.
@@ -21,7 +21,7 @@
   three update backups, remove install scratch after success, other scratch
   after 7 days and logs after 30 days.
 - Build, test and fuzz every release in CI from a clean checkout, with
-  reproducible ZIPs, and submit the binaries for SignPath code signing.
+  reproducible ZIPs and published SHA-256 checksums.
 - Fix a previous WO4K installation used as the PC source nesting a second copy
   of its texture tree.
 

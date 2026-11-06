@@ -8,7 +8,7 @@ while retaining the original game's 30 Hz simulation and gameplay pace.
 [Download releases](https://github.com/ninjadynamics/wo4k/releases) ·
 [Source code](https://github.com/ninjadynamics/wo4k) ·
 [Report a bug](https://github.com/ninjadynamics/wo4k/issues) ·
-[Code signing policy](#code-signing-policy)
+[Verifying downloads](#verifying-downloads)
 
 This repository contains the mod's C source code, artwork, Makefile and patch
 recipes. Compiled EXEs/DLLs and other generated build outputs are excluded from
@@ -269,8 +269,7 @@ to build, install or play.
 Build with `make` and a MinGW-w64 toolchain. `make release` builds, tests and
 packages the distributable ZIP, checksum and file inventory under `dist/`.
 Pushing a matching version tag triggers the GitHub Actions release workflow,
-which publishes the release, signed through SignPath once that is configured;
-a normal branch push builds and tests only. GitHub's generated source archives are not update packages.
+which publishes the release; a normal branch push builds and tests only. GitHub's generated source archives are not update packages.
 
 Every launch, installation and update writes a local diagnostic log in `logs/`.
 If an operation fails, a popup shows the exact log location; launch failures
@@ -296,7 +295,7 @@ The release's `runtime/wohr.map` maps runtime addresses back to its exact build.
 The main report and each saved attachment identify the mod version; native crash
 logs record the version compiled into the DLL, including before graphics starts.
 
-Existing players on beta.24 or earlier: the old updater cannot install this
+Existing players on 0.1.0-beta.24 or earlier: the old updater cannot install this
 release, so download the ZIP once and extract it over your mod folder, replacing
 files. Then open Setup or Play; it repairs the installation, keeps your saves
 and preferences, and removes the retired PowerShell files. Later updates work
@@ -327,22 +326,20 @@ information and the release package from GitHub) or the **GitHub** logo (it
 opens the project page in your browser). Diagnostic logs stay on your PC and
 are never uploaded; you decide whether to share them.
 
-## Code signing policy
+## Verifying downloads
 
-Free code signing provided by [SignPath.io](https://about.signpath.io/),
-certificate by [SignPath Foundation](https://signpath.org/).
+Release binaries are built from the tagged source by this repository's GitHub
+Actions release workflow, after its tests and fuzzers pass. They are not
+code-signed at the moment, so Windows SmartScreen may warn the first time you
+open Setup or Play; choose **More info → Run anyway** if the download came from
+this repository's Releases page. Each release publishes a `.zip.sha256`
+checksum beside the ZIP. To compare it, run
+`certutil -hashfile wo4k-<version>.zip SHA256` in the download folder.
 
-Release binaries are built from this repository's source by the GitHub Actions
-release workflow and signed only after a maintainer approves each signing
-request. The signed files are `Setup.exe`, `Play.exe`, `runtime/wohr.dll`,
-`runtime/wo2097-controller.exe` and `runtime/wo4k-video.exe`. The third-party
+`Setup.exe`, `Play.exe`, `runtime/wohr.dll`, `runtime/wo2097-controller.exe` and
+`runtime/wo4k-video.exe` are built from this repository. The third-party
 DDrawCompat `runtime/ddraw.dll` and GNU libiconv `runtime/libiconv-2.dll` are
-included unmodified and unsigned, as published by their upstream projects.
-
-Team roles:
-
-- Committers and reviewers: [ninjadynamics](https://github.com/ninjadynamics)
-- Approvers: [ninjadynamics](https://github.com/ninjadynamics)
+included unmodified, as published by their upstream projects.
 
 ## Acknowledgements
 

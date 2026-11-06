@@ -64,7 +64,7 @@ updated Setup, which waits for the old process to exit before opening its
 window. A failed update keeps the existing window open with its explanation.
 Temporary Repair mode does not survive the restart.
 
-Releases up to beta.24 used a PowerShell updater that requires `Setup.ps1` in
+Releases up to 0.1.0-beta.24 used a PowerShell updater that requires `Setup.ps1` in
 the package, so it refuses C releases. Players on those versions download the
 new ZIP once and extract it over the mod folder; the next Setup or Play launch
 repairs the installation and retires the unchanged PowerShell files using the
