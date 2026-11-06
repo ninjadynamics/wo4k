@@ -1,0 +1,44 @@
+/* Shared version resource. Each program's .rc defines these, then includes
+ * this file:
+ *   WO_FILE_DESCRIPTION   "WO4K Setup"
+ *   WO_INTERNAL_NAME      "Setup"
+ *   WO_ORIGINAL_FILENAME  "Setup.exe"
+ *   WO_FILE_TYPE          VFT_APP or VFT_DLL
+ * SignPath enforces ProductName and ProductVersion on signed binaries. */
+#include <winver.h>
+#include "wo_version.h"
+
+#if WO_VERSION_IS_PRERELEASE
+#define WO_FILE_FLAGS VS_FF_PRERELEASE
+#else
+#define WO_FILE_FLAGS 0
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION WO_VERSION_NUMERIC
+PRODUCTVERSION WO_VERSION_NUMERIC
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS WO_FILE_FLAGS
+FILEOS VOS_NT_WINDOWS32
+FILETYPE WO_FILE_TYPE
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Ninja Dynamics"
+            VALUE "FileDescription", WO_FILE_DESCRIPTION
+            VALUE "FileVersion", WO_VERSION_STRING
+            VALUE "InternalName", WO_INTERNAL_NAME
+            VALUE "LegalCopyright", "Copyright (c) 2026 WO4K contributors. MIT License."
+            VALUE "OriginalFilename", WO_ORIGINAL_FILENAME
+            VALUE "ProductName", "WO4K"
+            VALUE "ProductVersion", WO_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
