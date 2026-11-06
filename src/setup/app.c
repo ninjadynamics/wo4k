@@ -85,6 +85,7 @@ typedef struct App {
     bool psx_verified;
     bool source_error;
     bool restoring;
+    float psx_drop_y; /* drops at or below this go to the PlayStation field */
     bool soundtrack_touched;
     bool restore_psx_default;
     char issue[1024];
@@ -712,6 +713,7 @@ static void draw_frame(void) {
                    "automatically. The small version works without music or with optional "
                    "PlayStation music.",
                    SCAN_GAME);
+        app.psx_drop_y = y + field_h + ui_px(6);
         y += field_h + ui_px(13);
         draw_label("PLAYSTATION GAME \xC2\xB7 OPTIONAL", left, y, content, C_CAPS, UI_FONT_CAPS,
                    "Adds original PlayStation artwork from the European 2097 disc, plus its "
@@ -912,8 +914,7 @@ static void handle_dropped_files(void) {
     }
     FilePathList files = LoadDroppedFiles();
     if (files.count > 0 && !locked() && show_sources()) {
-        Vector2 mouse = GetMousePosition();
-        bool psx = mouse.y > GetScreenHeight() * 0.42f && app.game.text[0];
+        bool psx = app.psx_drop_y > 0 && GetMousePosition().y >= app.psx_drop_y;
         ui_text_field_set(psx ? &app.psx : &app.game, files.paths[0]);
         request_probe(0);
     }
