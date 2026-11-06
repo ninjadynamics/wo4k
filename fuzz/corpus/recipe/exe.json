@@ -1,0 +1,129 @@
+﻿{
+  "format": 1,
+  "source_length": 752128,
+  "target_length": 752128,
+  "source_sha256": "bb998d2b3ee810852a801e4216250396212d7fa25966cdd811fba6c64e92514d",
+  "target_sha256": "3c7a217df6bbc6c153a47abca9ace310ed642f7d6301cb56664d993d4c163ad2",
+  "ranges": [
+    {
+      "offset": 186004,
+      "xor_hex": [
+        "17"
+      ]
+    },
+    {
+      "offset": 371995,
+      "xor_hex": [
+        "d9f0ab9090"
+      ]
+    },
+    {
+      "offset": 386675,
+      "xor_hex": [
+        "d9a8b79190"
+      ]
+    },
+    {
+      "offset": 559808,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 560064,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 560320,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 560576,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 560832,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 561088,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 561344,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 561600,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 561856,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 562112,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 562368,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 562624,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 562880,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 563136,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 563392,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 563648,
+      "xor_hex": [
+        "6d665c574f42424c455c"
+      ]
+    },
+    {
+      "offset": 609404,
+      "xor_hex": [
+        "2026263f634a08006c"
+      ]
+    }
+  ]
+}
