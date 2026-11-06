@@ -330,7 +330,7 @@ static bool infer_kind(const char *relative, const Natives *natives, const char 
     return true;
 }
 
-static bool add_regions(const WoJson *entry, const char *relative, const WoImage *image,
+static bool add_regions(const WoJson *entry, const char *relative, bool transparent,
                         const Natives *natives, WoHdRegionIndex *index, WoError *error) {
     const WoJson *regions = wo_json_get(entry, "regions");
     if (!is_region_png_name(wo_json_str(entry, "file", "")) ||
@@ -360,7 +360,7 @@ static bool add_regions(const WoJson *entry, const char *relative, const WoImage
     } else if (wo_str_ieq(mode, "black-key")) {
         alpha = false;
     } else {
-        alpha = wo_image_has_transparency(image);
+        alpha = transparent;
     }
     for (size_t i = 0; i < regions->count; i++) {
         const WoJson *region = regions->items[i];
@@ -404,8 +404,63 @@ static WoJson *file_record(const char *relative, const char *kind, uint32_t widt
     return record;
 }
 
+/* What decoding a PNG tells: its size and, when asked, whether any pixel
+ * is transparent. Remembered per content digest, so an unchanged PNG is
+ * not decoded again; a changed (or damaged) one has a new digest. */
+typedef struct PngFacts {
+    uint32_t width;
+    uint32_t height;
+    bool transparent;
+} PngFacts;
+
+static bool cached_png_facts(WoHashCache *cache, const char *digest, bool need_transparency,
+                             PngFacts *facts) {
+    const WoJson *known = wo_hash_cache_facts(cache, digest, "png");
+    int64_t width = wo_json_int(known, "width", 0);
+    int64_t height = wo_json_int(known, "height", 0);
+    const WoJson *transparent = wo_json_get(known, "transparent");
+    if (width < 1 || width > 65535 || height < 1 || height > 65535 ||
+        (need_transparency && !wo_json_is(transparent, WO_JSON_BOOL))) {
+        return false;
+    }
+    facts->width = (uint32_t)width;
+    facts->height = (uint32_t)height;
+    facts->transparent = need_transparency && transparent->boolean;
+    return true;
+}
+
+static bool png_facts(WoHashCache *cache, const char *path, bool need_transparency,
+                      PngFacts *facts, WoError *error) {
+    char digest[WO_SHA256_HEX_SIZE];
+    bool hashed = cache && wo_hash_cache_file(cache, path, digest, NULL);
+    if (hashed && cached_png_facts(cache, digest, need_transparency, facts)) {
+        return true;
+    }
+    WoImage image;
+    if (!wo_png_read(path, WO_PIXELS_BGRA, &image, error)) {
+        return false;
+    }
+    facts->width = image.width;
+    facts->height = image.height;
+    facts->transparent = need_transparency && wo_image_has_transparency(&image);
+    wo_image_free(&image);
+    if (hashed) {
+        WoJson *known = wo_json_new_object();
+        bool ok = known && wo_json_put_int(known, "width", facts->width) &&
+                  wo_json_put_int(known, "height", facts->height) &&
+                  (!need_transparency || wo_json_put_bool(known, "transparent", facts->transparent));
+        if (ok) {
+            wo_hash_cache_set_facts(cache, digest, "png", known);
+        } else {
+            wo_json_free(known);
+        }
+    }
+    return true;
+}
+
 static bool check_input(const WoJson *catalog, const Input *input, const Natives *natives,
-                        WoHdRegionIndex *index, WoJson *files, WoError *error) {
+                        WoHashCache *cache, WoHdRegionIndex *index, WoJson *files,
+                        WoError *error) {
     const WoJson *entry = catalog_entry(catalog, input->relative);
     const char *kind = NULL;
     if (entry) {
@@ -418,19 +473,19 @@ static bool check_input(const WoJson *catalog, const Input *input, const Natives
                        "HD image '%s' is a reference screenshot, not a game texture. %s",
                        input->relative, wo_json_str(entry, "reason", ""));
     }
-    WoImage image;
-    if (!wo_png_read(input->path, WO_PIXELS_BGRA, &image, error)) {
+    bool region = kind && wo_str_eq(kind, "region");
+    PngFacts facts;
+    if (!png_facts(cache, input->path, region, &facts, error)) {
         return false;
     }
     bool ok = true;
-    if (kind && wo_str_eq(kind, "region")) {
-        ok = add_regions(entry, input->relative, &image, natives, index, error);
+    if (region) {
+        ok = add_regions(entry, input->relative, facts.transparent, natives, index, error);
     }
-    WoJson *record = ok ? file_record(input->relative, kind, image.width, image.height) : NULL;
+    WoJson *record = ok ? file_record(input->relative, kind, facts.width, facts.height) : NULL;
     if (ok && !(record && wo_json_push(files, record))) {
         ok = wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
     }
-    wo_image_free(&image);
     return ok;
 }
 
@@ -475,8 +530,8 @@ static bool prepare(const WoHdOptions *options, Inputs *inputs, WoHdRegionIndex 
         qsort(inputs->items, inputs->count, sizeof(Input), compare_inputs);
     }
     for (size_t i = 0; ok && i < inputs->count; i++) {
-        ok = check_input(options->catalog, &inputs->items[i], &natives, index, result->files,
-                         error);
+        ok = check_input(options->catalog, &inputs->items[i], &natives, options->cache, index,
+                         result->files, error);
     }
     natives_free(&natives);
     if (ok) {

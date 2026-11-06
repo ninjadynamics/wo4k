@@ -65,6 +65,31 @@ bool wo_write_file_atomic(const char *path, const void *data, size_t len, WoErro
 bool wo_read_json(const char *path, size_t max_bytes, WoJson **out, WoError *error);
 /* Pretty-printed, atomic. */
 bool wo_write_json(const char *path, const WoJson *value, WoError *error);
+/* As wo_write_json, but a file that already holds exactly these bytes is
+ * left untouched (no write, no flush). *written (may be NULL) tells. */
+bool wo_write_json_if_changed(const char *path, const WoJson *value, bool *written,
+                              WoError *error);
+
+/* --- Change detection -------------------------------------------------------------- */
+/* What the file system records about a file's current contents. Equal
+ * identities mean unchanged contents as far as it can tell: the change time
+ * moves with every write and every metadata change (restoring an old
+ * last-write time included), and the file id changes when a file is
+ * replaced by another. */
+typedef struct WoFileIdentity {
+    uint64_t size;
+    uint64_t mtime;  /* last write, FILETIME ticks (100 ns since 1601, UTC) */
+    uint64_t ctime;  /* change time, same unit; 0 where the file system has none */
+    uint64_t volume; /* volume serial number */
+    uint8_t id[16];  /* file id on that volume */
+} WoFileIdentity;
+
+/* Identity of an existing file (a folder is WO_ERR_UNSUPPORTED). Opens it
+ * for attributes only, so security software has nothing to scan. */
+bool wo_file_identity(const char *path, WoFileIdentity *out, WoError *error);
+bool wo_file_identity_eq(const WoFileIdentity *a, const WoFileIdentity *b);
+/* Current time on the clock file times use (FILETIME ticks, UTC). */
+uint64_t wo_fs_now(void);
 
 /* --- Changes ------------------------------------------------------------------------- */
 bool wo_mkdirs(const char *path, WoError *error);
@@ -127,6 +152,9 @@ uint64_t wo_file_size(const WoFile *file);
 const char *wo_file_path(const WoFile *file);
 /* Close; for written files check the result to catch delayed write errors. */
 bool wo_file_close(WoFile *file, WoError *error);
+/* Identity of an open file: taken before and after reading it, equal
+ * results show nothing changed it meanwhile. */
+bool wo_file_identity_of(WoFile *file, WoFileIdentity *out, WoError *error);
 
 /* A WoSource reading a file; wo_source_close releases it. */
 bool wo_source_open_file(WoSource *source, const char *path, WoError *error);

@@ -258,7 +258,7 @@ bool wo_receipt_load(const WoMod *mod, WoJson **out, WoError *error) {
 
 bool wo_receipt_save(const WoMod *mod, const WoJson *receipt, WoError *error) {
     char *path = wo_path_join(mod->game, "installation.json", error);
-    bool ok = path && wo_write_json(path, receipt, error);
+    bool ok = path && wo_write_json_if_changed(path, receipt, NULL, error);
     wo_free(path);
     return ok;
 }
@@ -280,7 +280,7 @@ bool wo_state_save(const WoMod *mod, const char *name, const WoJson *value, WoEr
     if (ok && wo_chain_has_link(mod->root, path)) {
         ok = wo_fail(error, WO_ERR_UNSAFE, "Saved settings refuse filesystem links (%s).", name);
     }
-    ok = ok && wo_write_json(path, value, error);
+    ok = ok && wo_write_json_if_changed(path, value, NULL, error);
     wo_free(path);
     return ok;
 }

@@ -12,6 +12,7 @@
 #define WO_HDTEX_H
 
 #include "core/wo_base.h"
+#include "core/wo_hashcache.h"
 #include "core/wo_hdregions.h"
 #include "core/wo_json.h"
 
@@ -20,6 +21,7 @@ typedef struct WoHdOptions {
     const char *canonical_dir; /* <mod>/assets/hd */
     const char *source_dir;    /* optional extra artwork folder (may equal canonical_dir) */
     const char *game_root;
+    WoHashCache *cache;        /* optional: skips decoding PNGs whose bytes were seen */
 } WoHdOptions;
 
 typedef struct WoHdResult {

@@ -128,7 +128,7 @@ static void test_pc_only_build(void) {
     WoError error = {0};
     char before[WO_SHA256_HEX_SIZE];
     char *sheet = sheet_hash(game, before);
-    WoNativeOptions options = {game, plan, NULL, NULL, NULL, false, false};
+    WoNativeOptions options = {game, plan, NULL, NULL, NULL, false, false, NULL};
     WoJson *receipt = NULL;
     CHECK_OK(wo_natives_install(&options, &receipt, &error), &error);
     CHECK(wo_json_int(receipt, "format", 0) == 2 && wo_json_int(receipt, "revision", 0) == 3);
@@ -280,7 +280,7 @@ static void test_ps1_import(void) {
     CHECK(!found);
 
     WoJson *plan = parse(PLAN);
-    WoNativeOptions options = {game, plan, discs, "D:\\chosen.zip", NULL, false, true};
+    WoNativeOptions options = {game, plan, discs, "D:\\chosen.zip", NULL, false, true, NULL};
     WoJson *receipt = NULL;
     CHECK_OK(wo_natives_install(&options, &receipt, &error), &error);
     CHECK(wo_json_int(receipt, "ps1_regions", -1) == 1);
@@ -313,7 +313,7 @@ static void test_ps1_import(void) {
     char before[WO_SHA256_HEX_SIZE];
     char after[WO_SHA256_HEX_SIZE];
     CHECK_OK(wo_sha256_file(sheet_path, before, &error), &error);
-    WoNativeOptions again = {game, plan, NULL, NULL, NULL, false, true};
+    WoNativeOptions again = {game, plan, NULL, NULL, NULL, false, true, NULL};
     CHECK_OK(wo_natives_install(&again, &receipt, &error), &error);
     CHECK_OK(wo_sha256_file(sheet_path, after, &error), &error);
     CHECK(wo_digest_eq(before, after));
@@ -330,7 +330,7 @@ static void test_ps1_import(void) {
     CHECK_OK(wo_copy_file(pristine, stage_sheet, &error) && wo_copy_file(wad_from, wad_to, &error) &&
                  wo_copy_file(mine_from, mine_to, &error),
              &error);
-    WoNativeOptions retained = {stage, plan, NULL, NULL, game, false, true};
+    WoNativeOptions retained = {stage, plan, NULL, NULL, game, false, true, NULL};
     CHECK_OK(wo_natives_install(&retained, &receipt, &error), &error);
     CHECK_OK(wo_sha256_file(stage_sheet, after, &error), &error);
     CHECK(wo_digest_eq(before, after));

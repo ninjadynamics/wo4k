@@ -401,7 +401,7 @@ bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configur
     if (ok) {
         wo_progress(progress, WO_STAGE_SOUND_EFFECTS, 34, "Processing sound effects locally");
         char *effects = wo_path_join(session, "audio-original", error);
-        WoSfxOptions options = {patches, effects, stage, !config->clean_audio, false};
+        WoSfxOptions options = {patches, effects, stage, !config->clean_audio, false, NULL};
         WoSfxResult result;
         ok = effects && wo_copy_sound_effects(native, effects, error) &&
              wo_sfx_install(&options, &result, error);
@@ -466,7 +466,7 @@ bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configur
     if (ok && config->hd_textures) {
         set_stage(progress, WO_STAGE_HD_ART);
         char *canonical = wo_mod_path(mod, "assets/hd", error);
-        WoHdOptions options = {catalog, canonical, canonical, stage};
+        WoHdOptions options = {catalog, canonical, canonical, stage, NULL};
         WoHdResult result = {0};
         ok = canonical && wo_hd_install(&options, &result, error);
         wo_hd_result_free(&result);

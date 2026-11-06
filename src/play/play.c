@@ -16,6 +16,7 @@
 
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
+#include "core/wo_hashcache.h"
 #include "core/wo_log.h"
 #include "core/wo_mod.h"
 #include "core/wo_net.h"
@@ -91,9 +92,38 @@ static char *exit_description(DWORD code) {
                      (long)(LONG)code, hint);
 }
 
+/* Signature verdict for a digest: remembered in the integrity cache, so
+ * WinVerifyTrust only runs for a binary it has not judged before. */
+static const char *signature_status(WoHashCache *cache, const char *path, const char *digest) {
+    const char *known = wo_json_str(wo_hash_cache_facts(cache, digest, "signature"), "status",
+                                    NULL);
+    if (known && (wo_str_eq(known, "valid") || wo_str_eq(known, "none"))) {
+        return known;
+    }
+    WoSignature signature;
+    if (!wo_signature_check(path, &signature, NULL)) {
+        return "unknown";
+    }
+    const char *status = signature.trusted ? "valid" : "none";
+    WoJson *facts = wo_json_new_object();
+    if (facts && wo_json_put_str(facts, "status", status)) {
+        wo_hash_cache_set_facts(cache, digest, "signature", facts);
+    } else {
+        wo_json_free(facts);
+    }
+    return status;
+}
+
 static void log_dependencies(const WoMod *mod, WoError *error) {
     static const char *const names[] = {"Wipeout2097.exe", "wohr.dll", "ddraw.dll",
                                         "wo2097-controller.exe", "wo4k-video.exe"};
+    /* Reconcile has just checked these files, so their digests are cached. */
+    char *cache_path = wo_path_child(mod->state, "integrity.json", NULL);
+    const char *note = NULL;
+    WoHashCache *cache = cache_path && !wo_chain_has_link(mod->root, cache_path)
+                             ? wo_hash_cache_open(cache_path, mod->root, false, &note, NULL)
+                             : NULL;
+    wo_free(cache_path);
     for (size_t i = 0; i < WO_COUNT(names); i++) {
         char *path = wo_mod_game_path(mod, names[i], error);
         WoFileInfo info;
@@ -106,22 +136,23 @@ static void log_dependencies(const WoMod *mod, WoError *error) {
             }
             wo_free(path);
             if (i < 4) {
-                return;
+                break;
             }
             continue;
         }
         char digest[WO_SHA256_HEX_SIZE] = "";
-        wo_sha256_file(path, digest, NULL);
-        WoSignature signature;
-        bool checked = wo_signature_check(path, &signature, NULL);
+        bool hashed = wo_hash_cache_file(cache, path, digest, NULL);
         WoJson *data = wo_json_new_object();
         wo_json_put_str(data, "file", names[i]);
         wo_json_put_int(data, "bytes", (int64_t)info.size);
         wo_json_put_str(data, "sha256", digest);
-        wo_json_put_str(data, "signature", !checked ? "unknown" : signature.trusted ? "valid" : "none");
+        wo_json_put_str(data, "signature",
+                        hashed ? signature_status(cache, path, digest) : "unknown");
         wo_log_event("dependency", data);
         wo_free(path);
     }
+    wo_hash_cache_save(cache, false, NULL);
+    wo_hash_cache_free(cache);
 }
 
 /* Find the Application Error (event 1000) record for the game's process and

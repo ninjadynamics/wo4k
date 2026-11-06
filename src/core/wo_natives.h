@@ -14,6 +14,7 @@
 #define WO_NATIVES_H
 
 #include "core/wo_base.h"
+#include "core/wo_hashcache.h"
 #include "core/wo_json.h"
 
 #define WO_PS1_EDITION "WipEout 2097 Europe SLES-00327"
@@ -45,6 +46,9 @@ bool wo_ps1_import_textures(const char *source, const char *destination, const W
  * revision and every patched sheet still has its recorded SHA-256. */
 bool wo_natives_test(const char *game_root, const WoJson *plan, bool require_ps1, bool *healthy,
                      WoError *error);
+/* The same, taking unchanged sheets' digests from cache (may be NULL). */
+bool wo_natives_test_cached(const char *game_root, const WoJson *plan, bool require_ps1,
+                            WoHashCache *cache, bool *healthy, WoError *error);
 
 typedef struct WoNativeCounts {
     size_t pc_regions;
@@ -73,6 +77,7 @@ typedef struct WoNativeOptions {
     const char *retain_from;       /* optional previous game folder to keep caches from */
     bool incremental;              /* keep a healthy build when nothing new is supplied */
     bool require_ps1;              /* the PlayStation artwork must be present and complete */
+    WoHashCache *cache;            /* optional: digests of unchanged sheets */
 } WoNativeOptions;
 
 /* Build every sheet in the plan and write textures/selection.json. Each

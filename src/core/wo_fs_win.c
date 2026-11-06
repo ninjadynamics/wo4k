@@ -646,6 +646,97 @@ bool wo_write_json(const char *path, const WoJson *value, WoError *error) {
     return ok;
 }
 
+bool wo_write_json_if_changed(const char *path, const WoJson *value, bool *written,
+                              WoError *error) {
+    if (written) {
+        *written = false;
+    }
+    WoBuf buf = {0};
+    if (!wo_json_write(value, true, &buf, error)) {
+        wo_buf_free(&buf);
+        return false;
+    }
+    bool same = false;
+    WoFileInfo info;
+    if (wo_stat(path, &info, NULL) && info.exists && !info.is_dir && info.size == buf.len) {
+        WoBuf old = {0};
+        /* An unreadable file is simply rewritten. */
+        same = wo_read_file(path, buf.len, &old, NULL) && old.len == buf.len &&
+               memcmp(old.data, buf.data, buf.len) == 0;
+        wo_buf_free(&old);
+    }
+    bool ok = same || wo_write_file_atomic(path, buf.data, buf.len, error);
+    if (ok && !same && written) {
+        *written = true;
+    }
+    wo_buf_free(&buf);
+    return ok;
+}
+
+/* --- Change detection ---------------------------------------------------------------- */
+
+static bool handle_identity(HANDLE handle, const char *path, WoFileIdentity *out,
+                            WoError *error) {
+    memset(out, 0, sizeof(*out));
+    FILE_BASIC_INFO basic;
+    FILE_STANDARD_INFO standard;
+    if (!GetFileInformationByHandleEx(handle, FileBasicInfo, &basic, sizeof(basic)) ||
+        !GetFileInformationByHandleEx(handle, FileStandardInfo, &standard, sizeof(standard))) {
+        return wo_fail_win32(error, GetLastError(), "Cannot read the identity of \"%s\"", path);
+    }
+    if (standard.Directory) {
+        return wo_fail(error, WO_ERR_UNSUPPORTED, "\"%s\" is a folder, not a file.", path);
+    }
+    out->size = (uint64_t)standard.EndOfFile.QuadPart;
+    out->mtime = (uint64_t)basic.LastWriteTime.QuadPart;
+    out->ctime = (uint64_t)basic.ChangeTime.QuadPart;
+    FILE_ID_INFO id;
+    if (GetFileInformationByHandleEx(handle, FileIdInfo, &id, sizeof(id))) {
+        out->volume = id.VolumeSerialNumber;
+        memcpy(out->id, id.FileId.Identifier, sizeof(out->id));
+        return true;
+    }
+    /* Older file systems (FAT) only offer the 64-bit index. */
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformationByHandle(handle, &info)) {
+        return wo_fail_win32(error, GetLastError(), "Cannot read the identity of \"%s\"", path);
+    }
+    out->volume = info.dwVolumeSerialNumber;
+    uint64_t index = ((uint64_t)info.nFileIndexHigh << 32) | info.nFileIndexLow;
+    for (size_t i = 0; i < 8; i++) {
+        out->id[i] = (uint8_t)(index >> (8 * i));
+    }
+    return true;
+}
+
+bool wo_file_identity(const char *path, WoFileIdentity *out, WoError *error) {
+    memset(out, 0, sizeof(*out));
+    HANDLE handle;
+    if (!open_handle(path, FILE_READ_ATTRIBUTES,
+                     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, OPEN_EXISTING,
+                     FILE_ATTRIBUTE_NORMAL, &handle, error)) {
+        return false;
+    }
+    bool ok = handle_identity(handle, path, out, error);
+    CloseHandle(handle);
+    return ok;
+}
+
+bool wo_file_identity_of(WoFile *file, WoFileIdentity *out, WoError *error) {
+    return handle_identity(file->handle, file->path, out, error);
+}
+
+bool wo_file_identity_eq(const WoFileIdentity *a, const WoFileIdentity *b) {
+    return a->size == b->size && a->mtime == b->mtime && a->ctime == b->ctime &&
+           a->volume == b->volume && memcmp(a->id, b->id, sizeof(a->id)) == 0;
+}
+
+uint64_t wo_fs_now(void) {
+    FILETIME now;
+    GetSystemTimeAsFileTime(&now);
+    return filetime_ticks(now);
+}
+
 /* --- Changes ----------------------------------------------------------------------- */
 
 bool wo_mkdirs(const char *path, WoError *error) {

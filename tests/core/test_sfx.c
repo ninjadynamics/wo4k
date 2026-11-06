@@ -72,7 +72,7 @@ static void test_install(void) {
                            ha, 0, hb);
     WoJson *manifest = NULL;
     CHECK_OK(wo_json_parse(text, strlen(text), &manifest, &error), &error);
-    WoSfxOptions options = {manifest, source, game, false, false};
+    WoSfxOptions options = {manifest, source, game, false, false, NULL};
     WoSfxResult result;
     CHECK_OK(wo_sfx_install(&options, &result, &error), &error);
     CHECK(result.checked == 2 && result.updated == 2);

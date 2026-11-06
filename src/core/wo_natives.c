@@ -333,6 +333,11 @@ static bool json_numbers_equal(const WoJson *a, const WoJson *b) {
 
 bool wo_natives_test(const char *game_root, const WoJson *plan, bool require_ps1, bool *healthy,
                      WoError *error) {
+    return wo_natives_test_cached(game_root, plan, require_ps1, NULL, healthy, error);
+}
+
+bool wo_natives_test_cached(const char *game_root, const WoJson *plan, bool require_ps1,
+                            WoHashCache *cache, bool *healthy, WoError *error) {
     *healthy = false;
     char *path = wo_path_join(game_root, "textures/selection.json", error);
     char *sd = path ? wo_path_join(game_root, "textures/sd", error) : NULL;
@@ -367,7 +372,7 @@ bool wo_natives_test(const char *game_root, const WoJson *plan, bool require_ps1
             ok = false;
         }
         char hash[WO_SHA256_HEX_SIZE];
-        good = sheet && wo_is_file(sheet) && wo_sha256_file(sheet, hash, NULL) &&
+        good = sheet && wo_is_file(sheet) && wo_hash_cache_file(cache, sheet, hash, NULL) &&
                wo_str_ieq(hash, expected);
         wo_free(sheet);
     }
@@ -634,7 +639,8 @@ static WoJson *make_receipt(const WoJson *plan, const WoNativeCounts *counts, si
 static bool reuse_healthy_build(const WoNativeOptions *options, const NativePaths *p,
                                 WoJson **receipt, WoError *error) {
     bool healthy = false;
-    if (!wo_natives_test(p->game, options->plan, options->require_ps1, &healthy, error)) {
+    if (!wo_natives_test_cached(p->game, options->plan, options->require_ps1, options->cache,
+                                &healthy, error)) {
         return false;
     }
     if (healthy && !wo_read_json(p->receipt, RECEIPT_MAX_BYTES, receipt, error)) {
