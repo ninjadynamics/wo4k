@@ -415,13 +415,27 @@ bool wo_zip_extract_all(WoZip *zip, const char *dest_dir, const WoZipLimits *lim
 
 /* --- Writer ---------------------------------------------------------------- */
 
+/* ZIP entry times are a wall-clock date and time without a zone, which miniz
+ * fills in with localtime(). Hand it the instant whose local time reads as
+ * when's UTC time, so every machine writes the same bytes. */
+static time_t local_for_utc(time_t when) {
+    struct tm *utc = gmtime(&when);
+    if (!utc) {
+        return when;
+    }
+    struct tm fields = *utc;
+    fields.tm_isdst = -1;
+    time_t local = mktime(&fields);
+    return local == (time_t)-1 ? when : local;
+}
+
 bool wo_zip_writer_begin(time_t when, WoZipWriter **out, WoError *error) {
     *out = NULL;
     WoZipWriter *writer = wo_alloc(sizeof(*writer), error);
     if (!writer) {
         return false;
     }
-    writer->when = when;
+    writer->when = local_for_utc(when);
     if (!mz_zip_writer_init_heap(&writer->archive, 0, 1u << 20)) {
         wo_free(writer);
         return wo_fail(error, WO_ERR_INTERNAL, "Cannot start a ZIP archive.");

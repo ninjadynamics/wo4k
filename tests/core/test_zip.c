@@ -157,10 +157,38 @@ static void test_not_a_zip(void) {
     wo_free(path);
 }
 
+/* Entry times are written as the UTC wall-clock time on every machine, so a
+ * package is byte-identical whatever the builder's time zone. */
+static void test_entry_time_is_utc(void) {
+    const char *dir = wo_test_dir("zip-time");
+    if (!dir) {
+        return;
+    }
+    WoError error = {0};
+    char *path = wo_path_join(dir, "time.zip", &error);
+    WoZipWriter *writer = NULL;
+    CHECK_OK(wo_zip_writer_begin(1767225600, &writer, &error), &error); /* 2026-01-01 UTC */
+    CHECK_OK(wo_zip_writer_add(writer, "a.txt", "a", 1, &error), &error);
+    CHECK_OK(wo_zip_writer_finish(writer, path, &error), &error);
+    WoBuf data = {0};
+    CHECK_OK(wo_read_file(path, 1 << 20, &data, &error), &error);
+    /* Local file header: DOS time at offset 10, date at 12 (little-endian). */
+    CHECK(data.len > 14 && memcmp(data.data, "PK\x03\x04", 4) == 0);
+    if (data.len > 14) {
+        unsigned dos_time = data.data[10] | (unsigned)data.data[11] << 8;
+        unsigned dos_date = data.data[12] | (unsigned)data.data[13] << 8;
+        CHECK(dos_time == 0);
+        CHECK(dos_date == ((2026u - 1980u) << 9 | 1u << 5 | 1u));
+    }
+    wo_buf_free(&data);
+    wo_free(path);
+}
+
 int main(void) {
     RUN(test_round_trip);
     RUN(test_hostile_names);
     RUN(test_duplicates_and_cp437);
     RUN(test_not_a_zip);
+    RUN(test_entry_time_is_utc);
     return wo_test_finish();
 }
