@@ -99,6 +99,68 @@ static DWORD run_fixture(const wchar_t *fixture, const wchar_t *directory)
     return code;
 }
 
+/* The fixture's movie bridge check (WO_TEST_BRIDGE_ROOT) runs the real
+ * launch code in src/runtime/movies_patch.c. Point it at a folder whose
+ * wo4k-video.exe is the windowless stand-in, never the player. */
+static bool prepare_bridge(const wchar_t *work, wchar_t *bridge)
+{
+    wchar_t standin[PATH_SIZE];
+    wchar_t player[PATH_SIZE];
+    wchar_t movies[PATH_SIZE];
+    wchar_t movie[PATH_SIZE];
+    wchar_t result[PATH_SIZE];
+    wchar_t root[PATH_SIZE];
+    if (!beside_self(standin, L"video_bridge_standin.exe") ||
+        !join(bridge, work, L"bridge") || !join(player, bridge,
+            L"wo4k-video.exe") || !join(movies, bridge, L"movies") ||
+        !join(movie, movies, L"WXLINTR.MPG") ||
+        !join(result, bridge, L"bridge-result.txt")) {
+        return false;
+    }
+    CreateDirectoryW(bridge, NULL);
+    CreateDirectoryW(movies, NULL);
+    DeleteFileW(result);
+    /* movies_patch.c only checks that a movie file exists. */
+    if (!CopyFileW(standin, player, FALSE) || !write_ascii(movie, "")) {
+        return false;
+    }
+    int written = swprintf(root, PATH_SIZE, L"%ls\\", bridge);
+    return written > 0 && written < PATH_SIZE &&
+        SetEnvironmentVariableW(L"WO_TEST_BRIDGE_ROOT", root);
+}
+
+static bool check_bridge(const wchar_t *bridge)
+{
+    static const char *const expected[] = {
+        "arguments_parsed 1", "game_root_matches 1", "movie_is_intro 1",
+        "game_pid_is_game 1", "not_probe 1", "skip_event_inherited 1",
+        "repeat_ignored 1", "skip_signaled 1"
+    };
+    wchar_t path[PATH_SIZE];
+    char text[1024];
+    DWORD read = 0;
+    if (!join(path, bridge, L"bridge-result.txt")) {
+        return false;
+    }
+    HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "FAIL: the runtime never started the movie player\n");
+        return false;
+    }
+    bool ok = ReadFile(file, text, sizeof(text) - 1, &read, NULL) != 0;
+    CloseHandle(file);
+    text[ok ? read : 0] = '\0';
+    for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); ++i) {
+        if (strstr(text, expected[i]) == NULL) {
+            fprintf(stderr, "FAIL: movie launch check failed: %s\n%s",
+                expected[i], text);
+            ok = false;
+        }
+    }
+    return ok;
+}
+
 static const char ddraw_ini_original[] = "LogLevel = none\r\n"
     "ResolutionScale = off\r\nTextureFilter = bilinear\r\n"
     "ColorKeyMethod = alphatest(1)\r\n";
@@ -201,8 +263,8 @@ int main(void)
         SetEnvironmentVariableW(L"WO2097_DISTANCE_TEST", L"1") &&
         SetEnvironmentVariableW(L"WO2097_REFRESH_TEST", L"1") &&
         SetEnvironmentVariableW(L"WO2097_SIM60_TEST", L"0");
-    /* Never the bridge smoke test: it would start the real, full-screen
-     * movie player. */
+    /* Never an inherited bridge root: it could start the real, full-screen
+     * movie player. The stand-in is set up below, for the final run only. */
     SetEnvironmentVariableW(L"WO_TEST_BRIDGE_ROOT", NULL);
     SetEnvironmentVariableW(L"WO_TEST_DDRAW_WRAPPER", NULL);
     SetEnvironmentVariableW(L"WO_TEST_MATERIAL_REPORT", NULL);
@@ -213,6 +275,11 @@ int main(void)
     length = GetEnvironmentVariableW(L"WO_TEST_GPU_MATERIALS", flag, 8);
     bool gpu = length == 1 && flag[0] == L'1';
     if (gpu && !prepare_gpu(fixture, work, repository)) {
+        return 1;
+    }
+    wchar_t bridge[PATH_SIZE];
+    if (!prepare_bridge(work, bridge)) {
+        fprintf(stderr, "FAIL: cannot prepare the movie launch stand-in\n");
         return 1;
     }
     DWORD code = run_fixture(fixture, gpu ? work : NULL);
@@ -226,6 +293,13 @@ int main(void)
             "failed: %lu\n", (unsigned long)code);
         return 1;
     }
+    if (!check_bridge(bridge)) {
+        return 1;
+    }
+    printf("PASS: the runtime starts wo4k-video.exe from the game folder with "
+        "a command line the player parses and a skip event inherited through "
+        "a handle list; a fresh Esc in the game's message loop signals it, "
+        "an auto-repeat does not.\n");
     if (gpu) {
         printf("PASS: offscreen GPU material, sprite-edge and effect blend "
             "checks.\n");

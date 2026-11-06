@@ -402,8 +402,9 @@ void __stdcall test_entry(void){
             VirtualFree(pixels,0,MEM_RELEASE);
         }
     }
-    /* Optional end-to-end native -> PowerShell -> media -> return smoke test.
-     * Only reads a short, user-created local video fixture. */
+    /* Optional movie launch check through the production play_game_movie.
+     * run_render_init points it at a folder whose wo4k-video.exe is the
+     * windowless tests/runtime/video_bridge_standin.c. */
     if(GetEnvironmentVariableW(L"WO_TEST_BRIDGE_ROOT",movie_root,MAX_PATH)){
         LARGE_INTEGER before,after;QueryPerformanceCounter(&before);
         play_game_movie(0);QueryPerformanceCounter(&after);

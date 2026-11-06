@@ -47,33 +47,61 @@ static BOOL movie_available(UINT movie) {
     }
     return FALSE;
 }
+/* The game keeps keyboard focus during a movie, so its own loop sees the
+ * skip keys. Only fresh presses count; held keys auto-repeat. */
+static BOOL movie_skip_key(const MSG *message,HWND window) {
+    if(message->message!=WM_KEYDOWN || (message->lParam&0x40000000))return FALSE;
+    if(window && message->hwnd!=window)return FALSE;
+    return message->wParam==VK_ESCAPE || message->wParam==VK_RETURN || message->wParam==VK_SPACE;
+}
+/* Restrict inheritance to the skip event alone: the player receives no other
+ * inheritable handle the game may hold. */
+static BOOL movie_handle_list(STARTUPINFOEXW *startup,HANDLE *skip) {
+    static ULONG_PTR storage[32];SIZE_T size=0;
+    InitializeProcThreadAttributeList(0,1,0,&size);
+    if(!size || size>sizeof(storage))return FALSE;
+    startup->lpAttributeList=(LPPROC_THREAD_ATTRIBUTE_LIST)storage;
+    if(!InitializeProcThreadAttributeList(startup->lpAttributeList,1,0,&size)){startup->lpAttributeList=0;return FALSE;}
+    if(UpdateProcThreadAttribute(startup->lpAttributeList,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,skip,sizeof(*skip),0,0))return TRUE;
+    DeleteProcThreadAttributeList(startup->lpAttributeList);startup->lpAttributeList=0;return FALSE;
+}
 static void play_game_movie(UINT movie) {
     if(!movie_root[0] || !movie_name(movie) || !movie_available(movie))return;
-    WCHAR executable[MAX_PATH],script[MAX_PATH],command[MAX_PATH*4];executable[0]=script[0]=command[0]=0;
-    UINT n=GetSystemDirectoryW(executable,MAX_PATH);
-    if(!n || n>=MAX_PATH || !movie_append(executable,MAX_PATH,L"\\WindowsPowerShell\\v1.0\\powershell.exe"))return;
-    if(!movie_append(script,MAX_PATH,movie_root) || !movie_append(script,MAX_PATH,L"..\\scripts\\Show-Video.ps1") || GetFileAttributesW(script)==INVALID_FILE_ATTRIBUTES)return;
+    WCHAR executable[MAX_PATH],command[MAX_PATH*4];executable[0]=command[0]=0;
+    /* The installer places the player beside the game executable. */
+    if(!movie_append(executable,MAX_PATH,movie_root) || !movie_append(executable,MAX_PATH,L"wo4k-video.exe"))return;
+    if(GetFileAttributesW(executable)==INVALID_FILE_ATTRIBUTES){wo_render_event("video_player_missing",movie);return;}
     hide_game_cursor();HWND window=cursor_window;
     start_controller();
+    SECURITY_ATTRIBUTES inherit={sizeof(inherit),0,TRUE};
+    HANDLE skip=CreateEventW(&inherit,TRUE,FALSE,0);
+    STARTUPINFOEXW startup={0};startup.StartupInfo.cb=sizeof(startup.StartupInfo);
+    startup.StartupInfo.dwFlags=STARTF_FORCEOFFFEEDBACK;
+    BOOL listed=skip && movie_handle_list(&startup,&skip);
+    if(listed)startup.StartupInfo.cb=sizeof(startup);
+    else if(skip){CloseHandle(skip);skip=0;}
     BOOL ok=movie_append(command,MAX_PATH*4,L"\"") && movie_append(command,MAX_PATH*4,executable) &&
-        movie_append(command,MAX_PATH*4,L"\" -NoProfile -STA -ExecutionPolicy Bypass -File \"") && movie_append(command,MAX_PATH*4,script) &&
-        movie_append(command,MAX_PATH*4,L"\" -GameRoot \"") && movie_append(command,MAX_PATH*4,movie_root) &&
+        movie_append(command,MAX_PATH*4,L"\" --game-root \"") && movie_append(command,MAX_PATH*4,movie_root) &&
         /* Extra dot prevents a quoted trailing backslash escaping the quote. */
-        movie_append(command,MAX_PATH*4,L".\" -Movie ") && movie_append(command,MAX_PATH*4,movie_name(movie)) &&
-        movie_append(command,MAX_PATH*4,L" -ControllerOwner ") && movie_append_number(command,MAX_PATH*4,GetCurrentProcessId()) &&
-        movie_append(command,MAX_PATH*4,L" -OwnerWindow ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)window);
-    if(!ok)return;
-    BOOL music=wo_audio_movie_pause();
-    STARTUPINFOW startup={0};PROCESS_INFORMATION child={0};startup.cb=sizeof(startup);startup.dwFlags=STARTF_USESHOWWINDOW;startup.wShowWindow=SW_HIDE;
-    if(CreateProcessW(executable,command,0,0,FALSE,CREATE_NO_WINDOW,0,0,&startup,&child)){
+        movie_append(command,MAX_PATH*4,L".\" --movie ") && movie_append(command,MAX_PATH*4,movie_name(movie)) &&
+        movie_append(command,MAX_PATH*4,L" --game-pid ") && movie_append_number(command,MAX_PATH*4,GetCurrentProcessId()) &&
+        movie_append(command,MAX_PATH*4,L" --owner-window ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)window);
+    if(ok && skip)ok=movie_append(command,MAX_PATH*4,L" --skip-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)skip);
+    BOOL music=ok?wo_audio_movie_pause():FALSE;
+    PROCESS_INFORMATION child={0};
+    BOOL started=ok && CreateProcessW(executable,command,0,0,listed,listed?EXTENDED_STARTUPINFO_PRESENT:0,0,movie_root,&startup.StartupInfo,&child);
+    /* The list only matters while the child is created. */
+    if(listed)DeleteProcThreadAttributeList(startup.lpAttributeList);
+    if(started){
         CloseHandle(child.hThread);wo_render_event("video_started",movie);
-        BOOL quit=FALSE;int quit_code=0;
+        BOOL quit=FALSE,skipped=FALSE;int quit_code=0;
         for(;;){
             DWORD waited=WaitForSingleObject(child.hProcess,20);if(waited!=WAIT_TIMEOUT)break;
             MSG message;
             while(PeekMessageA(&message,0,0,0,PM_REMOVE)){
-                if(message.message==WM_QUIT){quit=TRUE;quit_code=(int)message.wParam;}
-                else {TranslateMessage(&message);DispatchMessageA(&message);}
+                if(message.message==WM_QUIT){quit=TRUE;quit_code=(int)message.wParam;continue;}
+                if(skip && !skipped && movie_skip_key(&message,window)){SetEvent(skip);skipped=TRUE;wo_render_event("video_skip_key",(DWORD)message.wParam);}
+                TranslateMessage(&message);DispatchMessageA(&message);
             }
         }
         DWORD result=1;GetExitCodeProcess(child.hProcess,&result);wo_render_event("video_exit_code",result);
@@ -81,6 +109,7 @@ static void play_game_movie(UINT movie) {
         CloseHandle(child.hProcess);if(window && GetForegroundWindow()!=window)SetForegroundWindow(window);
         if(quit)PostQuitMessage(quit_code);
     } else wo_render_event("video_launch_failed",movie);
+    if(skip)CloseHandle(skip);
     wo_audio_movie_resume(music);
     /* A cutscene is not a giant simulation/UI step. */
     QueryPerformanceCounter(&refresh_last_time);ui_last_time=refresh_last_time;

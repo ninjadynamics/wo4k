@@ -27,7 +27,6 @@ CreateFileMappingW@24
 MapViewOfFile@20
 CreateProcessW@40
 GetTickCount@0
-GetSystemDirectoryW@8
 WaitForSingleObject@8
 GetExitCodeProcess@8
 AddVectoredExceptionHandler@8
@@ -37,3 +36,8 @@ VirtualQuery@12
 GetCurrentThreadId@0
 GlobalMemoryStatusEx@4
 FlushFileBuffers@4
+CreateEventW@16
+SetEvent@4
+InitializeProcThreadAttributeList@16
+UpdateProcThreadAttribute@28
+DeleteProcThreadAttributeList@4

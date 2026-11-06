@@ -135,8 +135,16 @@ $(RUNTIME_TEST_RENDER): $(BUILD)/obj/tests/runtime/run_render_init.o
 	$(call MKDIR,$(@D))
 	$(CC) $(CONSOLE_LDFLAGS) $^ -o $@
 
+# Stands in for wo4k-video.exe so the renderer fixture's movie launch runs
+# the real runtime code without opening a player window.
+BRIDGE_STANDIN := $(BUILD)/tests/video_bridge_standin.exe
+$(BRIDGE_STANDIN): $(BUILD)/obj/tests/runtime/video_bridge_standin.o \
+	$(BUILD)/obj/src/video/video_core.o
+	$(call MKDIR,$(@D))
+	$(CC) $(GUI_LDFLAGS) $^ -lshell32 -o $@
+
 $(RUNTIME_TEST_CRASH).run: $(CRASH_FIXTURE)
-$(RUNTIME_TEST_RENDER).run: $(RENDER_FIXTURE)
+$(RUNTIME_TEST_RENDER).run: $(RENDER_FIXTURE) $(BRIDGE_STANDIN)
 
 TEST_PROGRAMS += $(RUNTIME_TEST_CRASH) $(RUNTIME_TEST_RENDER)
 
@@ -144,6 +152,7 @@ OUTPUTS += $(RUNTIME_DLL) $(RUNTIME_MAP) $(CONTROLLER_EXE) $(ICONV_DLL)
 DEPFILES += $(X86_OBJECTS:.o=.d) $(X86_TEST_OBJECTS:.o=.d) \
 	$(BUILD)/obj/src/runtime/controller_host.d \
 	$(BUILD)/obj/tests/runtime/run_crash_diagnostics.d \
-	$(BUILD)/obj/tests/runtime/run_render_init.d
+	$(BUILD)/obj/tests/runtime/run_render_init.d \
+	$(BUILD)/obj/tests/runtime/video_bridge_standin.d
 CLEAN_FILES += $(RUNTIME_DLL) $(RUNTIME_MAP) $(CONTROLLER_EXE) $(ICONV_DLL)
 HELP_TARGETS += runtime controller
