@@ -15,6 +15,9 @@ ReadFile@20
 GetFileSizeEx@8
 VirtualProtect@16
 GetCurrentProcess@0
+GetProcessTimes@20
+GetSystemTimeAsFileTime@4
+FileTimeToSystemTime@8
 FlushInstructionCache@12
 QueryPerformanceCounter@4
 QueryPerformanceFrequency@4
@@ -26,6 +29,7 @@ GetCurrentProcessId@0
 CreateFileMappingW@24
 MapViewOfFile@20
 CreateProcessW@40
+CreateThread@24
 GetTickCount@0
 WaitForSingleObject@8
 GetExitCodeProcess@8

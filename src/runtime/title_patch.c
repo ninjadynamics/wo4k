@@ -33,6 +33,7 @@ static void initialize_title(void) {
     DWORD protection,ignored;
     if(!VirtualProtect(game+0x2f864,5,PAGE_EXECUTE_READWRITE,&protection))return;
     old_title_screen=(void *)hook(0x2f670,entry,sizeof(entry),title_screen);
+    movie_title_hooked=old_title_screen!=0;
     if(old_title_screen){
         old_title_input=(void *)(game+0x28f10);
         game[0x2f864]=0xe8;*(LONG *)(game+0x2f865)=(LONG)((BYTE *)title_input-(game+0x2f869));

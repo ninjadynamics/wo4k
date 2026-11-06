@@ -9,6 +9,7 @@
 
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
+#include "core/wo_hashcache.h"
 #include "core/wo_hdtex.h"
 #include "core/wo_install.h"
 #include "core/wo_log.h"
@@ -34,9 +35,11 @@ static bool exists_in(const char *root, const char *relative) {
     return exists;
 }
 
-static bool file_digest(const char *root, const char *relative, char digest[WO_SHA256_HEX_SIZE]) {
+/* False for a missing file or a folder: neither can be opened as a file. */
+static bool file_digest(WoHashCache *cache, const char *root, const char *relative,
+                        char digest[WO_SHA256_HEX_SIZE]) {
     char *path = wo_path_child(root, relative, NULL);
-    bool ok = path && wo_is_file(path) && wo_sha256_file(path, digest, NULL);
+    bool ok = path && wo_hash_cache_file(cache, path, digest, NULL);
     wo_free(path);
     return ok;
 }
@@ -60,57 +63,57 @@ static bool listed_digest(const WoJson *list, const char *digest) {
     return false;
 }
 
-static bool plan_patches(const WoJson *plan, const char *relative) {
+/* The sheets the plan patches, each once: the plan's 1,000+ operations
+ * name only a few dozen sheets. */
+static bool plan_atlases(const WoJson *plan, WoStrList *atlases) {
     const WoJson *operations = wo_json_get(plan, "operations");
     for (size_t i = 0; i < wo_json_length(operations); i++) {
-        if (wo_str_ieq(wo_json_str(wo_json_at(operations, i), "atlas", ""), relative)) {
-            return true;
+        const char *atlas = wo_json_str(wo_json_at(operations, i), "atlas", "");
+        if (!wo_strlist_contains_i(atlases, atlas) && !wo_strlist_push(atlases, atlas, NULL)) {
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 /* Test-ModPcInstallation: game data, executable, texture sheets and the
  * original sound effects are present and unchanged. */
 static bool pc_installation_healthy(const WoMod *mod, const WoJson *receipt, const WoJson *files,
-                                    const WoJson *patches, const WoJson *plan) {
+                                    const WoJson *patches, const WoJson *plan,
+                                    WoHashCache *cache) {
     const char *game = mod->game;
     char digest[WO_SHA256_HEX_SIZE];
     const WoJson *required = wo_json_get(files, "required");
     for (size_t i = 0; i < wo_json_length(required); i++) {
         const char *relative = wo_json_as_str(wo_json_at(required, i), "");
         const char *expected = receipt_digest(receipt, relative);
-        if (!exists_in(game, relative)) {
+        if (!expected && !exists_in(game, relative)) {
             return false;
         }
-        if (expected && (!file_digest(game, relative, digest) || !wo_digest_eq(digest, expected))) {
+        if (expected &&
+            (!file_digest(cache, game, relative, digest) || !wo_digest_eq(digest, expected))) {
             return false;
         }
     }
-    if (!file_digest(game, "Wipeout2097.exe", digest) ||
+    if (!file_digest(cache, game, "Wipeout2097.exe", digest) ||
         !wo_digest_eq(digest, wo_json_str(patches, "output_sha256", ""))) {
         return false;
     }
-    const WoJson *operations = wo_json_get(plan, "operations");
-    for (size_t i = 0; i < wo_json_length(operations); i++) {
-        char *relative = wo_format(NULL, "textures/sd/%s",
-                                   wo_json_str(wo_json_at(operations, i), "atlas", ""));
-        bool present = relative && exists_in(game, relative);
+    WoStrList atlases = {0};
+    bool healthy = plan_atlases(plan, &atlases);
+    for (size_t i = 0; healthy && i < atlases.count; i++) {
+        char *relative = wo_format(NULL, "textures/sd/%s", atlases.items[i]);
+        healthy = relative && exists_in(game, relative);
         wo_free(relative);
-        if (!present) {
-            return false;
-        }
     }
-    char *sources_path = wo_path_join(game, "textures/sd/sources.json", NULL);
+    char *sources_path = healthy ? wo_path_join(game, "textures/sd/sources.json", NULL) : NULL;
     WoJson *sources = NULL;
     if (sources_path && wo_is_file(sources_path) &&
         !wo_read_json(sources_path, 16u << 20, &sources, NULL)) {
-        wo_free(sources_path);
-        return false;
+        healthy = false;
     }
     wo_free(sources_path);
-    bool healthy = true;
-    char *sd = wo_path_join(game, "textures/sd", NULL);
+    char *sd = healthy ? wo_path_join(game, "textures/sd", NULL) : NULL;
     for (size_t i = 0; healthy && sd && i < wo_json_length(sources); i++) {
         const WoJson *record = wo_json_at(sources, i);
         char relative[1024];
@@ -121,21 +124,22 @@ static bool pc_installation_healthy(const WoMod *mod, const WoJson *receipt, con
             }
         }
         const char *extension = wo_path_extension(relative);
-        if (plan_patches(plan, relative) ||
+        if (wo_strlist_contains_i(&atlases, relative) ||
             !(wo_str_ieq(extension, ".tga") || wo_str_ieq(extension, ".cmp") ||
               wo_str_ieq(extension, ".tim") || wo_str_ieq(extension, ".tex"))) {
             continue;
         }
-        healthy = file_digest(sd, relative, digest) &&
+        healthy = file_digest(cache, sd, relative, digest) &&
                   wo_digest_eq(digest, wo_json_str(record, "sha256", ""));
     }
     wo_free(sd);
     wo_json_free(sources);
+    wo_strlist_free(&atlases);
     const WoJson *audio = wo_json_get(patches, "audio");
     for (size_t i = 0; healthy && i < wo_json_length(audio); i++) {
         const WoJson *entry = wo_json_at(audio, i);
         char *relative = wo_format(NULL, "audio/source/%s", wo_json_str(entry, "name", ""));
-        if (!relative || !file_digest(game, relative, digest)) {
+        if (!relative || !file_digest(cache, game, relative, digest)) {
             healthy = false;
         } else {
             const char *expected = receipt_digest(receipt, relative);
@@ -151,11 +155,12 @@ static bool pc_installation_healthy(const WoMod *mod, const WoJson *receipt, con
     return healthy;
 }
 
-static bool sync_file(const char *source, const char *target, int *updated, WoError *error) {
+static bool sync_file(WoHashCache *cache, const char *source, const char *target, int *updated,
+                      WoError *error) {
     char a[WO_SHA256_HEX_SIZE];
     char b[WO_SHA256_HEX_SIZE];
-    if (wo_is_file(target) && wo_sha256_file(source, a, NULL) && wo_sha256_file(target, b, NULL) &&
-        wo_digest_eq(a, b)) {
+    if (wo_is_file(target) && wo_hash_cache_file(cache, source, a, NULL) &&
+        wo_hash_cache_file(cache, target, b, NULL) && wo_digest_eq(a, b)) {
         return true;
     }
     (*updated)++;
@@ -186,7 +191,7 @@ static bool merge_ini(const char *template_path, const char *path, bool sectione
 
 /* Sync-ModRuntime: replace changed runtime files and add newly introduced
  * settings without touching existing preferences. */
-static bool sync_runtime(const WoMod *mod, int *updated, WoError *error) {
+static bool sync_runtime(const WoMod *mod, WoHashCache *cache, int *updated, WoError *error) {
     *updated = 0;
     char *runtime = wo_mod_path(mod, "runtime", error);
     WoDirList list = {0};
@@ -201,7 +206,7 @@ static bool sync_runtime(const WoMod *mod, int *updated, WoError *error) {
         }
         char *source = wo_path_join(runtime, name, error);
         char *target = source ? wo_path_join(mod->game, name, error) : NULL;
-        ok = target && sync_file(source, target, updated, error);
+        ok = target && sync_file(cache, source, target, updated, error);
         wo_free(target);
         wo_free(source);
     }
@@ -222,7 +227,7 @@ static bool sync_runtime(const WoMod *mod, int *updated, WoError *error) {
         char *relative = wo_format(error, "common-shaders-master/w2097/%s", shaders[i]);
         char *target = relative ? wo_path_child(mod->game, relative, error) : NULL;
         if (source && target && wo_is_file(source)) {
-            ok = sync_file(source, target, updated, error);
+            ok = sync_file(cache, source, target, updated, error);
         }
         wo_free(target);
         wo_free(relative);
@@ -249,14 +254,15 @@ static bool sync_runtime(const WoMod *mod, int *updated, WoError *error) {
 
 /* --- Soundtracks (Music-State.ps1) ------------------------------------------------ */
 
-static WoJson *music_state(const char *game, WoMusicBank bank, const char *source, const char *stamp) {
+static WoJson *music_state(WoHashCache *cache, const char *game, WoMusicBank bank,
+                           const char *source, const char *stamp) {
     WoStrList files = {0};
     wo_music_files(game, bank, &files, NULL);
     WoJson *records = wo_json_new_array();
     for (size_t i = 0; i < files.count; i++) {
         char digest[WO_SHA256_HEX_SIZE];
         char *relative = wo_path_relative(game, files.items[i], NULL);
-        if (relative && wo_sha256_file(files.items[i], digest, NULL)) {
+        if (relative && wo_hash_cache_file(cache, files.items[i], digest, NULL)) {
             WoJson *record = wo_json_new_object();
             wo_json_put_str(record, "file", relative);
             wo_json_put_str(record, "sha256", digest);
@@ -273,7 +279,8 @@ static WoJson *music_state(const char *game, WoMusicBank bank, const char *sourc
     return state;
 }
 
-static bool music_state_healthy(const char *game, WoMusicBank bank, const WoJson *state) {
+static bool music_state_healthy(WoHashCache *cache, const char *game, WoMusicBank bank,
+                                const WoJson *state) {
     if (!state || !wo_json_bool(state, "available", false) || !wo_json_has(state, "files")) {
         return false;
     }
@@ -292,7 +299,7 @@ static bool music_state_healthy(const char *game, WoMusicBank bank, const WoJson
             }
         }
         char digest[WO_SHA256_HEX_SIZE];
-        healthy = matches == 1 && wo_sha256_file(files.items[i], digest, NULL) &&
+        healthy = matches == 1 && wo_hash_cache_file(cache, files.items[i], digest, NULL) &&
                   wo_digest_eq(digest, expected);
         wo_free(relative);
     }
@@ -307,7 +314,8 @@ typedef struct MusicResult {
 } MusicResult;
 
 static bool ensure_music(const WoMod *mod, const WoConfig *config, const WoJson *receipt,
-                         WoProgress *progress, MusicResult *result, WoError *error) {
+                         WoHashCache *cache, WoProgress *progress, MusicResult *result,
+                         WoError *error) {
     memset(result, 0, sizeof(*result));
     set_stage(progress, WO_STAGE_SOUNDTRACK);
     WoJson *previous = NULL;
@@ -339,15 +347,15 @@ static bool ensure_music(const WoMod *mod, const WoConfig *config, const WoJson 
             ok = false;
         } else if (!old && complete &&
                    wo_json_int(receipt, "configuration_revision", -1) == config->revision) {
-            state = music_state(mod->game, bank, source, stamp);
-        } else if (same && ((music_state_healthy(mod->game, bank, old) &&
+            state = music_state(cache, mod->game, bank, source, stamp);
+        } else if (same && ((music_state_healthy(cache, mod->game, bank, old) &&
                              (wo_str_eq(old_stamp, stamp) || wo_stamp_unavailable(stamp))) ||
                             (!wo_json_bool(old, "available", false) && !complete &&
                              wo_str_eq(old_stamp, stamp)))) {
             state = wo_json_clone(old);
         } else if (!source[0] || !wo_exists(source)) {
             if (complete && !old) {
-                state = music_state(mod->game, bank, source, stamp);
+                state = music_state(cache, mod->game, bank, source, stamp);
             } else if (old && !wo_json_bool(old, "available", false) && same) {
                 state = wo_json_clone(old);
             } else if ((old && wo_json_bool(old, "available", false)) ||
@@ -356,7 +364,7 @@ static bool ensure_music(const WoMod *mod, const WoConfig *config, const WoJson 
                              "The configured %s soundtrack needs its source. Restore its path in Setup.",
                              key);
             } else {
-                state = music_state(mod->game, bank, source, stamp);
+                state = music_state(cache, mod->game, bank, source, stamp);
             }
         } else {
             wo_progress(progress, WO_STAGE_SOUNDTRACK, 70,
@@ -376,7 +384,7 @@ static bool ensure_music(const WoMod *mod, const WoConfig *config, const WoJson 
                              key);
             }
             if (ok) {
-                state = music_state(mod->game, bank, source, stamp);
+                state = music_state(cache, mod->game, bank, source, stamp);
             }
             wo_mod_remove_work_dir(mod, session);
             wo_free(input);
@@ -403,8 +411,8 @@ static bool ensure_music(const WoMod *mod, const WoConfig *config, const WoJson 
 /* --- PlayStation artwork ---------------------------------------------------------- */
 
 static bool ensure_native_textures(const WoMod *mod, const WoConfig *config, const WoJson *receipt,
-                                   const WoJson *plan, WoProgress *progress, bool *ps1_textures,
-                                   WoError *error) {
+                                   const WoJson *plan, WoHashCache *cache, WoProgress *progress,
+                                   bool *ps1_textures, WoError *error) {
     set_stage(progress, WO_STAGE_PS1_SOURCE);
     char *origin = wo_mod_game_path(mod, "textures/ps1-source/source.json", error);
     if (!origin) {
@@ -414,7 +422,7 @@ static bool ensure_native_textures(const WoMod *mod, const WoConfig *config, con
     wo_free(origin);
     bool require_ps1 = wo_json_bool(receipt, "playstation_textures", false) || origin_exists;
     bool healthy = false;
-    if (!wo_natives_test(mod->game, plan, require_ps1, &healthy, error)) {
+    if (!wo_natives_test_cached(mod->game, plan, require_ps1, cache, &healthy, error)) {
         return false;
     }
     WoJson *import_state = NULL;
@@ -454,6 +462,7 @@ static bool ensure_native_textures(const WoMod *mod, const WoConfig *config, con
         options.configured_source = input ? source : NULL;
         options.incremental = true;
         options.require_ps1 = require_ps1;
+        options.cache = cache;
         set_stage(progress, WO_STAGE_TEXTURES);
         ok = wo_natives_install(&options, &native_receipt, error);
     }
@@ -559,7 +568,8 @@ static bool load_manifests(const WoMod *mod, WoJson **files, WoJson **patches, W
 }
 
 static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *progress,
-                            WoReconcileResult *result, WoError *error) {
+                            WoHashCache *cache, WoLaps *laps, WoReconcileResult *result,
+                            WoError *error) {
     memset(result, 0, sizeof(*result));
     if (wo_mod_game_running(mod)) {
         return wo_fail(error, WO_ERR_BUSY, "Close the game before reconciling its installation.");
@@ -584,8 +594,10 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
     WoJson *patches = NULL;
     WoJson *plan = NULL;
     ok = ok && load_manifests(mod, &files, &patches, &plan, error);
+    wo_laps_mark(laps, "config_ms");
     wo_progress(progress, WO_STAGE_GENERAL, 5, "Checking the configured installation...");
-    bool healthy = ok && pc_installation_healthy(mod, receipt, files, patches, plan);
+    bool healthy = ok && pc_installation_healthy(mod, receipt, files, patches, plan, cache);
+    wo_laps_mark(laps, "check_ms");
     const WoJson *previous = wo_json_get(receipt, "configuration");
     char *old_game = wo_config_resolve_path(mod, wo_json_str(previous, "GameSource", ""), NULL);
     bool source_moved = old_game && old_game[0] && !wo_str_ieq(old_game, config.game_source);
@@ -602,6 +614,7 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
             wo_config_free(&config);
             ok = wo_receipt_load(mod, &receipt, error) && wo_config_load(mod, &config, error);
         }
+        wo_laps_mark(laps, "repair_ms");
     }
     char *ini = NULL;
     char *ddraw = NULL;
@@ -612,12 +625,16 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
         ok = ddraw != NULL;
         settings_missing = ok && (!wo_is_file(ini) || !wo_is_file(ddraw));
         wo_progress(progress, WO_STAGE_RUNTIME, 30, "Updating the mod runtime...");
-        ok = ok && sync_runtime(mod, &result->runtime_updated, error);
+        ok = ok && sync_runtime(mod, cache, &result->runtime_updated, error);
+        wo_laps_mark(laps, "runtime_ms");
     }
     bool ps1_textures = false;
-    ok = ok && ensure_native_textures(mod, &config, receipt, plan, progress, &ps1_textures, error);
+    ok = ok && ensure_native_textures(mod, &config, receipt, plan, cache, progress, &ps1_textures,
+                                     error);
+    wo_laps_mark(laps, "textures_ms");
     MusicResult music = {0};
-    ok = ok && ensure_music(mod, &config, receipt, progress, &music, error);
+    ok = ok && ensure_music(mod, &config, receipt, cache, progress, &music, error);
+    wo_laps_mark(laps, "music_ms");
     if (ok && config.soundtrack == WO_SOUNDTRACK_PC && !music.pc_available) {
         config.soundtrack = music.psx_available ? WO_SOUNDTRACK_PSX : WO_SOUNDTRACK_NONE;
         WoConfig updated;
@@ -653,9 +670,11 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
         }
         ok = ok && wo_receipt_save(mod, receipt, error);
     }
+    wo_laps_mark(laps, "receipt_ms");
     if (ok) {
         int kept = 0;
         ok = wo_cleanup_retired(mod, &result->retired_removed, &kept, error);
+        wo_laps_mark(laps, "cleanup_ms");
     }
     result->installed = ok;
     wo_free(ini);
@@ -736,7 +755,8 @@ static bool migrate_layout(const WoMod *mod, int *removed, WoError *error) {
     return ok;
 }
 
-bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
+static bool refresh_assets(const WoMod *mod, WoProgress *progress, WoHashCache *cache,
+                           WoLaps *laps, WoError *error) {
     if (wo_mod_game_running(mod)) {
         return wo_fail(error, WO_ERR_BUSY,
                        "Close the game before refreshing its artwork or sound effects.");
@@ -759,20 +779,23 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
     }
     ok = ok && wo_load_manifest(mod, "manifests/patches.json", &patches, error) &&
          wo_load_manifest(mod, "manifests/hd-textures.json", &catalog, error);
+    wo_laps_mark(laps, "layout_ms");
     WoHdResult art = {0};
     if (ok && wo_json_bool(receipt, "hd_textures", false)) {
         set_stage(progress, WO_STAGE_HD_ART);
         char *canonical = wo_mod_path(mod, "assets/hd", error);
-        WoHdOptions options = {catalog, canonical, canonical, mod->game};
+        WoHdOptions options = {catalog, canonical, canonical, mod->game, cache};
         ok = canonical && wo_hd_install(&options, &art, error);
         wo_free(canonical);
+        wo_laps_mark(laps, "art_ms");
     }
     WoSfxResult audio = {0};
     if (ok) {
         set_stage(progress, WO_STAGE_SOUND_EFFECTS);
         WoSfxOptions options = {patches, effects, mod->game,
-                                !wo_json_bool(receipt, "clean_audio", true), true};
+                                !wo_json_bool(receipt, "clean_audio", true), true, cache};
         ok = wo_sfx_install(&options, &audio, error);
+        wo_laps_mark(laps, "sfx_ms");
     }
     if (ok) {
         char stamp[40];
@@ -795,6 +818,7 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
         }
         wo_free(path);
         wo_log_event("asset_refresh", summary);
+        wo_laps_mark(laps, "summary_ms");
     }
     wo_hd_result_free(&art);
     wo_free(effects);
@@ -804,15 +828,75 @@ bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
     return ok;
 }
 
+bool wo_refresh_assets(const WoMod *mod, WoProgress *progress, WoError *error) {
+    return refresh_assets(mod, progress, NULL, NULL, error);
+}
+
+/* The integrity cache (.state/integrity.json, see wo_hashcache.h) lets an
+ * unchanged installation be checked without reading every file. Install /
+ * repair (force_repair) ignores it and verifies everything again. It is
+ * only ever an optimisation: when it cannot be opened or saved, the check
+ * reads every file as before. */
+static WoHashCache *open_integrity_cache(const WoMod *mod, bool fresh) {
+    char *path = wo_path_child(mod->state, "integrity.json", NULL);
+    if (path && wo_chain_has_link(mod->root, path)) {
+        /* Like the other state files: never written through a link. */
+        wo_free(path);
+        path = NULL;
+    }
+    const char *note = NULL;
+    WoError error = {0};
+    WoHashCache *cache = wo_hash_cache_open(path, mod->root, fresh, &note, &error);
+    if (note) {
+        wo_log_text("integrity_cache_reset", note);
+    }
+    if (!cache) {
+        wo_log_text("integrity_cache_unavailable", error.message);
+    }
+    wo_free(path);
+    return cache;
+}
+
+static void close_integrity_cache(WoHashCache *cache, bool complete, bool fresh) {
+    if (!cache) {
+        return;
+    }
+    WoError error = {0};
+    /* Only a complete check knows which files are still checked. */
+    if (!wo_hash_cache_save(cache, complete, &error)) {
+        wo_log_text("integrity_cache_not_saved", error.message);
+    }
+    WoHashCacheStats stats;
+    wo_hash_cache_stats(cache, &stats);
+    WoJson *data = wo_json_new_object();
+    wo_json_put_bool(data, "loaded", stats.loaded);
+    wo_json_put_bool(data, "full_check", fresh || !stats.loaded);
+    wo_json_put_int(data, "entries", (int64_t)stats.entries);
+    wo_json_put_int(data, "reused", (int64_t)stats.hits);
+    wo_json_put_int(data, "hashed", (int64_t)stats.hashed);
+    wo_json_put_int(data, "hashed_bytes", (int64_t)stats.hashed_bytes);
+    wo_json_put_int(data, "not_remembered", (int64_t)stats.racy);
+    wo_log_event("integrity_cache", data);
+    wo_hash_cache_free(cache);
+}
+
 bool wo_reconcile(const WoMod *mod, bool force_repair, WoProgress *progress,
                   WoReconcileResult *result, WoError *error) {
-    bool ok = reconcile_inner(mod, force_repair, progress, result, error);
+    WoLaps laps;
+    wo_laps_begin(&laps);
+    WoHashCache *cache = open_integrity_cache(mod, force_repair);
+    wo_laps_mark(&laps, "cache_open_ms");
+    bool ok = reconcile_inner(mod, force_repair, progress, cache, &laps, result, error);
     if (ok && result->installed) {
-        ok = wo_refresh_assets(mod, progress, error);
+        ok = refresh_assets(mod, progress, cache, &laps, error);
     }
+    close_integrity_cache(cache, ok && result->installed, force_repair);
+    wo_laps_mark(&laps, "cache_save_ms");
     if (ok) {
         wo_mod_prune(mod);
+        wo_laps_mark(&laps, "prune_ms");
         wo_progress(progress, WO_STAGE_GENERAL, 100, "Installation checked and ready.");
     }
+    wo_laps_log(&laps, "reconcile_timing");
     return ok;
 }

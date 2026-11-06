@@ -9,6 +9,7 @@
 #define WO_SFX_H
 
 #include "core/wo_base.h"
+#include "core/wo_hashcache.h"
 #include "core/wo_json.h"
 
 typedef struct WoSfxOptions {
@@ -17,6 +18,7 @@ typedef struct WoSfxOptions {
     const char *game_root;
     bool original;          /* install the effects unchanged (and accept custom ones) */
     bool incremental;       /* reuse install-state.json records that still match */
+    WoHashCache *cache;     /* optional: digests of unchanged files */
 } WoSfxOptions;
 
 typedef struct WoSfxResult {

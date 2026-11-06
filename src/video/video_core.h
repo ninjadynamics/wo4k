@@ -69,6 +69,8 @@ typedef struct VideoOptions {
     DWORD game_pid;
     HWND owner_window;
     HANDLE skip_event;
+    HANDLE start_event; /* prepared mode: open hidden, play when signalled */
+    HANDLE stage_event; /* prepared mode: put the window on screen, transparent */
     bool probe;
     bool original_only;
 } VideoOptions;

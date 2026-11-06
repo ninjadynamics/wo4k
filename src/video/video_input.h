@@ -31,6 +31,10 @@ typedef struct VideoInput {
     bool focus_lost;
 } VideoInput;
 
+/* An inherited handle value that names a waitable object, else NULL: the
+ * value comes from the command line and is not trusted otherwise. */
+HANDLE video_input_check_event(HANDLE handle);
+
 /* The controller block is read whenever a game process is named, probe
  * mode included, so tests can drive it. */
 void video_input_open(VideoInput *input, const VideoOptions *options,

@@ -54,8 +54,8 @@ static const WoJson *previous_record(const WoJson *state, const char *name) {
     return NULL;
 }
 
-static bool validate_bank(const WoJson *audio, const char *source, bool original, Effect *effects,
-                          WoError *error) {
+static bool validate_bank(const WoJson *audio, const char *source, bool original,
+                          WoHashCache *cache, Effect *effects, WoError *error) {
     for (size_t i = 0; i < audio->count; i++) {
         Effect *effect = &effects[i];
         effect->entry = audio->items[i];
@@ -70,7 +70,7 @@ static bool validate_bank(const WoJson *audio, const char *source, bool original
         if (!wo_is_file(effect->input)) {
             return wo_fail(error, WO_ERR_NOT_FOUND, "Missing sound effect: %s", effect->name);
         }
-        if (!wo_sha256_file(effect->input, effect->hash, error)) {
+        if (!wo_hash_cache_file(cache, effect->input, effect->hash, error)) {
             return false;
         }
         if (!original && !is_output(effect->entry, effect->hash) &&
@@ -85,7 +85,8 @@ static bool validate_bank(const WoJson *audio, const char *source, bool original
 }
 
 /* Keep a pristine copy of the input in the cache and use that from now on. */
-static bool cache_input(Effect *effect, const char *cache, WoError *error) {
+static bool cache_input(Effect *effect, const char *cache, WoHashCache *digests,
+                        WoError *error) {
     char *pristine = wo_path_child(cache, effect->name, error);
     char *input_full = pristine ? wo_path_full(effect->input, error) : NULL;
     if (!input_full) {
@@ -97,7 +98,7 @@ static bool cache_input(Effect *effect, const char *cache, WoError *error) {
         bool current = false;
         if (wo_is_file(pristine)) {
             char hash[WO_SHA256_HEX_SIZE];
-            ok = wo_sha256_file(pristine, hash, error);
+            ok = wo_hash_cache_file(digests, pristine, hash, error);
             current = ok && wo_digest_eq(hash, effect->hash);
         }
         ok = ok && (current || wo_copy_file(effect->input, pristine, error));
@@ -149,7 +150,7 @@ static bool install_effect(const WoSfxOptions *options, Effect *effect, const ch
     char *relative = wo_format(error, "audio/%s", effect->name);
     char *target = relative ? wo_path_child(options->game_root, relative, error) : NULL;
     wo_free(relative);
-    if (!target || !cache_input(effect, cache, error)) {
+    if (!target || !cache_input(effect, cache, options->cache, error)) {
         wo_free(target);
         return false;
     }
@@ -158,7 +159,7 @@ static bool install_effect(const WoSfxOptions *options, Effect *effect, const ch
     if (old && wo_str_ieq(wo_json_str(old, "source_sha256", ""), effect->hash) &&
         wo_str_ieq(wo_json_str(old, "processor", ""), processor) && wo_is_file(target)) {
         char current[WO_SHA256_HEX_SIZE];
-        ok = wo_sha256_file(target, current, error);
+        ok = wo_hash_cache_file(options->cache, target, current, error);
         if (ok && wo_str_ieq(wo_json_str(old, "output_sha256", ""), current)) {
             WoJson *kept = wo_json_clone(old);
             ok = kept && wo_json_push(records, kept);
@@ -202,7 +203,7 @@ bool wo_sfx_install(const WoSfxOptions *options, WoSfxResult *result, WoError *e
         previous = load_previous(state_path);
     }
     const char *processor = options->original ? "original" : WO_AUDIO_PROCESSOR_ID;
-    ok = ok && validate_bank(audio, source, options->original, effects, error);
+    ok = ok && validate_bank(audio, source, options->original, options->cache, effects, error);
     if (ok) {
         state = wo_json_new_object();
         records = wo_json_new_array();
@@ -224,7 +225,7 @@ bool wo_sfx_install(const WoSfxOptions *options, WoSfxResult *result, WoError *e
             wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
         }
     }
-    ok = ok && wo_write_json(state_path, state, error);
+    ok = ok && wo_write_json_if_changed(state_path, state, NULL, error);
     if (ok) {
         result->checked = audio->count;
     }

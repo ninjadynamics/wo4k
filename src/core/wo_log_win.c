@@ -37,6 +37,48 @@ void wo_log_timestamp(char out[40]) {
              utc.wHour, utc.wMinute, utc.wSecond, (unsigned)(ticks % 10000000u));
 }
 
+uint64_t wo_clock_us(void) {
+    static LARGE_INTEGER frequency;
+    if (frequency.QuadPart <= 0 && !QueryPerformanceFrequency(&frequency)) {
+        return GetTickCount64() * 1000u;
+    }
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    uint64_t ticks = (uint64_t)now.QuadPart;
+    uint64_t per_second = (uint64_t)frequency.QuadPart;
+    /* Split the conversion so ticks * 1000000 cannot overflow. */
+    return ticks / per_second * 1000000u + ticks % per_second * 1000000u / per_second;
+}
+
+double wo_elapsed_ms(uint64_t since_us) {
+    uint64_t now = wo_clock_us();
+    uint64_t tenths = now > since_us ? (now - since_us) / 100u : 0;
+    return (double)tenths / 10.0;
+}
+
+void wo_laps_begin(WoLaps *laps) {
+    laps->fields = wo_json_new_object();
+    laps->started = wo_clock_us();
+    laps->mark = laps->started;
+}
+
+void wo_laps_mark(WoLaps *laps, const char *name) {
+    if (!laps) {
+        return;
+    }
+    wo_json_put(laps->fields, name, wo_json_new_number(wo_elapsed_ms(laps->mark)));
+    laps->mark = wo_clock_us();
+}
+
+void wo_laps_log(WoLaps *laps, const char *event) {
+    if (!laps) {
+        return;
+    }
+    wo_json_put(laps->fields, "total_ms", wo_json_new_number(wo_elapsed_ms(laps->started)));
+    wo_log_event(event, laps->fields);
+    laps->fields = NULL;
+}
+
 static char *env_path(const wchar_t *name) {
     wchar_t buffer[MAX_PATH * 2];
     DWORD len = GetEnvironmentVariableW(name, buffer, (DWORD)WO_COUNT(buffer));
@@ -205,6 +247,7 @@ void wo_log_event(const char *event, WoJson *data) {
     wo_json_put_str(entry, "event", event);
     wo_json_put(entry, "data", data ? data : wo_json_new_null());
     WoBuf line = {0};
+    /* wo_log_redact reads the line as a C string, so terminate it. */
     if (entry && wo_json_write(entry, false, &line, NULL) &&
         wo_buf_append_str(&line, "\r\n", NULL) && wo_buf_terminate(&line, NULL)) {
         char *safe = wo_log_redact((const char *)line.data);

@@ -19,6 +19,11 @@ static ArtLoadFn old_startup_load;
 static ArtFlushFn old_startup_flush;
 static int startup_visible=-1;
 static UINT startup_display_width,startup_display_height;
+#define STARTUP_NOTICE_MIN_FRAMES 30
+#define STARTUP_NOTICE_FRAMES 300 /* the game shows the notice for 300 frames */
+static UINT startup_notice_frames;
+static BOOL startup_notice_drawn,startup_notice_finished;
+static LARGE_INTEGER startup_notice_first;
 
 static ArtLayout startup_layout(UINT sw,UINT sh,LONG dw,LONG dh,UINT display_w,UINT display_h,BOOL notice) {
     ArtLayout r;
@@ -98,6 +103,7 @@ static IDirectDrawSurface *__cdecl startup_load(const char *name,int index) {
     if(index==0 || index==1) {
         startup_art[index].surface=0;
         if(startup_name(name,index?"woxlcopy.ppm":"rstartxl.ppm")) {
+            wo_render_event("startup_art_requested",(DWORD)index);
             IDirectDrawSurface *surface=startup_read_png((UINT)index);
             if(surface)return surface;
             wo_render_event("startup_art_fallback",(DWORD)index);
@@ -136,6 +142,35 @@ static void startup_draw(IDirectDrawSurface *target,UINT index) {
     HRESULT hr=target->lpVtbl->Blt(target,&layout.destination,art->surface,&layout.source,DDBLT_WAIT,0);
     if(hr<0)wo_render_event("startup_art_blt_failed",(DWORD)hr);
     else if(startup_visible!=(int)index) {startup_visible=(int)index;wo_render_event("startup_art_visible",index);}
+    if(hr>=0 && index==1)startup_notice_drawn=TRUE;
+}
+/* Called for every presented frame. The splash has ended at the first
+ * frame presented without the notice, once the notice has been on enough
+ * frames to know the game redraws it every frame (it shows it for 300).
+ * The game then loads its menus for about 100 ms without presenting, so
+ * the prepared intro starts now and covers that instead of a black screen.
+ * About 100 ms (at least 10 frames) before the last notice frame, the
+ * player stages its window, which the compositor needs while frames are
+ * still being presented. */
+static void startup_present(void) {
+    if(startup_notice_finished)return;
+    if(startup_notice_drawn) {
+        LARGE_INTEGER now;QueryPerformanceCounter(&now);
+        if(!startup_notice_frames)startup_notice_first=now;
+        ++startup_notice_frames;startup_notice_drawn=FALSE;
+        if(startup_notice_frames>=STARTUP_NOTICE_MIN_FRAMES && refresh_frequency.QuadPart>0) {
+            double interval=(double)(now.QuadPart-startup_notice_first.QuadPart)/
+                (double)refresh_frequency.QuadPart/(double)(startup_notice_frames-1);
+            UINT lead=interval>0?(UINT)(0.1/interval)+1:10;
+            if(lead<10)lead=10;
+            if(startup_notice_frames+lead>=STARTUP_NOTICE_FRAMES)stage_prepared_intro();
+        }
+        return;
+    }
+    if(startup_notice_frames<STARTUP_NOTICE_MIN_FRAMES)return;
+    startup_notice_finished=TRUE;
+    wo_render_event("startup_notice_finished",startup_notice_frames);
+    start_prepared_intro();
 }
 static void __cdecl startup_flush(int layer) {
     if(layer<0 || layer>1) {old_startup_flush(layer);return;}

@@ -5,7 +5,7 @@
 
 /* An inherited handle value must name a waitable object here; anything else
  * is ignored rather than trusted. */
-static HANDLE video_input_check_event(HANDLE handle)
+HANDLE video_input_check_event(HANDLE handle)
 {
     if (handle == NULL || handle == INVALID_HANDLE_VALUE) {
         return NULL;

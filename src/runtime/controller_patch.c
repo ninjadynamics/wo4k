@@ -16,9 +16,22 @@ static LONG controller_axis(LONG v) {
     if(v>0)return (v-dead)*32767/(32767-dead);
     return (v+dead)*32767/(32768-dead);
 }
+static WCHAR controller_path[MAX_PATH],controller_command[MAX_PATH+48];
+/* Starting a process can block for seconds, for example while security
+ * software scans a newly updated helper, so it never runs on the game's
+ * thread. The wire stays silent until the helper writes to it. */
+static DWORD WINAPI controller_launch(void *unused) {
+    STARTUPINFOW startup={0};PROCESS_INFORMATION child={0};startup.cb=sizeof(startup);
+    startup.dwFlags=STARTF_USESHOWWINDOW;startup.wShowWindow=SW_HIDE;
+    wo_render_event("controller_launching",1);
+    if(CreateProcessW(controller_path,controller_command,0,0,FALSE,CREATE_NO_WINDOW,0,0,&startup,&child)) {
+        CloseHandle(child.hThread);CloseHandle(child.hProcess);wo_render_event("controller_sdl3_helper",1);
+    } else wo_render_event("controller_sdl3_helper",0);
+    return 0;
+}
 static void start_controller(void) {
     if(controller_started)return;controller_started=TRUE;
-    WCHAR name[64],path[MAX_PATH],command[MAX_PATH+48];
+    WCHAR name[64];
     const WCHAR *prefix=L"Local\\WO2097Input-";UINT prefix_size=0;
     do {name[prefix_size]=prefix[prefix_size];}while(prefix[prefix_size++]);
     WCHAR digits[16];UINT n=0,end=0;DWORD id=GetCurrentProcessId(),value=id;
@@ -28,16 +41,15 @@ static void start_controller(void) {
     if(!controller_mapping)return;
     controller_wire=MapViewOfFile(controller_mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(ControllerWire));
     if(!controller_wire)return;
+    WCHAR *path=controller_path,*command=controller_command;
     UINT length=GetModuleFileNameW(0,path,MAX_PATH);while(length && path[length-1]!=L'\\')--length;
     const WCHAR *suffix=L"wo2097-controller.exe";
+    if(!length || length+22>MAX_PATH)return;
     while((*((WCHAR *)path+length++)=*suffix++)) {}
     UINT j=0;command[j++]=L'"';for(UINT i=0;path[i];++i)command[j++]=path[i];command[j++]=L'"';command[j++]=L' ';
     for(UINT i=n;i>0;--i)command[j++]=digits[i-1];command[j]=0;
-    STARTUPINFOW startup={0};PROCESS_INFORMATION child={0};startup.cb=sizeof(startup);
-    startup.dwFlags=STARTF_USESHOWWINDOW;startup.wShowWindow=SW_HIDE;
-    if(CreateProcessW(path,command,0,0,FALSE,CREATE_NO_WINDOW,0,0,&startup,&child)) {
-        CloseHandle(child.hThread);CloseHandle(child.hProcess);wo_render_event("controller_sdl3_helper",1);
-    } else wo_render_event("controller_sdl3_helper",0);
+    HANDLE thread=CreateThread(0,0,controller_launch,0,0,0);
+    if(thread)CloseHandle(thread);else controller_launch(0);
 }
 static BOOL read_controller(ControllerWire *state) {
     if(!controller_ready)return FALSE;start_controller();if(!controller_wire)return FALSE;
@@ -119,4 +131,7 @@ static void initialize_controller(void) {
     if(!VirtualProtect(game+0x637fc,17,PAGE_EXECUTE_READWRITE,&protection))return;
     old_controller_brake=(void *)hook(RVA_controller_brake,entry_controller_brake,sizeof(entry_controller_brake),controller_brake);
     controller_ready=old_controller_brake!=0;
+    /* Start the helper now, in the background, so it is connected by the
+     * first menu instead of being launched by the first input poll. */
+    if(controller_ready)start_controller();
 }

@@ -40,4 +40,22 @@ void wo_log_attach(const char *name, const char *path, bool current_session_only
 /* Current UTC time as ISO 8601 with 100 ns precision ("o" format). */
 void wo_log_timestamp(char out[40]);
 
+/* Monotonic clock in microseconds, for elapsed-time fields in log events. */
+uint64_t wo_clock_us(void);
+/* Milliseconds (0.1 ms resolution) elapsed since a wo_clock_us() reading. */
+double wo_elapsed_ms(uint64_t since_us);
+
+/* Phase timing breadcrumbs: each wo_laps_mark records the milliseconds
+ * since the previous mark under its name; wo_laps_log adds total_ms and
+ * logs the set as one event. A NULL laps is ignored. */
+typedef struct WoLaps {
+    WoJson *fields;
+    uint64_t started;
+    uint64_t mark;
+} WoLaps;
+
+void wo_laps_begin(WoLaps *laps);
+void wo_laps_mark(WoLaps *laps, const char *name);
+void wo_laps_log(WoLaps *laps, const char *event);
+
 #endif

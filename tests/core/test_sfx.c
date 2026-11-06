@@ -1,10 +1,14 @@
+#include <windows.h>
+
 #include <math.h>
 #include <string.h>
 
 #include "core/wo_audioclean.h"
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
+#include "core/wo_hashcache.h"
 #include "core/wo_sfx.h"
+#include "core/wo_win.h"
 #include "wo_test.h"
 
 /* A minimal 22050 Hz mono 16-bit WAV. */
@@ -72,7 +76,7 @@ static void test_install(void) {
                            ha, 0, hb);
     WoJson *manifest = NULL;
     CHECK_OK(wo_json_parse(text, strlen(text), &manifest, &error), &error);
-    WoSfxOptions options = {manifest, source, game, false, false};
+    WoSfxOptions options = {manifest, source, game, false, false, NULL};
     WoSfxResult result;
     CHECK_OK(wo_sfx_install(&options, &result, &error), &error);
     CHECK(result.checked == 2 && result.updated == 2);
@@ -167,7 +171,138 @@ static void test_install(void) {
     wo_free(source);
 }
 
+/* Date every time stamp of each file below dir an hour back (as files left
+ * alone since an earlier launch), so the integrity cache may remember them. */
+static bool backdate_tree(void *context, const char *path, const char *relative,
+                          const WoDirEntry *entry, bool *descend, WoError *error) {
+    (void)context;
+    (void)relative;
+    (void)descend;
+    if (entry->is_dir) {
+        return true;
+    }
+    wchar_t *wide = wo_wide_path(path, error);
+    HANDLE handle = wide ? CreateFileW(wide, FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ, NULL,
+                                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
+                         : INVALID_HANDLE_VALUE;
+    wo_free(wide);
+    FILE_BASIC_INFO info;
+    bool ok = handle != INVALID_HANDLE_VALUE &&
+              GetFileInformationByHandleEx(handle, FileBasicInfo, &info, sizeof(info));
+    if (ok) {
+        LONGLONG then = (LONGLONG)(wo_fs_now() - 36000000000ull);
+        info.CreationTime.QuadPart = then;
+        info.LastAccessTime.QuadPart = then;
+        info.LastWriteTime.QuadPart = then;
+        info.ChangeTime.QuadPart = then;
+        ok = SetFileInformationByHandle(handle, FileBasicInfo, &info, sizeof(info)) != 0;
+    }
+    if (handle != INVALID_HANDLE_VALUE) {
+        CloseHandle(handle);
+    }
+    return ok || wo_fail(error, WO_ERR_IO, "Cannot date %s", path);
+}
+
+static void refresh_with_cache(WoSfxOptions *options, const char *cache_file,
+                               WoSfxResult *result, WoHashCacheStats *stats) {
+    WoError error = {0};
+    const char *note = NULL;
+    WoHashCache *cache = wo_hash_cache_open(cache_file, NULL, false, &note, &error);
+    CHECK(cache != NULL);
+    options->cache = cache;
+    CHECK_OK(wo_sfx_install(options, result, &error), &error);
+    CHECK_OK(wo_hash_cache_save(cache, true, &error), &error);
+    wo_hash_cache_stats(cache, stats);
+    wo_hash_cache_free(cache);
+    options->cache = NULL;
+}
+
+/* With the integrity cache an unchanged bank is not read again, and a
+ * damaged effect is still found and rewritten even when the damage keeps
+ * its size and last-write time. */
+static void test_cached_refresh(void) {
+    const char *root = wo_test_dir("sfx-cached");
+    if (!root) {
+        return;
+    }
+    WoError error = {0};
+    char *source = wo_path_join(root, "original", &error);
+    char *game = wo_path_join(root, "game", &error);
+    char *audio = wo_path_join(game, "audio", &error);
+    char *cache_file = wo_path_join(root, "integrity.json", &error);
+    WoBuf a = {0};
+    make_wav(&a, 0.05);
+    char ha[WO_SHA256_HEX_SIZE];
+    hash_of(&a, ha);
+    char *pa = wo_path_join(source, "CLEAN.WAV", &error);
+    CHECK_OK(wo_write_file(pa, a.data, a.len, &error), &error);
+    char *text = wo_format(NULL,
+                           "{\"audio\":[{\"name\":\"CLEAN.WAV\",\"source_hashes\":[\"%s\"],"
+                           "\"output_sha256\":\"%064d\"}]}",
+                           ha, 0);
+    WoJson *manifest = NULL;
+    CHECK_OK(wo_json_parse(text, strlen(text), &manifest, &error), &error);
+    WoSfxOptions options = {manifest, source, game, false, false, NULL};
+    WoSfxResult result;
+    CHECK_OK(wo_sfx_install(&options, &result, &error), &error);
+    char *pristine = wo_path_join(audio, "source", &error);
+    options.source_dir = pristine;
+    options.incremental = true;
+    CHECK_OK(wo_walk(game, -1, backdate_tree, NULL, &error), &error);
+
+    WoHashCacheStats stats;
+    refresh_with_cache(&options, cache_file, &result, &stats);
+    CHECK(result.updated == 0 && stats.hashed == 2 && stats.racy == 0);
+    refresh_with_cache(&options, cache_file, &result, &stats);
+    CHECK(result.updated == 0 && stats.loaded && stats.hashed == 0 && stats.hits == 2);
+
+    /* Flip one byte; keep the size and put the last-write time back. */
+    char *output = wo_path_join(audio, "CLEAN.WAV", &error);
+    WoFileIdentity before;
+    CHECK_OK(wo_file_identity(output, &before, &error), &error);
+    WoBuf bytes = {0};
+    CHECK_OK(wo_read_file(output, 1u << 20, &bytes, &error), &error);
+    char good[WO_SHA256_HEX_SIZE];
+    hash_of(&bytes, good);
+    if (bytes.len > 100) {
+        bytes.data[bytes.len - 10] ^= 0x5a;
+    }
+    CHECK_OK(wo_write_file(output, bytes.data, bytes.len, &error), &error);
+    wchar_t *wide = wo_wide_path(output, NULL);
+    HANDLE handle = wide ? CreateFileW(wide, FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ, NULL,
+                                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
+                         : INVALID_HANDLE_VALUE;
+    wo_free(wide);
+    FILETIME restored;
+    restored.dwLowDateTime = (DWORD)before.mtime;
+    restored.dwHighDateTime = (DWORD)(before.mtime >> 32);
+    CHECK(handle != INVALID_HANDLE_VALUE && SetFileTime(handle, NULL, NULL, &restored));
+    CloseHandle(handle);
+    WoFileIdentity after;
+    CHECK_OK(wo_file_identity(output, &after, &error), &error);
+    CHECK(after.size == before.size && after.mtime == before.mtime);
+
+    refresh_with_cache(&options, cache_file, &result, &stats);
+    CHECK(result.updated == 1 && stats.hashed == 1);
+    char h[WO_SHA256_HEX_SIZE];
+    wo_free(file_hash(audio, "CLEAN.WAV", h));
+    CHECK(wo_digest_eq(h, good));
+
+    wo_buf_free(&bytes);
+    wo_free(output);
+    wo_free(pristine);
+    wo_json_free(manifest);
+    wo_free(text);
+    wo_free(pa);
+    wo_buf_free(&a);
+    wo_free(cache_file);
+    wo_free(audio);
+    wo_free(game);
+    wo_free(source);
+}
+
 int main(void) {
     RUN(test_install);
+    RUN(test_cached_refresh);
     return wo_test_finish();
 }

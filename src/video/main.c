@@ -2,7 +2,8 @@
  *
  *   wo4k-video.exe --game-root <dir> --movie <intro|xtro1|xtro2|xtro3|xtro4>
  *       [--game-pid N] [--owner-window HWND] [--skip-event HANDLE]
- *       [--probe] [--original-only]
+ *       [--start-event HANDLE [--stage-event HANDLE]] [--probe]
+ *       [--original-only]
  *
  *   --game-root      the game folder. Movies come from its movies folder;
  *                    breadcrumbs go to <parent>\logs\video-<movie>.log.
@@ -14,6 +15,17 @@
  *                    window's monitor and is owned by it.
  *   --skip-event     an inherited event handle (decimal). The game signals
  *                    it on Esc, Enter or Space.
+ *   --start-event    an inherited event handle (decimal). The player opens
+ *                    the movie in a hidden window and waits; when the game
+ *                    signals the event it plays, showing the window once
+ *                    playback runs. A skip event signalled while waiting
+ *                    ends the player without showing anything.
+ *   --stage-event    an inherited event handle (decimal), with
+ *                    --start-event. The game signals it a few frames before
+ *                    the start; the waiting player then puts its window on
+ *                    screen fully transparent, so the compositor takes over
+ *                    from the full-screen game while the game still presents
+ *                    and the movie appears the moment it starts.
  *   --probe          automated tests: a muted 640x480 window that exits 0
  *                    once playback has advanced 250 ms.
  *   --original-only  only the original MPEG-1 file.
@@ -46,10 +58,23 @@ typedef struct VideoApp {
     VideoInput input;
     VideoWindow window;
     bool window_ready;
+    /* Prepared mode (--start-event): the movie is opened in a hidden window
+     * ahead of time; playback starts, and the window shows, once the game
+     * signals this event. */
+    HANDLE start_event;
+    bool start_signalled;
+    /* Optional: signalled shortly before the start, while the game still
+     * presents frames, to stage the window (see video_window_stage). */
+    HANDLE stage_event;
 } VideoApp;
 
 typedef struct VideoAttempt {
     bool opened;
+    bool ready;        /* prepared mode: the file is open, waiting to start */
+    bool cued;         /* prepared mode: the first frame is held */
+    bool playing;      /* the backend reported that playback started */
+    bool clock_moving; /* the presentation clock passed zero: frames show */
+    ULONGLONG start_requested; /* GetTickCount64() when playback was asked for */
     bool failed;
     bool window_lost;
     char result[256];
@@ -196,12 +221,20 @@ static void video_log_fallback(VideoApp *app, const char *reason)
         json_ok(&json) ? json.data : NULL, false);
 }
 
-/* Sleeps until input, a window message, the skip event or the game's exit,
- * at most 15 ms, then dispatches the window's messages. */
+/* Sleeps until input, a window message, the skip or start event or the
+ * game's exit, at most 15 ms, then dispatches the window's messages. */
 static void video_pump(VideoApp *app)
 {
-    HANDLE handles[2];
+    HANDLE handles[4];
     DWORD count = video_input_handles(&app->input, handles);
+    if (app->start_event != NULL && !app->start_signalled) {
+        handles[count] = app->start_event;
+        ++count;
+        if (app->stage_event != NULL && !app->window.staged) {
+            handles[count] = app->stage_event;
+            ++count;
+        }
+    }
     video_beat();
     MsgWaitForMultipleObjectsEx(count, handles, 15, QS_ALLINPUT,
         MWMO_INPUTAVAILABLE);
@@ -248,9 +281,12 @@ static bool video_step(VideoApp *app, VideoBackend *backend,
 {
     if (backend->state == VIDEO_STATE_READY && !attempt->opened) {
         attempt->opened = true;
-        video_log_opened(app, backend);
+        if (!attempt->ready) {
+            video_log_opened(app, backend);
+        }
         video_window_set_backend(&app->window, backend);
         video_log_event(&app->log, "video_play_requested", NULL, false);
+        attempt->start_requested = GetTickCount64();
         backend->ops->start(backend);
         return false;
     }
@@ -259,7 +295,19 @@ static bool video_step(VideoApp *app, VideoBackend *backend,
         video_log_event(&app->log, "video_ended", NULL, false);
         return true;
     }
+    /* Startup breadcrumbs: how long the screen stays black after the
+     * request, until playback runs and its clock (the first frame) moves. */
+    if (backend->state == VIDEO_STATE_PLAYING && !attempt->playing) {
+        attempt->playing = true;
+        video_log_event(&app->log, "video_playing", NULL, false);
+    }
     LONGLONG position = 0;
+    if (attempt->playing && !attempt->clock_moving &&
+        backend->ops->position(backend, &position) && position > 0) {
+        attempt->clock_moving = true;
+        video_log_event(&app->log, "video_clock_moving", NULL, false);
+    }
+    position = 0;
     if (app->options.probe && backend->state == VIDEO_STATE_PLAYING &&
         backend->ops->position(backend, &position) &&
         position >= VIDEO_PROBE_POSITION_HNS) {
@@ -300,6 +348,69 @@ static bool video_check_inputs(VideoApp *app, VideoAttempt *attempt)
     return false;
 }
 
+static bool video_signalled(HANDLE handle)
+{
+    return handle != NULL && WaitForSingleObject(handle, 0) == WAIT_OBJECT_0;
+}
+
+/* Prepared mode, before the start event: the window is hidden and input
+ * is not watched yet (a controller press during the splash is not a skip).
+ * Only the game can end the wait, by exiting or by signalling the skip
+ * event when it no longer wants this player. */
+static bool video_wait_ended(VideoApp *app, VideoAttempt *attempt)
+{
+    if (app->window.destroyed) {
+        attempt->window_lost = true;
+        video_set_text(attempt->result, sizeof(attempt->result),
+            "window closed");
+        return true;
+    }
+    if (video_signalled(app->input.skip_event)) {
+        video_set_text(attempt->result, sizeof(attempt->result),
+            "not needed");
+        return true;
+    }
+    if (video_signalled(app->input.game_process)) {
+        video_set_text(attempt->result, sizeof(attempt->result),
+            "game exited");
+        return true;
+    }
+    return false;
+}
+
+/* Shows a hidden (prepared) window once it holds a frame: at once when the
+ * movie was cued, else when playback runs, so the game's own last frame
+ * stays on screen instead of a black window. After 500 ms it shows
+ * regardless, as an unprepared window would have been from the start. */
+static void video_reveal(VideoApp *app, const VideoBackend *backend,
+    const VideoAttempt *attempt)
+{
+    if (app->window.shown || !attempt->opened) {
+        return;
+    }
+    if (backend->cued || attempt->playing || attempt->clock_moving ||
+        GetTickCount64() - attempt->start_requested >= 500) {
+        LARGE_INTEGER begin;
+        LARGE_INTEGER end;
+        LARGE_INTEGER frequency;
+        QueryPerformanceCounter(&begin);
+        video_window_show(&app->window);
+        QueryPerformanceCounter(&end);
+        char storage[128];
+        JsonBuffer json;
+        json_init(&json, storage, sizeof(storage));
+        json_object_begin(&json);
+        if (QueryPerformanceFrequency(&frequency) && frequency.QuadPart > 0) {
+            json_member_fixed(&json, "show_ms", (double)(end.QuadPart -
+                begin.QuadPart) * 1000.0 / (double)frequency.QuadPart, 1);
+        }
+        json_member_bool(&json, "cued", backend->cued);
+        json_object_end(&json);
+        video_log_event(&app->log, "video_window_shown",
+            json_ok(&json) ? json.data : NULL, false);
+    }
+}
+
 static void video_play(VideoApp *app, const wchar_t *path,
     VideoAttempt *attempt)
 {
@@ -323,7 +434,11 @@ static void video_play(VideoApp *app, const wchar_t *path,
             video_fail(app, attempt, reason, true);
             break;
         }
-        if (video_check_inputs(app, attempt)) {
+        if (!app->start_signalled) {
+            if (video_wait_ended(app, attempt)) {
+                break;
+            }
+        } else if (video_check_inputs(app, attempt)) {
             break;
         }
         backend->ops->poll(backend);
@@ -341,9 +456,42 @@ static void video_play(VideoApp *app, const wchar_t *path,
             video_fail(app, attempt, backend->reason, true);
             break;
         }
+        if (!app->start_signalled) {
+            if (backend->state == VIDEO_STATE_READY && !attempt->ready) {
+                attempt->ready = true;
+                video_log_opened(app, backend);
+                video_log_event(&app->log, "video_ready", NULL, false);
+                /* Hold the first frame in the hidden window. */
+                backend->ops->preroll(backend);
+            }
+            if (backend->cued && !attempt->cued) {
+                attempt->cued = true;
+                video_log_event(&app->log, "video_cued", NULL, false);
+            }
+            /* Staging slows the game's own frames a little (the compositor
+             * then draws them), so it waits for the game's stage event. */
+            if (attempt->cued && video_signalled(app->stage_event) &&
+                video_window_stage(&app->window)) {
+                video_log_event(&app->log, "video_window_staged", NULL, false);
+            }
+            if (video_signalled(app->start_event)) {
+                app->start_signalled = true;
+                video_log_event(&app->log, "video_start_received", NULL, false);
+                /* Playback limits count from the game's request. */
+                started = GetTickCount64();
+                continue;
+            }
+            if (!attempt->ready && video_timed_out(false, elapsed, 0.0)) {
+                video_fail(app, attempt, "playback timed out", false);
+                break;
+            }
+            video_pump(app);
+            continue;
+        }
         if (video_step(app, backend, attempt, elapsed)) {
             break;
         }
+        video_reveal(app, backend, attempt);
         video_pump(app);
     }
     attempt->elapsed_seconds = (double)(GetTickCount64() - started) / 1000.0;
@@ -367,13 +515,17 @@ static int video_run(VideoApp *app)
             return VIDEO_EXIT_UNAVAILABLE;
         }
         if (!app->window_ready) {
+            bool hidden = !app->start_signalled;
             if (!video_window_create(&app->window, app->instance, app->owner,
-                    app->options.probe)) {
+                    app->options.probe, hidden)) {
                 video_log_text(&app->log, "video_failed",
                     "The player window could not be created.");
                 return VIDEO_EXIT_FAILED;
             }
             app->window_ready = true;
+            if (!hidden) {
+                video_log_event(&app->log, "video_window_shown", NULL, false);
+            }
         }
         VideoAttempt attempt;
         video_play(app, path, &attempt);
@@ -416,6 +568,21 @@ static int video_main(VideoApp *app, int argc, wchar_t **argv)
     }
     app->owner = video_valid_owner(&app->options);
     video_log_open(&app->log, app->mod_root, app->options.movie);
+    if (app->options.start_event != NULL) {
+        app->start_event = video_input_check_event(app->options.start_event);
+        if (app->start_event == NULL) {
+            /* Never play over the splash: the game launches a player
+             * normally when this one is gone. */
+            video_log_text(&app->log, "video_failed",
+                "The start event is not usable.");
+            return VIDEO_EXIT_USAGE;
+        }
+    }
+    app->start_signalled = app->start_event == NULL;
+    /* Without a usable stage event the window simply shows at the start. */
+    if (app->start_event != NULL && app->options.stage_event != NULL) {
+        app->stage_event = video_input_check_event(app->options.stage_event);
+    }
     video_watchdog_start(&app->log);
     HRESULT hr = CoInitializeEx(NULL,
         COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -430,6 +597,12 @@ static int video_main(VideoApp *app, int argc, wchar_t **argv)
         video_window_destroy(&app->window);
     }
     video_input_close(&app->input);
+    if (app->start_event != NULL) {
+        CloseHandle(app->start_event);
+    }
+    if (app->stage_event != NULL) {
+        CloseHandle(app->stage_event);
+    }
     video_mf_unload();
     CoUninitialize();
     return code;

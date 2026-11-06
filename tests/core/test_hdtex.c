@@ -153,7 +153,7 @@ static void test_install(void) {
         return;
     }
     WoJson *catalog = parse(CATALOG);
-    WoHdOptions options = {catalog, f.assets, f.extra, f.game};
+    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL};
     WoHdResult result;
     WoError error = {0};
     CHECK_OK(wo_hd_install(&options, &result, &error), &error);
@@ -205,7 +205,7 @@ static void expect_failure(HdFixture *f, const char *catalog_text, WoErrorKind k
     WoError error = {0};
     CHECK_OK(wo_sha256_file(f->index, before, &error), &error);
     WoJson *catalog = parse(catalog_text);
-    WoHdOptions options = {catalog, f->assets, f->extra, f->game};
+    WoHdOptions options = {catalog, f->assets, f->extra, f->game, NULL};
     WoHdResult result;
     CHECK_FAILS(wo_hd_install(&options, &result, &error), &error, kind);
     if (!strstr(error.message, needle)) {
@@ -230,7 +230,7 @@ static void test_rejects(void) {
         return;
     }
     WoJson *catalog = parse(CATALOG);
-    WoHdOptions options = {catalog, f.assets, f.extra, f.game};
+    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL};
     WoHdResult result;
     WoError error = {0};
     CHECK_OK(wo_hd_install(&options, &result, &error), &error);

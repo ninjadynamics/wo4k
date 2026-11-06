@@ -57,6 +57,8 @@ static const char *title_prompt(const char *text);
 static void initialize_title(void);
 static void title_overlay_present(void);
 static void hide_game_cursor(void);
+static void prepare_intro_movie(void);
+static void startup_present(void);
 static void initialize_controller(void);
 static void initialize_credits(void);
 static void initialize_race_ui(const WCHAR *settings);

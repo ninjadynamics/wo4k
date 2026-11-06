@@ -149,6 +149,8 @@ static DWORD refresh_elapsed_us(LARGE_INTEGER begin,LARGE_INTEGER end) {
 static int __cdecl refresh_present(void) {
     if(!refresh_active)return old_refresh_present();
     hide_game_cursor();
+    prepare_intro_movie();
+    startup_present();
     LARGE_INTEGER begin,end;QueryPerformanceCounter(&begin);
     BOOL race=refresh_race && *(DWORD *)(game+0x8c98c);
     if(!race)profile_frame_valid=FALSE;

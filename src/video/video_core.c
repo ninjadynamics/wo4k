@@ -231,7 +231,9 @@ bool video_parse_arguments(int argc, wchar_t **argv, VideoOptions *options,
             wcscmp(name, L"--movie") == 0 ||
             wcscmp(name, L"--game-pid") == 0 ||
             wcscmp(name, L"--owner-window") == 0 ||
-            wcscmp(name, L"--skip-event") == 0;
+            wcscmp(name, L"--skip-event") == 0 ||
+            wcscmp(name, L"--start-event") == 0 ||
+            wcscmp(name, L"--stage-event") == 0;
         if (!takes_value) {
             *error = "unknown argument";
             return false;
@@ -262,6 +264,10 @@ bool video_parse_arguments(int argc, wchar_t **argv, VideoOptions *options,
             options->game_pid = number;
         } else if (wcscmp(name, L"--owner-window") == 0) {
             options->owner_window = (HWND)video_handle_from_u32(number);
+        } else if (wcscmp(name, L"--start-event") == 0) {
+            options->start_event = video_handle_from_u32(number);
+        } else if (wcscmp(name, L"--stage-event") == 0) {
+            options->stage_event = video_handle_from_u32(number);
         } else {
             options->skip_event = video_handle_from_u32(number);
         }
