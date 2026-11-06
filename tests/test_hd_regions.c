@@ -1,3 +1,8 @@
+/* Measured: QI for IDirect3DDevice2 on the game's V1 HAL device fails with
+ * E_INVALIDARG, through system DirectDraw and DDrawCompat alike. */
+static HRESULT WINAPI fixture_v1_query(IDirect3DDevice *device,REFIID iid,void **out){
+    (void)device;(void)iid;*out=0;return E_INVALIDARG;
+}
 static void test_hd_world_packets(void){
     static BYTE stream[96],rewritten[2048];UINT n=0;
     ui_hd_pages[100].handle=901;ui_hd_pages[100].world=TRUE;ui_hd_opaque_pages[100].handle=902;
@@ -27,6 +32,31 @@ static void test_hd_world_packets(void){
         }
         if(!drawn || texture!=901 || key!=keyed)ExitProcess(213);
     }
+    /* The game's V1 device rejects Device2 QI and never emits COLORKEYENABLE:
+     * its world buffers rely on V1 color keying being on. A keyed tree on an
+     * HD page must take the alpha copy and test, never the opaque one. */
+    static IDirect3DDeviceVtbl v1_vtable={.QueryInterface=fixture_v1_query};
+    IDirect3DDevice v1={&v1_vtable};ui_hd_capture_states(&v1);
+    if(ui_hd_extra_states || ui_hd_original_key!=TRUE || ui_hd_original_test || ui_hd_original_func!=8)ExitProcess(243);
+    n=0;stream[n++]=8;stream[n++]=8;*(WORD *)(stream+n)=1;n+=2;
+    *(DWORD *)(stream+n)=1;*(DWORD *)(stream+n+4)=901;n+=8;
+    stream[n++]=3;stream[n++]=8;*(WORD *)(stream+n)=1;n+=2;
+    *(WORD *)(stream+n)=0;*(WORD *)(stream+n+2)=1;*(WORD *)(stream+n+4)=2;*(WORD *)(stream+n+6)=0;n+=8;
+    stream[n++]=11;stream[n++]=0;*(WORD *)(stream+n)=0;n+=2;
+    TLVertex vertices[3]={{.color=0xff808080},{.color=0xff808080},{.color=0xff808080}};
+    UINT bytes=ui_hd_rewrite(stream,n,rewritten,sizeof(rewritten),vertices,3);if(!bytes)ExitProcess(244);
+    UINT texture=0,key=1,alpha=0,ref=0,func=8;BOOL drawn=FALSE;
+    for(UINT at=0;at<bytes;){
+        UINT op=rewritten[at],size=rewritten[at+1],items=*(WORD *)(rewritten+at+2);
+        if(op==8)for(UINT i=0;i<items;++i){
+            UINT s=*(DWORD *)(rewritten+at+4+i*8),v=*(DWORD *)(rewritten+at+8+i*8);
+            if(s==1)texture=v;if(s==41)key=v;if(s==15)alpha=v;if(s==24)ref=v;if(s==25)func=v;
+        }
+        if(op==3){if(texture!=901 || key || !alpha || ref!=127 || func!=5)ExitProcess(245);drawn=TRUE;}
+        at+=4+size*items;
+    }
+    /* Native keyed draws that follow get V1 color keying back, alpha test off. */
+    if(!drawn || texture!=901 || key!=TRUE || alpha || ref || func!=8)ExitProcess(246);
     ui_hd_pages[100]=(UiHdPage){0};ui_hd_opaque_pages[100]=(UiHdPage){0};
 }
 static void test_hd_region_assets(void){

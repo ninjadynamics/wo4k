@@ -5,6 +5,9 @@
 - Fix track-side sprites, such as the striped pillars at the start of
   Talon's Reach and Sagarmatha's trees, staying upright on the screen in the
   first-person view instead of tilting with the scene when the ship banks.
+- Fix black squares around Sagarmatha's trees and other see-through scenery
+  with HD artwork on. Original artwork that shares a texture page with an HD
+  replacement was drawn without its transparency.
 
 ## 0.2.0-beta.3
 

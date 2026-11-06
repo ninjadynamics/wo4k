@@ -12,9 +12,13 @@ static UiHdPage ui_hd_logo;
 static UiNativeLoadFn old_ui_native_load;
 static WCHAR ui_hd_directory[MAX_PATH];
 #include "ui_hd_assets.c"
-static DWORD ui_hd_original_key,ui_hd_original_test,ui_hd_original_ref,ui_hd_original_func=8,ui_hd_original_address=1;
-/* V1 devices may reject Device2 QI. The native game never changes alpha-test
- * enable/ref/function, so its inherited defaults are FALSE/0/ALWAYS. Track
+static DWORD ui_hd_original_key=TRUE,ui_hd_original_test,ui_hd_original_ref,ui_hd_original_func=8,ui_hd_original_address=1;
+/* The game's V1 device rejects Device2 QI (E_INVALIDARG, with and without
+ * DDrawCompat), so these are its inherited defaults. The native game never
+ * changes alpha-test enable/ref/function: FALSE/0/ALWAYS. Nor COLORKEYENABLE:
+ * a V1 device starts with color keying on, which is how native foliage and
+ * billboards lose their BLACK. FALSE here sent every keyed world triangle on
+ * an HD page to the opaque copy, drawing BLACK squares around them. Track
  * explicit execute-buffer state changes too, and restore those after HD UI. */
 static BOOL ui_hd_extra_states;
 static const GUID ui_hd_texture_iid={0x2cdcd9e0,0x25a0,0x11cf,{0xa3,0x1a,0x00,0xaa,0x00,0xb9,0x33,0x56}};
