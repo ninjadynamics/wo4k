@@ -8,6 +8,11 @@
 - Close the game cleanly when DirectX reports an error it cannot recover from
   (some systems still lose the screen when switching back after Alt+Tab),
   instead of crashing on the way out. The log now names the failing call.
+- Fix the screen staying black after switching back to the game during the
+  intro or an ending movie; the movie shows again. While you are switched
+  away, the movie no longer covers other programs. If you switch away during
+  the opening notice, the movie can still show behind the program you
+  switched to until you return.
 - Keep each game session in a single log file that works like a dashcam:
   everything from start-up until you first leave the title screen, then the
   most recent 256 KB. The game, graphics, crash, debug and video logs are
