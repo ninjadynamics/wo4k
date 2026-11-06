@@ -1,5 +1,16 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.3
+
+- Keep each game session in a single log file that works like a dashcam:
+  everything from start-up until you first leave the title screen, then the
+  most recent 256 KB. The game, graphics, crash, debug and video logs are
+  inside it instead of in separate files.
+- Keep logs according to how the session went: a crash log
+  (`play-….crash.log`) is never deleted automatically, other failure logs
+  are kept for 30 days, and only the two most recent clean sessions
+  (`….ok.log`) are kept. `Play.exe --purge` deletes every log.
+
 ## 0.2.0-beta.2
 
 - Fix Alt+Tab crashing the game in both fullscreen modes. The original game
