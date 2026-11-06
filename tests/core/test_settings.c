@@ -138,6 +138,32 @@ static void test_merge_defaults(void) {
     wo_ini_free(&ddraw_defaults);
 }
 
+/* The game treats any lost surface as fatal (Flip at its line 1573 returns
+ * DDERR_SURFACELOST after Alt+Tab), so the shipped DDrawCompat settings keep
+ * video memory and the primary surface, and an upgrade adds that to an
+ * installed file without touching the player's own choices. */
+static void test_alt_tab_template(void) {
+    WoIni shipped;
+    WoIni installed;
+    WoError error = {0};
+    CHECK_OK(wo_ini_load("runtime/DDrawCompat-Wipeout2097.ini", &shipped, &error), &error);
+    char *fix = wo_ini_get(&shipped, NULL, "AltTabFix", &error);
+    CHECK_STR(fix, "keepvidmem(1)");
+    wo_free(fix);
+    CHECK_OK(wo_ini_parse("FullscreenMode = exclusive\r\nLogLevel = info\r\n", &installed, &error),
+             &error);
+    int added = 0;
+    CHECK_OK(wo_ini_merge_defaults(&installed, &shipped, false, &added, &error), &error);
+    fix = wo_ini_get(&installed, NULL, "AltTabFix", &error);
+    CHECK_STR(fix, "keepvidmem(1)");
+    wo_free(fix);
+    char *mode = wo_ini_get(&installed, NULL, "FullscreenMode", &error);
+    CHECK_STR(mode, "exclusive");
+    wo_free(mode);
+    wo_ini_free(&installed);
+    wo_ini_free(&shipped);
+}
+
 static void test_snapshot(void) {
     const char *dir = wo_test_dir("settings-snapshot");
     if (!dir) {
@@ -152,6 +178,13 @@ static void test_snapshot(void) {
     CHECK_STR(wo_json_str(settings, "Audio/Track", NULL), "3");
     CHECK(!wo_json_has(settings, "Render/Secret"));
     wo_json_free(snapshot);
+    char *ddraw = write_temp(dir, "DDrawCompat-Wipeout2097.ini", "AltTabFix = keepvidmem(1)\n");
+    snapshot = wo_settings_snapshot(dir);
+    CHECK(wo_json_length(snapshot) == 2);
+    settings = wo_json_get(wo_json_at(snapshot, 1), "settings");
+    CHECK_STR(wo_json_str(settings, "/AltTabFix", NULL), "keepvidmem(1)");
+    wo_json_free(snapshot);
+    wo_free(ddraw);
     wo_free(game);
 }
 
@@ -160,6 +193,7 @@ int main(void) {
     RUN(test_sound_mode);
     RUN(test_soundtrack);
     RUN(test_merge_defaults);
+    RUN(test_alt_tab_template);
     RUN(test_snapshot);
     return wo_test_finish();
 }

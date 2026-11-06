@@ -283,6 +283,7 @@ static void __cdecl __attribute__((noinline)) refresh_input(void) {
          * including when the outer loop catches up multiple ticks. */
         *(DWORD *)(game+0x89c7c)=2;
     }
+    keyboard_focus();
     old_refresh_input();
     controller_input();
     if(simulation_active)wo_sim_restore_input();
