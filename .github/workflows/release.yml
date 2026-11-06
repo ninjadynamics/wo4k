@@ -1,15 +1,39 @@
 name: Build and release WO4K
+
+# Every push and pull request builds and tests. A version tag (v<VERSION>)
+# also signs the binaries through SignPath (when configured) and publishes
+# a GitHub Release. No PowerShell is used anywhere in the pipeline.
 on:
   push:
+    branches: ['**']
     tags: ['v*']
+  pull_request:
   workflow_dispatch:
+
 permissions:
   contents: write
+  actions: read
+
 jobs:
-  build:
-    runs-on: windows-latest
+  fuzz:
+    name: Fuzz the file parsers (Linux, libFuzzer + ASan/UBSan)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Build and fuzz each parser for 60 seconds
+        run: sh fuzz/build-libfuzzer.sh 60
+
+  build:
+    name: Build, test, sign and package (Windows)
+    runs-on: windows-latest
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: msys2/setup-msys2@v2
         id: msys2
         with:
@@ -21,31 +45,93 @@ jobs:
             mingw-w64-x86_64-llvm
             mingw-w64-x86_64-lld
             mingw-w64-x86_64-make
-      - name: Compile and test from source
-        shell: powershell
-        env:
-          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+
+      - name: Read the version
         run: |
-          $version = (Get-Content VERSION -Raw).Trim()
-          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne ('v' + $version)) { throw 'Tag must match VERSION' }
-          $bin = Join-Path $env:MSYS2_LOCATION 'mingw64/bin'
-          $env:PATH = $bin + ';' + $env:PATH
-          & (Join-Path $bin 'mingw32-make.exe') release ('TOOLCHAIN=' + $bin.Replace('\','/')) ('VERSION=' + $version)
-          if ($LASTEXITCODE) { throw 'Build/test/package failed' }
-      - name: Keep verified build artifacts
+          set /p VERSION=<VERSION
+          echo VERSION=%VERSION%>>"%GITHUB_ENV%"
+          echo TOOLCHAIN=${{ steps.msys2.outputs.msys2-location }}\mingw64\bin>>"%GITHUB_ENV%"
+
+      - name: Check the tag matches VERSION
+        if: github.ref_type == 'tag'
+        run: |
+          if not "%GITHUB_REF_NAME%"=="v%VERSION%" (
+            echo Tag %GITHUB_REF_NAME% does not match VERSION %VERSION%
+            exit /b 1
+          )
+
+      - name: Fetch pinned dependencies
+        run: |
+          set PATH=%TOOLCHAIN%;%PATH%
+          mingw32-make TOOLCHAIN=%TOOLCHAIN:\=/% deps
+
+      - name: Build
+        run: |
+          set PATH=%TOOLCHAIN%;%PATH%
+          mingw32-make -j4 TOOLCHAIN=%TOOLCHAIN:\=/% all
+
+      - name: Test
+        run: |
+          set PATH=%TOOLCHAIN%;%PATH%
+          mingw32-make TOOLCHAIN=%TOOLCHAIN:\=/% test
+
+      - name: Collect the binaries to sign
+        run: |
+          set PATH=%TOOLCHAIN%;%PATH%
+          mingw32-make TOOLCHAIN=%TOOLCHAIN:\=/% sign-input
+
+      - name: Upload unsigned binaries
+        id: unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: wo4k-release
+          name: wo4k-unsigned-${{ env.VERSION }}
+          path: build/unsigned/
+
+      # SignPath Foundation: release-signing requires a maintainer to approve
+      # each request in SignPath; the job waits for that approval.
+      - name: Sign with SignPath
+        if: env.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: wo4k
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: release
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 14400
+          output-artifact-directory: build/signed
+          parameters: |
+            version: ${{ toJSON(env.VERSION) }}
+
+      # The inventory hashes must describe the signed files, so packaging
+      # happens after signing.
+      - name: Package
+        run: |
+          set PATH=%TOOLCHAIN%;%PATH%
+          if exist build\signed (
+            mingw32-make TOOLCHAIN=%TOOLCHAIN:\=/% package SIGNED=build/signed
+          ) else (
+            mingw32-make TOOLCHAIN=%TOOLCHAIN:\=/% package
+          )
+
+      - name: Keep the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: wo4k-${{ env.VERSION }}
           path: |
             dist/wo4k-*.zip
             dist/wo4k-*.zip.sha256
-      - name: Publish tagged release with binaries
+
+      - name: Publish the release
         if: github.ref_type == 'tag'
-        shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $version = (Get-Content VERSION -Raw).Trim()
-          # A beta version name remains a full release so /releases/latest can find it.
-          gh release create $env:GITHUB_REF_NAME "dist/wo4k-$version.zip" "dist/wo4k-$version.zip.sha256" --verify-tag --title "WO4K $version" --generate-notes --latest
-          if ($LASTEXITCODE) { throw 'Release publication failed' }
+          (
+            echo Windows binaries are built from this tag by GitHub Actions.
+            echo.
+            echo See the [code signing policy](https://github.com/${{ github.repository }}#code-signing-policy^).
+          ) > build\release-notes.md
+          gh release create "%GITHUB_REF_NAME%" "dist/wo4k-%VERSION%.zip" "dist/wo4k-%VERSION%.zip.sha256" --verify-tag --title "WO4K %VERSION%" --notes-file build\release-notes.md --generate-notes --latest

@@ -31,7 +31,7 @@ BEGIN
             VALUE "FileDescription", WO_FILE_DESCRIPTION
             VALUE "FileVersion", WO_VERSION_STRING
             VALUE "InternalName", WO_INTERNAL_NAME
-            VALUE "LegalCopyright", "Copyright (c) 2026 WO4K contributors. MIT License."
+            VALUE "LegalCopyright", "Copyright (c) 2026 Ninja Dynamics"
             VALUE "OriginalFilename", WO_ORIGINAL_FILENAME
             VALUE "ProductName", "WO4K"
             VALUE "ProductVersion", WO_VERSION_STRING

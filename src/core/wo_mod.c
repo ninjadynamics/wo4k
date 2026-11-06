@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
@@ -72,6 +73,129 @@ void wo_mod_remove_work_dir(const WoMod *mod, const char *path) {
     if (!wo_delete_tree(mod->work, path, &error)) {
         wo_log_text("work_cleanup_failed", error.message);
     }
+}
+
+/* --- Disk use ----------------------------------------------------------------------- */
+
+static void delete_entry(const WoMod *mod, const char *folder, const WoDirEntry *entry) {
+    char *path = wo_path_join(folder, entry->name, NULL);
+    WoError error = {0};
+    bool ok = path && !wo_chain_has_link(mod->root, path) &&
+              (entry->is_dir ? wo_delete_tree(mod->root, path, &error)
+                             : wo_delete_file(path, &error));
+    if (!ok && error.message[0]) {
+        wo_log_text("prune_failed", error.message);
+    }
+    wo_free(path);
+}
+
+/* Delete all but the newest `keep` directories whose names start with
+ * prefix; the names carry a sortable timestamp. */
+static void keep_newest(const WoMod *mod, const char *folder, const WoDirList *list,
+                        const char *prefix, size_t keep) {
+    size_t matching = 0;
+    for (size_t i = 0; i < list->count; i++) {
+        if (list->items[i].is_dir && !list->items[i].is_link &&
+            wo_str_istarts_with(list->items[i].name, prefix)) {
+            matching++;
+        }
+    }
+    size_t excess = matching > keep ? matching - keep : 0;
+    for (size_t i = 0; i < list->count && excess > 0; i++) {
+        const WoDirEntry *entry = &list->items[i];
+        if (entry->is_dir && !entry->is_link && wo_str_istarts_with(entry->name, prefix)) {
+            delete_entry(mod, folder, entry);
+            excess--;
+        }
+    }
+}
+
+/* Scratch names written by this and earlier releases' installers. */
+static bool scratch_name(const char *name) {
+    static const char *const prefixes[] = {
+        "i-", "update-", "ensure-music-", "ensure-textures-", "ensure-request-", "native-",
+        "texture-source-", "audio-source-", "native-import-", "optional-music-", "native-textures-",
+        "request-", "status-", "check-status-", "discovery-", "update-status-", "unused.json"};
+    for (size_t i = 0; i < WO_COUNT(prefixes); i++) {
+        if (wo_str_istarts_with(name, prefixes[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static uint64_t now_ticks(void) {
+    /* FILETIME ticks: 100 ns since 1601. */
+    return ((uint64_t)time(NULL) + 11644473600ull) * 10000000ull;
+}
+
+static uint64_t days(unsigned count) {
+    return (uint64_t)count * 24 * 3600 * 10000000ull;
+}
+
+/* The soundtracks of the kept game backup are dropped: they are most of its
+ * size and the current installation has its own copy. */
+static void slim_backups(const WoMod *mod, const char *folder, const WoDirList *list) {
+    for (size_t i = 0; i < list->count; i++) {
+        const WoDirEntry *entry = &list->items[i];
+        if (!entry->is_dir || entry->is_link || !wo_str_istarts_with(entry->name, "wobble-")) {
+            continue;
+        }
+        char *backup = wo_path_join(folder, entry->name, NULL);
+        char *music = backup ? wo_path_join(backup, "music", NULL) : NULL;
+        WoError error = {0};
+        if (music && wo_is_dir(music) && !wo_chain_has_link(mod->root, music) &&
+            !wo_delete_tree(mod->root, music, &error)) {
+            wo_log_text("prune_failed", error.message);
+        }
+        wo_free(music);
+        wo_free(backup);
+    }
+}
+
+static void prune_old_files(const WoMod *mod, const char *folder, uint64_t max_age,
+                            bool (*wanted)(const char *name)) {
+    WoDirList list = {0};
+    if (!wo_is_dir(folder) || wo_chain_has_link(mod->root, folder) ||
+        !wo_list_dir(folder, &list, NULL)) {
+        return;
+    }
+    uint64_t now = now_ticks();
+    for (size_t i = 0; i < list.count; i++) {
+        const WoDirEntry *entry = &list.items[i];
+        if (entry->is_link || !wanted(entry->name)) {
+            continue;
+        }
+        bool install = entry->is_dir && wo_str_istarts_with(entry->name, "i-");
+        if (install || entry->mtime + max_age < now) {
+            delete_entry(mod, folder, entry);
+        }
+    }
+    wo_dirlist_free(&list);
+}
+
+static bool log_name(const char *name) {
+    /* Session logs and their attachments: <operation>-<date>-...log[.*] */
+    return strstr(name, ".log") != NULL || wo_str_iends_with(name, ".txt");
+}
+
+void wo_mod_prune(const WoMod *mod) {
+    char *backups = wo_path_join(mod->root, "backups", NULL);
+    WoDirList list = {0};
+    if (backups && wo_is_dir(backups) && !wo_chain_has_link(mod->root, backups) &&
+        wo_list_dir(backups, &list, NULL)) {
+        keep_newest(mod, backups, &list, "wobble-", WO_KEEP_GAME_BACKUPS);
+        keep_newest(mod, backups, &list, "update-", WO_KEEP_UPDATE_BACKUPS);
+        slim_backups(mod, backups, &list);
+    }
+    wo_dirlist_free(&list);
+    wo_free(backups);
+    prune_old_files(mod, mod->work, days(WO_WORK_MAX_AGE_DAYS), scratch_name);
+    char *logs = wo_path_join(mod->root, "logs", NULL);
+    if (logs) {
+        prune_old_files(mod, logs, days(WO_LOG_MAX_AGE_DAYS), log_name);
+    }
+    wo_free(logs);
 }
 
 /* --- Configuration ---------------------------------------------------------------- */

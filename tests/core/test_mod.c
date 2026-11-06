@@ -1,4 +1,5 @@
 #include <string.h>
+#include <windows.h>
 
 #include "core/wo_fs.h"
 #include "core/wo_mod.h"
@@ -127,7 +128,53 @@ static void test_work_dirs(void) {
     wo_mod_free(&mod);
 }
 
+static void test_prune(void) {
+    const char *dir = wo_test_dir("mod-prune");
+    if (!dir) {
+        return;
+    }
+    const char *dirs[] = {"backups/wobble-20261101-000000", "backups/wobble-20261102-000000",
+                          "backups/wobble-20261103-000000", "backups/wobble-20261104-000000",
+                          "backups/update-1", "backups/update-2", "backups/update-3",
+                          "backups/update-4", "backups/artwork-migration",
+                          "backups/runtime-before-logo", ".work/i-aaaa", ".work/deps",
+                          ".work/deband-experiment"};
+    for (size_t i = 0; i < WO_COUNT(dirs); i++) {
+        char *relative = wo_format(NULL, "%s/keep.txt", dirs[i]);
+        write_text(dir, relative, "x");
+        wo_free(relative);
+    }
+    write_text(dir, ".work/i-bbbb/keep.txt", "x");
+    write_text(dir, "backups/wobble-20261104-000000/music/pc/track02.wav", "x");
+    WoMod mod;
+    WoError error = {0};
+    CHECK_OK(wo_mod_init(&mod, dir, &error), &error);
+    wo_mod_prune(&mod);
+    const char *gone[] = {"backups/wobble-20261101-000000", "backups/wobble-20261102-000000",
+                          "backups/wobble-20261103-000000", "backups/wobble-20261104-000000/music",
+                          "backups/update-1", ".work/i-aaaa", ".work/i-bbbb"};
+    const char *kept[] = {"backups/wobble-20261104-000000", "backups/update-2", "backups/update-4",
+                          "backups/artwork-migration", "backups/runtime-before-logo", ".work/deps",
+                          ".work/deband-experiment"};
+    for (size_t i = 0; i < WO_COUNT(gone); i++) {
+        char *path = wo_path_child(dir, gone[i], &error);
+        if (path && wo_exists(path)) {
+            wo_test_fail(__FILE__, __LINE__, gone[i], "should have been pruned");
+        }
+        wo_free(path);
+    }
+    for (size_t i = 0; i < WO_COUNT(kept); i++) {
+        char *path = wo_path_child(dir, kept[i], &error);
+        if (!path || !wo_is_dir(path)) {
+            wo_test_fail(__FILE__, __LINE__, kept[i], "should have been kept");
+        }
+        wo_free(path);
+    }
+    wo_mod_free(&mod);
+}
+
 int main(void) {
+    RUN(test_prune);
     RUN(test_defaults_without_state);
     RUN(test_save_round_trip_and_revision);
     RUN(test_rejects_bad_state);

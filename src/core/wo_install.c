@@ -511,18 +511,15 @@ bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configur
     wo_free(inputs);
     wo_free(stage);
     if (session) {
-        /* Failed sessions are kept for diagnosis, as before. */
-        if (ok) {
-            wo_mod_remove_work_dir(mod, session);
-        } else {
-            wo_log_text("install_session_kept", session);
-        }
+        /* Scratch can hold whole unpacked discs; the log keeps any error. */
+        wo_mod_remove_work_dir(mod, session);
     }
     wo_free(session);
     wo_json_free(patches);
     wo_json_free(plan);
     wo_json_free(catalog);
     if (ok) {
+        wo_mod_prune(mod);
         wo_progress(progress, WO_STAGE_GENERAL, 100, "Ready to race");
     }
     return ok;

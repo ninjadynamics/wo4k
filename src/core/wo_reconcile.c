@@ -811,6 +811,7 @@ bool wo_reconcile(const WoMod *mod, bool force_repair, WoProgress *progress,
         ok = wo_refresh_assets(mod, progress, error);
     }
     if (ok) {
+        wo_mod_prune(mod);
         wo_progress(progress, WO_STAGE_GENERAL, 100, "Installation checked and ready.");
     }
     return ok;

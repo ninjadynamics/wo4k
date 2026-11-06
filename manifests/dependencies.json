@@ -1,4 +1,4 @@
-﻿[
+[
   {
     "archive": "zstd.zip",
     "url": "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-v1.5.7-win64.zip",
@@ -30,5 +30,13 @@
     "marker": "ddraw.dll",
     "sha256": "a932a4dcb2100552b6918fd4a3cc7de138bb97448bbca2a7051954993a397b39",
     "name": "DDrawCompat 0.7.2"
+  },
+  {
+    "archive": "raylib-5.5.zip",
+    "url": "https://github.com/raysan5/raylib/archive/refs/tags/5.5.zip",
+    "marker_sha256": "afb287ecd313de61e0000921375190b7e1cc35cd381ad6caf914489473a3c871",
+    "marker": "raylib-5.5/src/raylib.h",
+    "sha256": "00e8a7c85f7a5221e56ee8e4e1c6642b773eae73d29379a91c8ac5149e803f42",
+    "name": "raylib 5.5"
   }
 ]

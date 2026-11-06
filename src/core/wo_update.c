@@ -381,6 +381,9 @@ static bool install_files(const WoMod *mod, const char *stage, const WoInventory
         wo_error_context(error, "The update was rolled back: ");
         roll_back(changes, count);
     }
+    if (ok) {
+        wo_mod_prune(mod);
+    }
     *changed = count;
     free_changes(changes, count);
     wo_free(backup_root);

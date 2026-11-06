@@ -35,6 +35,20 @@ void wo_mod_remove_work_dir(const WoMod *mod, const char *path);
  * path cannot be read also counts, to stay on the safe side). */
 bool wo_mod_game_running(const WoMod *mod);
 
+/* Keep disk use bounded (a whole installation stays well under 3 GB):
+ *   - one previous game folder is kept, without its soundtracks (music/ is
+ *     most of its size and is re-extracted from the sources anyway);
+ *   - the newest WO_KEEP_UPDATE_BACKUPS update backups are kept;
+ *   - install scratch sessions are removed, and other scratch sessions once
+ *     older than WO_WORK_MAX_AGE_DAYS;
+ *   - logs older than WO_LOG_MAX_AGE_DAYS are removed.
+ * Unrecognised files are untouched. Failures are logged, never fatal. */
+#define WO_KEEP_GAME_BACKUPS 1
+#define WO_KEEP_UPDATE_BACKUPS 3
+#define WO_WORK_MAX_AGE_DAYS 7
+#define WO_LOG_MAX_AGE_DAYS 30
+void wo_mod_prune(const WoMod *mod);
+
 /* --- Saved configuration --------------------------------------------------------- */
 typedef struct WoConfig {
     int64_t revision;
