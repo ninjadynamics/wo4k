@@ -48,7 +48,8 @@ typedef struct FontSpec {
     int weight; /* 0 regular, 1 semibold, 2 bold */
 } FontSpec;
 
-/* One step above the old WPF sizes, which read small on 4K displays. */
+/* Em sizes (WPF FontSize), one step above the old WPF Setup's, which read
+ * small on 4K displays. */
 static const FontSpec font_specs[UI_FONT_COUNT] = {
     {13, 0}, {13, 1}, {14, 0}, {16, 0}, {12, 2}, {13, 2}};
 
@@ -145,11 +146,41 @@ static void unload_fonts(void) {
     ui.fonts_loaded = false;
 }
 
+static unsigned be16(const uint8_t *p) {
+    return (unsigned)p[0] << 8 | p[1];
+}
+
+static uint32_t be32(const uint8_t *p) {
+    return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+}
+
+/* raylib (stb_truetype) sizes a font by its ascender-to-descender height,
+ * which is larger than the em size: about 1.33 em for Segoe UI. The font's
+ * head and hhea tables give the ratio. */
+static float em_to_height(const WoBuf *file) {
+    const uint8_t *data = file->data;
+    size_t len = file->len;
+    unsigned units = 0;
+    int extent = 0;
+    unsigned tables = len >= 12 ? be16(data + 4) : 0;
+    for (unsigned i = 0; i < tables && 12 + (size_t)(i + 1) * 16 <= len; i++) {
+        const uint8_t *record = data + 12 + (size_t)i * 16;
+        uint32_t offset = be32(record + 8);
+        if (memcmp(record, "head", 4) == 0 && offset <= len - 20) {
+            units = be16(data + offset + 18);
+        } else if (memcmp(record, "hhea", 4) == 0 && offset <= len - 8) {
+            extent = (int16_t)be16(data + offset + 4) - (int16_t)be16(data + offset + 6);
+        }
+    }
+    float ratio = units ? (float)extent / (float)units : 0.0f;
+    return ratio >= 1.0f && ratio <= 2.0f ? ratio : 1.0f;
+}
+
 static void load_fonts(void) {
     unload_fonts();
     for (int i = 0; i < UI_FONT_COUNT; i++) {
         const WoBuf *file = &ui.font_files[font_specs[i].weight];
-        int size = (int)lroundf(font_specs[i].size * ui.scale);
+        int size = (int)lroundf(font_specs[i].size * em_to_height(file) * ui.scale);
         if (file->len > 0 && file->len < INT32_MAX) {
             ui.fonts[i] = LoadFontFromMemory(".ttf", file->data, (int)file->len, size, ui.codepoints,
                                              ui.codepoint_count);
