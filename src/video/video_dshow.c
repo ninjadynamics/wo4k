@@ -120,9 +120,21 @@ static void dshow_destroy(VideoBackend *backend)
     HeapFree(GetProcessHeap(), 0, player);
 }
 
+/* A paused graph is cued: the first frame is presented, nothing plays. */
+static void dshow_preroll(VideoBackend *backend)
+{
+    DshowPlayer *player = (DshowPlayer *)backend;
+    if (backend->state != VIDEO_STATE_READY || backend->cued) {
+        return;
+    }
+    if (SUCCEEDED(IMediaControl_Pause(player->control))) {
+        backend->cued = true;
+    }
+}
+
 static const VideoBackendOps dshow_ops = {
-    dshow_poll, dshow_start, dshow_position, dshow_layout, dshow_repaint,
-    dshow_destroy
+    dshow_poll, dshow_start, dshow_preroll, dshow_position, dshow_layout,
+    dshow_repaint, dshow_destroy
 };
 
 static HRESULT dshow_query(IGraphBuilder *graph, REFIID iid, void **out)

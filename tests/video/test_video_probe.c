@@ -164,8 +164,10 @@ typedef struct Launch {
     bool started;
 } Launch;
 
-/* Starts the player; inherit, when not NULL, is the only handle it gets. */
-static bool launch(Launch *run, const wchar_t *arguments, HANDLE inherit)
+/* Starts the player; the count handles in inherit are the only ones it
+ * gets. */
+static bool launch_with(Launch *run, const wchar_t *arguments,
+    HANDLE *inherit, DWORD count)
 {
     wchar_t command[4 * VIDEO_PATH_CAPACITY];
     STARTUPINFOEXW startup;
@@ -180,7 +182,7 @@ static bool launch(Launch *run, const wchar_t *arguments, HANDLE inherit)
     if (written < 0) {
         return false;
     }
-    if (inherit != NULL) {
+    if (count > 0) {
         InitializeProcThreadAttributeList(NULL, 1, 0, &size);
         startup.lpAttributeList = HeapAlloc(GetProcessHeap(), 0, size);
         if (startup.lpAttributeList == NULL ||
@@ -190,8 +192,8 @@ static bool launch(Launch *run, const wchar_t *arguments, HANDLE inherit)
             return false;
         }
         if (!UpdateProcThreadAttribute(startup.lpAttributeList, 0,
-                PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &inherit, sizeof(inherit),
-                NULL, NULL)) {
+                PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inherit,
+                count * sizeof(*inherit), NULL, NULL)) {
             DeleteProcThreadAttributeList(startup.lpAttributeList);
             HeapFree(GetProcessHeap(), 0, startup.lpAttributeList);
             return false;
@@ -207,6 +209,12 @@ static bool launch(Launch *run, const wchar_t *arguments, HANDLE inherit)
         HeapFree(GetProcessHeap(), 0, startup.lpAttributeList);
     }
     return run->started;
+}
+
+/* Starts the player; inherit, when not NULL, is the only handle it gets. */
+static bool launch(Launch *run, const wchar_t *arguments, HANDLE inherit)
+{
+    return launch_with(run, arguments, &inherit, inherit != NULL ? 1 : 0);
 }
 
 /* Waits for the player; a hung player is terminated and reported. */
@@ -571,6 +579,75 @@ static void test_controller(const Source *source)
         "does not.\n");
 }
 
+/* Prepared mode: the player opens and cues the movie, then waits; nothing
+ * plays until the start event. With skip signalled instead it ends without
+ * playing ("not needed"). */
+static void test_prepared(const Source *source, bool start)
+{
+    Fixture fixture;
+    const wchar_t *movie = NULL;
+    wchar_t arguments[2 * VIDEO_PATH_CAPACITY];
+    wchar_t extra[160];
+    SECURITY_ATTRIBUTES inherit = { sizeof(inherit), NULL, TRUE };
+    if (!any_movie(source, &fixture, start ? L"prepared" : L"prepared-skip",
+            &movie)) {
+        CHECK(false, "cannot prepare the prepared-mode fixture");
+        return;
+    }
+    HANDLE events[3];
+    for (int i = 0; i < 3; ++i) {
+        events[i] = CreateEventW(&inherit, TRUE, FALSE, NULL);
+    }
+    bool ready = events[0] != NULL && events[1] != NULL && events[2] != NULL &&
+        swprintf(extra, 160, L" --start-event %lu --stage-event %lu --skip-event %lu",
+            (unsigned long)(ULONG_PTR)events[0], (unsigned long)(ULONG_PTR)events[1],
+            (unsigned long)(ULONG_PTR)events[2]) > 0 &&
+        probe_arguments(arguments, 2 * VIDEO_PATH_CAPACITY, &fixture, movie,
+            extra);
+    CHECK(ready, "cannot prepare the prepared-mode arguments");
+    Launch run;
+    DWORD code = 0xffffffffu;
+    char text[LOG_TEXT_SIZE];
+    text[0] = '\0';
+    if (ready && launch_with(&run, arguments, events, 3)) {
+        bool cued = wait_for_log(&fixture, movie, "\"video_cued\"",
+            run.process.hProcess);
+        CHECK(cued, "the prepared player cues the movie");
+        /* Still waiting a moment later, without playing. */
+        CHECK(WaitForSingleObject(run.process.hProcess, 300) == WAIT_TIMEOUT,
+            "the prepared player waits for its start event");
+        CHECK(movie_log(&fixture, movie, text) &&
+            strstr(text, "\"video_play_requested\"") == NULL,
+            "nothing plays before the start event");
+        if (start) {
+            SetEvent(events[1]);
+            CHECK(wait_for_log(&fixture, movie, "\"video_window_staged\"",
+                run.process.hProcess), "the stage event stages the window");
+            SetEvent(events[0]);
+        } else {
+            SetEvent(events[2]);
+        }
+        code = finish(&run);
+    }
+    for (int i = 0; i < 3; ++i) {
+        if (events[i] != NULL) {
+            CloseHandle(events[i]);
+        }
+    }
+    if (start) {
+        CHECK(code == VIDEO_EXIT_OK && movie_log(&fixture, movie, text) &&
+            strstr(text, "\"video_start_received\"") != NULL &&
+            strstr(text, "\"video_window_shown\"") != NULL,
+            "the start event plays the prepared movie");
+        printf("PASS: a prepared player waits, stages and plays on its start "
+            "event.\n");
+    } else {
+        CHECK(skipped_with(&fixture, movie, code, "not needed"),
+            "a waiting player ends on the skip event without playing");
+        printf("PASS: a waiting prepared player ends on the skip event.\n");
+    }
+}
+
 /* The player stops when the game process is gone. */
 static void test_game_exit(const Source *source)
 {
@@ -652,6 +729,8 @@ int main(void)
         test_skip_event(&source);
         test_controller(&source);
         test_game_exit(&source);
+        test_prepared(&source, true);
+        test_prepared(&source, false);
     }
     if (failures != 0) {
         fprintf(stderr, "FAIL: %d video player check(s) failed.\n", failures);

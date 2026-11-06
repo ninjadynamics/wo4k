@@ -28,8 +28,13 @@ typedef struct VideoBackend VideoBackend;
 typedef struct VideoBackendOps {
     /* Drains pending media events and updates state. */
     void (*poll)(VideoBackend *backend);
-    /* Starts playback once the state is VIDEO_STATE_READY. */
+    /* Starts playback once the state is VIDEO_STATE_READY (resuming a
+     * preroll, finished or not). */
     void (*start)(VideoBackend *backend);
+    /* From VIDEO_STATE_READY, decodes and presents the first frame without
+     * playing or making a sound, so a later start() is immediate. The
+     * state stays READY; cued is set once the first frame is shown. */
+    void (*preroll)(VideoBackend *backend);
     bool (*position)(VideoBackend *backend, LONGLONG *position_hns);
     void (*layout)(VideoBackend *backend, const RECT *client);
     void (*repaint)(VideoBackend *backend);
@@ -40,6 +45,7 @@ struct VideoBackend {
     const VideoBackendOps *ops;
     const char *name;
     VideoState state;
+    bool cued; /* prerolled: the first frame is presented, playback paused */
     VideoInfo info;
     HRESULT error;
     char reason[192];

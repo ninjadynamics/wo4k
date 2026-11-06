@@ -226,6 +226,17 @@ static void test_arguments(void)
         movie));
     CHECK(options.game_pid == 0 && options.owner_window == NULL);
     CHECK(options.skip_event == NULL && !options.probe);
+    CHECK(options.start_event == NULL);
+
+    wchar_t start_flag[] = L"--start-event";
+    wchar_t start[] = L"812";
+    wchar_t stage_flag[] = L"--stage-event";
+    wchar_t stage[] = L"816";
+    CHECK(parse(&options, &error, 11, program, root_flag, root, movie_flag,
+        movie, start_flag, start, skip_flag, skip, stage_flag, stage));
+    CHECK(options.start_event == (HANDLE)(LONG_PTR)812);
+    CHECK(options.stage_event == (HANDLE)(LONG_PTR)816);
+    CHECK(options.skip_event == (HANDLE)(LONG_PTR)-1);
 
     CHECK(!parse(&options, &error, 3, program, movie_flag, movie));
     CHECK(error != NULL && strcmp(error, "missing --game-root") == 0);

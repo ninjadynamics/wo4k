@@ -54,46 +54,156 @@ static BOOL movie_skip_key(const MSG *message,HWND window) {
     if(window && message->hwnd!=window)return FALSE;
     return message->wParam==VK_ESCAPE || message->wParam==VK_RETURN || message->wParam==VK_SPACE;
 }
-/* Restrict inheritance to the skip event alone: the player receives no other
- * inheritable handle the game may hold. */
-static BOOL movie_handle_list(STARTUPINFOEXW *startup,HANDLE *skip) {
-    static ULONG_PTR storage[32];SIZE_T size=0;
+/* Restrict inheritance to the listed events alone: the player receives no
+ * other inheritable handle the game may hold. handles must stay valid until
+ * the process is created. */
+static BOOL movie_handle_list(STARTUPINFOEXW *startup,ULONG_PTR *storage,SIZE_T capacity,HANDLE *handles,UINT count) {
+    SIZE_T size=0;
     InitializeProcThreadAttributeList(0,1,0,&size);
-    if(!size || size>sizeof(storage))return FALSE;
+    if(!size || size>capacity)return FALSE;
     startup->lpAttributeList=(LPPROC_THREAD_ATTRIBUTE_LIST)storage;
     if(!InitializeProcThreadAttributeList(startup->lpAttributeList,1,0,&size)){startup->lpAttributeList=0;return FALSE;}
-    if(UpdateProcThreadAttribute(startup->lpAttributeList,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,skip,sizeof(*skip),0,0))return TRUE;
+    if(UpdateProcThreadAttribute(startup->lpAttributeList,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,handles,count*sizeof(*handles),0,0))return TRUE;
     DeleteProcThreadAttributeList(startup->lpAttributeList);startup->lpAttributeList=0;return FALSE;
 }
-static void play_game_movie(UINT movie) {
-    if(!movie_root[0] || !movie_name(movie) || !movie_available(movie))return;
-    WCHAR executable[MAX_PATH],command[MAX_PATH*4];executable[0]=command[0]=0;
+static BOOL movie_executable(WCHAR *executable) {
     /* The installer places the player beside the game executable. */
-    if(!movie_append(executable,MAX_PATH,movie_root) || !movie_append(executable,MAX_PATH,L"wo4k-video.exe"))return;
-    if(GetFileAttributesW(executable)==INVALID_FILE_ATTRIBUTES){wo_render_event("video_player_missing",movie);return;}
-    hide_game_cursor();HWND window=cursor_window;
-    start_controller();
-    SECURITY_ATTRIBUTES inherit={sizeof(inherit),0,TRUE};
-    HANDLE skip=CreateEventW(&inherit,TRUE,FALSE,0);
+    executable[0]=0;
+    return movie_append(executable,MAX_PATH,movie_root) && movie_append(executable,MAX_PATH,L"wo4k-video.exe") &&
+        GetFileAttributesW(executable)!=INVALID_FILE_ATTRIBUTES;
+}
+/* Start the player for movie, owned by window. *skip is passed when the
+ * handle list can be built; otherwise it is closed and cleared. A start
+ * event makes the player open its file hidden and wait for the event, and
+ * a stage event (with it) stages the window; that mode needs the handle
+ * list, so it fails without one. */
+static BOOL movie_spawn(UINT movie,HWND window,HANDLE *skip,HANDLE start,HANDLE stage,PROCESS_INFORMATION *child) {
+    WCHAR executable[MAX_PATH],command[MAX_PATH*4];command[0]=0;
+    if(!movie_executable(executable))return FALSE;
+    if(!start)stage=0;
+    HANDLE handles[3];UINT count=0;
+    if(*skip)handles[count++]=*skip;
+    if(start)handles[count++]=start;
+    if(stage)handles[count++]=stage;
     STARTUPINFOEXW startup={0};startup.StartupInfo.cb=sizeof(startup.StartupInfo);
     startup.StartupInfo.dwFlags=STARTF_FORCEOFFFEEDBACK;
-    BOOL listed=skip && movie_handle_list(&startup,&skip);
+    ULONG_PTR storage[32];
+    BOOL listed=count && movie_handle_list(&startup,storage,sizeof(storage),handles,count);
     if(listed)startup.StartupInfo.cb=sizeof(startup);
-    else if(skip){CloseHandle(skip);skip=0;}
+    else if(start)return FALSE;
+    else if(*skip){CloseHandle(*skip);*skip=0;}
     BOOL ok=movie_append(command,MAX_PATH*4,L"\"") && movie_append(command,MAX_PATH*4,executable) &&
         movie_append(command,MAX_PATH*4,L"\" --game-root \"") && movie_append(command,MAX_PATH*4,movie_root) &&
         /* Extra dot prevents a quoted trailing backslash escaping the quote. */
         movie_append(command,MAX_PATH*4,L".\" --movie ") && movie_append(command,MAX_PATH*4,movie_name(movie)) &&
         movie_append(command,MAX_PATH*4,L" --game-pid ") && movie_append_number(command,MAX_PATH*4,GetCurrentProcessId()) &&
         movie_append(command,MAX_PATH*4,L" --owner-window ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)window);
-    if(ok && skip)ok=movie_append(command,MAX_PATH*4,L" --skip-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)skip);
-    BOOL music=ok?wo_audio_movie_pause():FALSE;
-    PROCESS_INFORMATION child={0};
-    BOOL started=ok && CreateProcessW(executable,command,0,0,listed,listed?EXTENDED_STARTUPINFO_PRESENT:0,0,movie_root,&startup.StartupInfo,&child);
+    if(ok && *skip)ok=movie_append(command,MAX_PATH*4,L" --skip-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)*skip);
+    if(ok && start)ok=movie_append(command,MAX_PATH*4,L" --start-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)start);
+    if(ok && stage)ok=movie_append(command,MAX_PATH*4,L" --stage-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)stage);
+    wo_render_event(start?"video_preparing":"video_launching",movie);
+    BOOL started=ok && CreateProcessW(executable,command,0,0,listed,listed?EXTENDED_STARTUPINFO_PRESENT:0,0,movie_root,&startup.StartupInfo,child);
     /* The list only matters while the child is created. */
     if(listed)DeleteProcThreadAttributeList(startup.lpAttributeList);
+    if(started)CloseHandle(child->hThread);
+    return started;
+}
+/* The intro player is started while the splash shows, on a background
+ * thread: it opens its file hidden and waits for the start event. Process
+ * start-up, any security scan of the player and opening the movie then
+ * overlap the splash, and the movie appears as soon as the title asks. */
+static HANDLE movie_ready_thread,movie_ready_process,movie_ready_skip,movie_ready_start,movie_ready_stage;
+static HWND movie_ready_window;
+static BOOL movie_ready_attempted,movie_ready_signalled,movie_ready_staged;
+/* Set by initialize_title: only then does the title wait for the intro. */
+static BOOL movie_title_hooked;
+static DWORD WINAPI movie_prepare(void *unused) {
+    PROCESS_INFORMATION child={0};
+    if(movie_spawn(0,movie_ready_window,&movie_ready_skip,movie_ready_start,movie_ready_stage,&child)) {
+        movie_ready_process=child.hProcess;wo_render_event("video_prepared",0);
+    } else wo_render_event("video_prepare_failed",0);
+    return 0;
+}
+static void movie_ready_close(void) {
+    if(movie_ready_process)CloseHandle(movie_ready_process);
+    if(movie_ready_skip)CloseHandle(movie_ready_skip);
+    if(movie_ready_start)CloseHandle(movie_ready_start);
+    if(movie_ready_stage)CloseHandle(movie_ready_stage);
+    movie_ready_process=movie_ready_skip=movie_ready_start=movie_ready_stage=0;
+}
+/* Called on every presented frame; acts once the game window is known. */
+static void prepare_intro_movie(void) {
+    if(movie_ready_attempted || movie_intro_seen || !movie_title_hooked || !movie_root[0] || !cursor_window)return;
+    movie_ready_attempted=TRUE;
+    /* WO2097_VIDEO_PREPARE=0 restores launching the player on demand. */
+    WCHAR prepare[4],executable[MAX_PATH];
+    if(GetEnvironmentVariableW(L"WO2097_VIDEO_PREPARE",prepare,4) && prepare[0]==L'0')return;
+    if(!movie_available(0) || !movie_executable(executable))return;
+    SECURITY_ATTRIBUTES inherit={sizeof(inherit),0,TRUE};
+    movie_ready_window=cursor_window;
+    movie_ready_skip=CreateEventW(&inherit,TRUE,FALSE,0);
+    movie_ready_start=CreateEventW(&inherit,TRUE,FALSE,0);
+    /* Optional: without it the player shows its window at the start. */
+    movie_ready_stage=CreateEventW(&inherit,TRUE,FALSE,0);
+    if(movie_ready_skip && movie_ready_start)movie_ready_thread=CreateThread(0,0,movie_prepare,0,0,0);
+    if(!movie_ready_thread)movie_ready_close();
+}
+/* A few frames before the start, while the game still presents: the player
+ * puts its window on screen, transparent, so the compositor has taken over
+ * from the full-screen game by the time the movie must appear. */
+static void stage_prepared_intro(void) {
+    if(!movie_ready_stage || movie_ready_staged)return;
+    movie_ready_staged=TRUE;
+    SetEvent(movie_ready_stage);
+    wo_render_event("video_stage_signalled",0);
+}
+/* Tell the prepared player to show and play. The event exists before the
+ * player does, so a player still starting up plays as soon as it is ready. */
+static void start_prepared_intro(void) {
+    if(!movie_ready_start || movie_ready_signalled)return;
+    movie_ready_signalled=TRUE;
+    SetEvent(movie_ready_start);
+    wo_render_event("video_start_signalled",0);
+}
+/* The prepared intro player, now told to show and play; 0 if there is none
+ * (or it is not usable), in which case the player is launched as before. */
+static HANDLE take_prepared_movie(UINT movie,HWND window,HANDLE *skip) {
+    if(!movie_ready_thread)return 0;
+    /* Normally finished long ago; otherwise the work is already under way. */
+    WaitForSingleObject(movie_ready_thread,INFINITE);
+    CloseHandle(movie_ready_thread);movie_ready_thread=0;
+    HANDLE process=movie_ready_process;
+    BOOL usable=movie==0 && process && movie_ready_window==window && WaitForSingleObject(process,0)==WAIT_TIMEOUT;
+    if(!usable) {
+        /* A waiting player exits on its skip event without showing. */
+        if(movie_ready_skip)SetEvent(movie_ready_skip);
+        movie_ready_close();
+        return 0;
+    }
+    start_prepared_intro();CloseHandle(movie_ready_start);
+    if(movie_ready_stage)CloseHandle(movie_ready_stage);
+    *skip=movie_ready_skip;
+    movie_ready_process=movie_ready_skip=movie_ready_start=movie_ready_stage=0;
+    return process;
+}
+static void play_game_movie(UINT movie) {
+    if(!movie_root[0] || !movie_name(movie) || !movie_available(movie))return;
+    WCHAR executable[MAX_PATH];
+    if(!movie_executable(executable)){wo_render_event("video_player_missing",movie);return;}
+    hide_game_cursor();HWND window=cursor_window;
+    start_controller();
+    BOOL music=wo_audio_movie_pause();
+    HANDLE skip=0;
+    PROCESS_INFORMATION child={0};
+    child.hProcess=take_prepared_movie(movie,window,&skip);
+    BOOL started=child.hProcess!=0;
+    if(!started) {
+        SECURITY_ATTRIBUTES inherit={sizeof(inherit),0,TRUE};
+        skip=CreateEventW(&inherit,TRUE,FALSE,0);
+        started=movie_spawn(movie,window,&skip,0,0,&child);
+    }
     if(started){
-        CloseHandle(child.hThread);wo_render_event("video_started",movie);
+        wo_render_event("video_started",movie);
         BOOL quit=FALSE,skipped=FALSE;int quit_code=0;
         for(;;){
             DWORD waited=WaitForSingleObject(child.hProcess,20);if(waited!=WAIT_TIMEOUT)break;

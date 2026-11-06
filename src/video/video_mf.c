@@ -50,6 +50,11 @@ typedef struct MfPlayer {
     IMFMediaSession *session;
     IMFVideoDisplayControl *display;
     IMFPresentationClock *clock;
+    IMFSimpleAudioVolume *volume; /* muted while prerolling */
+    bool has_audio;
+    /* Preroll: a muted Start, then Pause as soon as it has started. */
+    bool prerolling;
+    bool play_requested; /* start() arrived while prerolling */
     bool closed;
     bool destroying;
 } MfPlayer;
@@ -278,6 +283,10 @@ static HRESULT mf_open_source(const wchar_t *path, IMFMediaSource **source)
 
 static void mf_release(MfPlayer *player)
 {
+    if (player->volume != NULL) {
+        IMFSimpleAudioVolume_Release(player->volume);
+        player->volume = NULL;
+    }
     if (player->clock != NULL) {
         IMFPresentationClock_Release(player->clock);
         player->clock = NULL;
@@ -314,6 +323,39 @@ static void mf_topology_ready(MfPlayer *player)
     }
 }
 
+static void mf_unmute(MfPlayer *player)
+{
+    if (player->volume != NULL) {
+        IMFSimpleAudioVolume_SetMute(player->volume, FALSE);
+    }
+}
+
+static void mf_take_clock(MfPlayer *player)
+{
+    IMFClock *clock = NULL;
+    if (player->clock == NULL &&
+        SUCCEEDED(IMFMediaSession_GetClock(player->session, &clock))) {
+        IMFClock_QueryInterface(clock, &IID_IMFPresentationClock,
+            (void **)&player->clock);
+        IMFClock_Release(clock);
+    }
+}
+
+/* Start, or resume a cued presentation from the frame it holds. */
+static void mf_resume(MfPlayer *player)
+{
+    mf_unmute(player);
+    PROPVARIANT start;
+    PropVariantInit(&start);
+    HRESULT hr = IMFMediaSession_Start(player->session, &GUID_NULL, &start);
+    if (FAILED(hr)) {
+        video_backend_fail(&player->base, hr,
+            "Media Foundation could not start playback");
+        return;
+    }
+    mf_take_clock(player);
+}
+
 static void mf_handle_event(MfPlayer *player, IMFMediaEvent *event)
 {
     MediaEventType type = MEUnknown;
@@ -343,8 +385,30 @@ static void mf_handle_event(MfPlayer *player, IMFMediaEvent *event)
         }
         break;
     case MESessionStarted:
+        if (player->prerolling && !player->play_requested) {
+            /* The first frame is on its way; hold the presentation there. */
+            HRESULT hr = IMFMediaSession_Pause(player->session);
+            if (FAILED(hr)) {
+                video_backend_fail(&player->base, hr,
+                    "Media Foundation could not hold the first frame");
+            }
+            break;
+        }
+        if (player->prerolling) {
+            player->prerolling = false;
+            mf_unmute(player);
+        }
         if (player->base.state == VIDEO_STATE_READY) {
             player->base.state = VIDEO_STATE_PLAYING;
+        }
+        break;
+    case MESessionPaused:
+        if (player->prerolling) {
+            player->prerolling = false;
+            player->base.cued = true;
+            if (player->play_requested) {
+                mf_resume(player);
+            }
         }
         break;
     case MESessionEnded:
@@ -390,20 +454,44 @@ static void mf_poll(VideoBackend *backend)
 static void mf_start(VideoBackend *backend)
 {
     MfPlayer *player = (MfPlayer *)backend;
-    PROPVARIANT start;
-    PropVariantInit(&start);
-    HRESULT hr = IMFMediaSession_Start(player->session, &GUID_NULL, &start);
-    if (FAILED(hr)) {
-        video_backend_fail(backend, hr,
-            "Media Foundation could not start playback");
+    if (player->prerolling) {
+        /* Played as soon as the preroll's Start or Pause completes. */
+        player->play_requested = true;
         return;
     }
-    IMFClock *clock = NULL;
-    if (SUCCEEDED(IMFMediaSession_GetClock(player->session, &clock))) {
-        IMFClock_QueryInterface(clock, &IID_IMFPresentationClock,
-            (void **)&player->clock);
-        IMFClock_Release(clock);
+    mf_resume(player);
+}
+
+/* A muted Start, paused again on MESessionStarted: decoders, renderers and
+ * the audio device are then running and the first frame is presented, so
+ * the real start is immediate. Never prerolls where it could be heard. */
+static void mf_preroll(VideoBackend *backend)
+{
+    MfPlayer *player = (MfPlayer *)backend;
+    if (backend->state != VIDEO_STATE_READY || player->prerolling ||
+        backend->cued || player->clock != NULL) {
+        return;
     }
+    if (player->has_audio) {
+        if (player->volume == NULL &&
+            FAILED(mf_api.get_service((IUnknown *)player->session,
+                &MR_POLICY_VOLUME_SERVICE, &IID_IMFSimpleAudioVolume,
+                (void **)&player->volume))) {
+            player->volume = NULL;
+            return;
+        }
+        if (FAILED(IMFSimpleAudioVolume_SetMute(player->volume, TRUE))) {
+            return;
+        }
+    }
+    PROPVARIANT start;
+    PropVariantInit(&start);
+    if (FAILED(IMFMediaSession_Start(player->session, &GUID_NULL, &start))) {
+        mf_unmute(player);
+        return;
+    }
+    player->prerolling = true;
+    mf_take_clock(player);
 }
 
 static bool mf_position(VideoBackend *backend, LONGLONG *position_hns)
@@ -458,7 +546,8 @@ static void mf_destroy(VideoBackend *backend)
 }
 
 static const VideoBackendOps mf_ops = {
-    mf_poll, mf_start, mf_position, mf_layout, mf_repaint, mf_destroy
+    mf_poll, mf_start, mf_preroll, mf_position, mf_layout, mf_repaint,
+    mf_destroy
 };
 
 HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
@@ -506,6 +595,7 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
         step = "no video stream";
         hr = MF_E_INVALIDMEDIATYPE;
     }
+    player->has_audio = streams.audio;
     if (SUCCEEDED(hr)) {
         step = "Media Foundation could not create a media session";
         hr = mf_api.create_media_session(NULL, &player->session);

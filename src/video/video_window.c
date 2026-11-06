@@ -141,35 +141,82 @@ static bool video_window_bounds(HWND owner, bool probe, RECT *bounds)
 }
 
 bool video_window_create(VideoWindow *window, HINSTANCE instance, HWND owner,
-    bool probe)
+    bool probe, bool hidden)
 {
-    RECT bounds;
     ZeroMemory(window, sizeof(*window));
     if (!video_window_register(instance) ||
-        !video_window_bounds(owner, probe, &bounds)) {
+        !video_window_bounds(owner, probe, &window->bounds)) {
         return false;
     }
+    const RECT *bounds = &window->bounds;
     DWORD style = WS_POPUP | WS_CLIPCHILDREN;
     DWORD ex_style = WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
     if (!probe) {
         ex_style |= WS_EX_TOPMOST;
     }
+    if (hidden) {
+        /* Layered, so it can be staged on screen fully transparent and
+         * click-through (see video_window_stage). */
+        ex_style |= WS_EX_LAYERED | WS_EX_TRANSPARENT;
+    }
+    window->probe = probe;
     HWND hwnd = CreateWindowExW(ex_style, VIDEO_WINDOW_CLASS, L"WO4K video",
-        style, bounds.left, bounds.top, bounds.right - bounds.left,
-        bounds.bottom - bounds.top, owner, NULL, instance, window);
+        style, bounds->left, bounds->top, bounds->right - bounds->left,
+        bounds->bottom - bounds->top, owner, NULL, instance, window);
     if (hwnd == NULL) {
         return false;
     }
-    /* SetWindowPos, not ShowWindow: the game's STARTUPINFO must not pick
-     * the first show state, and nothing here may activate the window. */
+    window->layered = hidden &&
+        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+    if (!hidden) {
+        video_window_show(window);
+    }
+    return true;
+}
+
+/* SetWindowPos, not ShowWindow: the game's STARTUPINFO must not pick the
+ * first show state, and nothing here may activate the window. */
+static void video_window_place(VideoWindow *window)
+{
+    const RECT *bounds = &window->bounds;
     UINT flags = SWP_NOACTIVATE | SWP_SHOWWINDOW;
-    if (probe) {
+    if (window->probe) {
         flags |= SWP_NOZORDER;
     }
-    SetWindowPos(hwnd, probe ? NULL : HWND_TOPMOST, bounds.left, bounds.top,
-        bounds.right - bounds.left, bounds.bottom - bounds.top, flags);
-    UpdateWindow(hwnd);
+    SetWindowPos(window->hwnd, window->probe ? NULL : HWND_TOPMOST,
+        bounds->left, bounds->top, bounds->right - bounds->left,
+        bounds->bottom - bounds->top, flags);
+}
+
+bool video_window_stage(VideoWindow *window)
+{
+    if (window->hwnd == NULL || !window->layered || window->staged ||
+        window->shown) {
+        return false;
+    }
+    video_window_place(window);
+    window->staged = true;
     return true;
+}
+
+void video_window_show(VideoWindow *window)
+{
+    if (window->hwnd == NULL || window->shown) {
+        return;
+    }
+    if (window->layered) {
+        /* Opaque, and taking clicks (a click skips) from now on. */
+        SetLayeredWindowAttributes(window->hwnd, 0, 255, LWA_ALPHA);
+        LONG_PTR ex_style = GetWindowLongPtrW(window->hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(window->hwnd, GWL_EXSTYLE,
+            ex_style & ~(LONG_PTR)WS_EX_TRANSPARENT);
+    }
+    if (!window->staged) {
+        video_window_place(window);
+        UpdateWindow(window->hwnd);
+    }
+    window->clicked = false;
+    window->shown = true;
 }
 
 void video_window_set_backend(VideoWindow *window, VideoBackend *backend)
