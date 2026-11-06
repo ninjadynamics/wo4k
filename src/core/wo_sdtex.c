@@ -69,12 +69,6 @@ static bool copy_named_folders(const char *source, const char *destination, WoEr
     static const char *const names[] = {"Pics", "Blitsurf", "Textures"};
     for (size_t i = 0; i < WO_COUNT(names); i++) {
         char *input = wo_path_join(source, names[i], error);
-        if (input && !wo_is_dir(input)) {
-            wo_free(input);
-            char *relative = wo_format(error, "textures/sd/%s", names[i]);
-            input = relative ? wo_path_join(source, relative, error) : NULL;
-            wo_free(relative);
-        }
         if (!input) {
             return false;
         }
@@ -149,9 +143,14 @@ bool wo_sd_extract(const char *native_root, const char *destination, WoError *er
     if (!wo_is_dir(source)) {
         ok = wo_fail(error, WO_ERR_NOT_FOUND, "The game folder does not exist: %s", source);
     }
+    /* A previous WO4K install keeps Pics, Blitsurf and Textures only in
+     * textures/sd. Its own "textures" folder is not the game's "Textures",
+     * although Windows treats the two names as one. */
     char *previous = ok ? wo_path_join(source, "textures/sd", error) : NULL;
-    ok = ok && previous && (!wo_is_dir(previous) || wo_copy_tree(previous, destination, error));
-    ok = ok && wo_mkdirs(destination, error) && copy_named_folders(source, destination, error) &&
+    bool installed = previous && wo_is_dir(previous);
+    ok = ok && previous && (!installed || wo_copy_tree(previous, destination, error));
+    ok = ok && wo_mkdirs(destination, error) &&
+         (installed || copy_named_folders(source, destination, error)) &&
          copy_containers(source, destination, error) && write_inventory(destination, error);
     wo_free(previous);
     wo_free(source);
@@ -208,8 +207,7 @@ static bool export_cmp(const char *sd_root, const char *relative, const WoBuf *d
     bool ok = true;
     for (size_t i = 0; ok && i < cmp.count; i++) {
         if (cmp.sizes[i] == 0) {
-            ok = wo_fail(error, WO_ERR_FORMAT, "Entry %zu of the CMP archive is empty.", i);
-            break;
+            continue; /* an unused slot; later frames keep their original numbers */
         }
         WoImage image;
         ok = wo_tim_decode_bgra(cmp.data + cmp.offsets[i], cmp.sizes[i], &image, error);

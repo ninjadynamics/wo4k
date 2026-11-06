@@ -1,8 +1,8 @@
 /* The game's standard-definition texture folder (game_root/textures/sd).
  *
  * wo_sd_extract copies, from a PC game folder:
- *   - an existing textures/sd tree (a previous WO4K install),
- *   - the Pics, Blitsurf and Textures folders (or their textures/sd copies),
+ *   - its Pics, Blitsurf and Textures folders, or, from a previous WO4K
+ *     install, its textures/sd tree, which already holds them,
  *   - the .cmp/.tim/.tex containers of every TrackNN and Common folder (they
  *     stay in the game data too; this exposes them beside the sheets),
  * and records every file with its SHA-256 in destination/sources.json. */

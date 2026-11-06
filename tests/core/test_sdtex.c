@@ -53,8 +53,6 @@ static void build_game(const char *game) {
     put_text(game, "Track01/TRACK.TEX", "tex");
     put_text(game, "Track01/TRACK.WAD", "wad");
     put_text(game, "Track01/sub/DEEP.CMP", "deep");
-    put_text(game, "textures/sd/Pics/HD/z.rgba", "rgba");
-    put_text(game, "textures/sd/exports/old.png", "old");
     wo_buf_free(&cmp);
     wo_buf_free(&tim);
     wo_buf_free(&tga);
@@ -72,17 +70,14 @@ static void test_extract_and_aliases(void) {
     CHECK_OK(wo_sd_extract(game, sd, &error), &error);
     CHECK(has(sd, "Pics/Hi-res/A.TGA") && has(sd, "Textures/X.TIM"));
     CHECK(has(sd, "Track01/LIB.CMP") && has(sd, "Track01/TRACK.TEX") && has(sd, "Common/MINE.CMP"));
-    CHECK(has(sd, "Pics/HD/z.rgba") && has(sd, "Blitsurf/Hi-res/RSTART97.PPM"));
+    CHECK(has(sd, "Blitsurf/Hi-res/RSTART97.PPM"));
     CHECK(!has(sd, "Track01/TRACK.WAD") && !has(sd, "Track1/NOT.CMP"));
     CHECK(!has(sd, "Track01/sub/DEEP.CMP"));
     char *inventory = wo_path_join(sd, "sources.json", &error);
     WoJson *records = NULL;
     CHECK_OK(wo_read_json(inventory, 1 << 20, &records, &error), &error);
-    /* Everything except exports/ and the inventory itself, backslash-separated.
-     * "Textures" and "textures" are one folder on Windows, so the old SD tree
-     * is also copied below Textures, exactly as the previous installer did. */
-    CHECK(wo_json_length(records) == 11);
-    CHECK(has(sd, "Textures/sd/Pics/HD/z.rgba"));
+    /* Every copied file except the inventory itself, backslash-separated. */
+    CHECK(wo_json_length(records) == 9);
     bool found = false;
     for (size_t i = 0; i < wo_json_length(records); i++) {
         const char *file = wo_json_str(wo_json_at(records, i), "file", "");
@@ -117,7 +112,39 @@ static void test_extract_and_aliases(void) {
     wo_free(game);
 }
 
+/* A previous WO4K install as the source: its textures/sd tree is taken as is,
+ * and WO4K's own textures folder is not mistaken for the game's Textures
+ * (Windows treats the two names as one). */
+static void test_extract_from_install(void) {
+    const char *root = wo_test_dir("sdtex-install");
+    if (!root) {
+        return;
+    }
+    WoError error = {0};
+    char *game = wo_path_join(root, "wobble", &error);
+    char *sd = wo_path_join(root, "out/textures/sd", &error);
+    WoBuf tim = {0};
+    WoBuf cmp = {0};
+    tb_tim16(&tim, 2, 2, 1);
+    tb_cmp(&cmp, &tim, 1);
+    put(game, "textures/sd/Textures/X.TIM", &tim);
+    put_text(game, "textures/sd/Pics/HD/z.rgba", "rgba");
+    put_text(game, "textures/sd/exports/old.png", "old");
+    put_text(game, "textures/selection.json", "{}");
+    put_text(game, "textures/ps1-source/TRACK01/A.TIM", "ps1");
+    put(game, "Track01/LIB.CMP", &cmp);
+    CHECK_OK(wo_sd_extract(game, sd, &error), &error);
+    CHECK(has(sd, "Textures/X.TIM") && has(sd, "Pics/HD/z.rgba") && has(sd, "Track01/LIB.CMP"));
+    CHECK(!has(sd, "Textures/selection.json") && !has(sd, "Textures/sd/Pics/HD/z.rgba"));
+    CHECK(!has(sd, "Textures/ps1-source/TRACK01/A.TIM"));
+    wo_buf_free(&cmp);
+    wo_buf_free(&tim);
+    wo_free(sd);
+    wo_free(game);
+}
+
 int main(void) {
     RUN(test_extract_and_aliases);
+    RUN(test_extract_from_install);
     return wo_test_finish();
 }

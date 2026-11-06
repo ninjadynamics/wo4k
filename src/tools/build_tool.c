@@ -10,6 +10,14 @@
  *   wo4k-build package <version> <dist folder> [<signed folder>]
  *       See build_fetch.c and build_package.c.
  *
+ * Maintainer commands (they read game files you own and never modify them):
+ *
+ *   wo4k-build export-textures <PC game folder or wobble> <output folder>
+ *       Copy the SD texture containers, then decode every TGA, TIM and CMP
+ *       frame to PNG under <output folder>/exports.
+ *   wo4k-build extract-music <folder or .mds/.cue/.bin> <output folder> pc|psx
+ *       Write the bank's trackNN.wav files and tracks.ini.
+ *
  * Outputs are written only when their content changes, so dependent targets
  * are not rebuilt needlessly. */
 #include <stdio.h>
@@ -17,6 +25,8 @@
 
 #include "core/wo_fs.h"
 #include "core/wo_json.h"
+#include "core/wo_music.h"
+#include "core/wo_sdtex.h"
 #include "core/wo_win.h"
 #include "tools/build_tool.h"
 
@@ -99,9 +109,22 @@ int wmain(int argc, wchar_t **argv) {
         ok = build_sign_input(args[2], &error);
     } else if ((argc == 4 || argc == 5) && wo_str_eq(args[1], "package")) {
         ok = build_package(args[2], args[3], argc == 5 ? args[4] : NULL, &error);
+    } else if (argc == 4 && wo_str_eq(args[1], "export-textures")) {
+        ok = wo_sd_extract(args[2], args[3], &error) && wo_sd_export_png(args[3], &error);
+    } else if (argc == 5 && wo_str_eq(args[1], "extract-music") &&
+               (wo_str_eq(args[4], "pc") || wo_str_eq(args[4], "psx"))) {
+        bool extracted = false;
+        WoMusicBank bank = wo_str_eq(args[4], "pc") ? WO_MUSIC_PC : WO_MUSIC_PSX;
+        ok = wo_music_extract(args[2], args[3], bank, false, &extracted, &error);
     } else {
         fprintf(stderr, "usage: wo4k-build icon <in.png> <out.ico>\n"
-                        "       wo4k-build hd-catalog <hd-textures.json> <out.h>\n");
+                        "       wo4k-build hd-catalog <hd-textures.json> <out.h>\n"
+                        "       wo4k-build fetch <dependencies.json> <deps folder>\n"
+                        "       wo4k-build manifests\n"
+                        "       wo4k-build sign-input <folder>\n"
+                        "       wo4k-build package <version> <dist> [<signed folder>]\n"
+                        "       wo4k-build export-textures <game folder> <output folder>\n"
+                        "       wo4k-build extract-music <source> <output folder> pc|psx\n");
         ok = false;
         wo_fail(&error, WO_ERR_FORMAT, "Invalid arguments.");
     }
