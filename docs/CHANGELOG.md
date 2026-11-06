@@ -1,5 +1,17 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.2
+
+- Fix Alt+Tab crashing the game in both fullscreen modes. The original game
+  cannot restore its screen after switching away, treated that as fatal, and
+  its error message then corrupted memory while it quit. DDrawCompat now keeps
+  the screen and video memory while you are away (`AltTabFix`, added to
+  existing installations automatically), and the keyboard works again when you
+  return; keys held while switching away are released.
+- Write release packages identically in every time zone.
+- Known issue: if you switch away during the opening notice, the intro movie
+  can appear over other windows until it ends or you skip it.
+
 ## 0.2.0-beta.1
 
 - **Players on 0.1.0-beta.24 or earlier:** download this release once and extract it
