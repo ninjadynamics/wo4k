@@ -49,6 +49,8 @@ struct VideoBackend {
     VideoInfo info;
     HRESULT error;
     char reason[192];
+    /* --frames: frames handed to the game so far; NULL otherwise. */
+    const volatile LONG *frames_published;
 };
 
 /* Records a failure; the first reason wins. */
@@ -57,8 +59,10 @@ void video_backend_fail(VideoBackend *backend, HRESULT error,
 
 /* Each returns a backend in VIDEO_STATE_OPENING or VIDEO_STATE_READY, or a
  * failure HRESULT with reason (at least reason_size bytes) filled in. */
+/* frames (Media Foundation only): no window; frames go to the game runtime
+ * through shared memory (video_frames.h) instead. */
 HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
-    VideoBackend **out, char *reason, size_t reason_size);
+    bool frames, VideoBackend **out, char *reason, size_t reason_size);
 HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
     VideoBackend **out, char *reason, size_t reason_size);
 

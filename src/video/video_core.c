@@ -227,6 +227,10 @@ bool video_parse_arguments(int argc, wchar_t **argv, VideoOptions *options,
             options->original_only = true;
             continue;
         }
+        if (wcscmp(name, L"--frames") == 0) {
+            options->frames = true;
+            continue;
+        }
         bool takes_value = wcscmp(name, L"--game-root") == 0 ||
             wcscmp(name, L"--movie") == 0 ||
             wcscmp(name, L"--game-pid") == 0 ||

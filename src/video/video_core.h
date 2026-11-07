@@ -73,6 +73,7 @@ typedef struct VideoOptions {
     HANDLE stage_event; /* prepared mode: put the window on screen, transparent */
     bool probe;
     bool original_only;
+    bool frames; /* no window: frames go to the game runtime */
 } VideoOptions;
 
 /* Parses argv (argv[0] is the program). On failure *error names the problem

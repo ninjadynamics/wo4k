@@ -12,6 +12,7 @@
 #include <mfidl.h>
 
 #include "video/video_evr.h"
+#include "video/video_frames.h"
 
 typedef HRESULT (WINAPI *MfStartupFn)(ULONG version, DWORD flags);
 typedef HRESULT (WINAPI *MfShutdownFn)(void);
@@ -51,6 +52,14 @@ typedef struct MfPlayer {
     IMFVideoDisplayControl *display;
     IMFPresentationClock *clock;
     IMFSimpleAudioVolume *volume; /* muted while prerolling */
+    /* --frames: a source reader hands frames to the game; the session, if
+     * any, plays only the sound and is the clock. Without sound there is
+     * no session and the clock counts from start(). */
+    bool frames_mode;
+    VideoFrames *frames;
+    LONGLONG started_qpc;
+    LONGLONG qpc_frequency;
+    bool start_pending; /* start() came before the first frame */
     bool has_audio;
     /* Preroll: a muted Start, then Pause as soon as it has started. */
     bool prerolling;
@@ -228,7 +237,9 @@ static HRESULT mf_build_topology(MfPlayer *player,
         if (SUCCEEDED(hr)) {
             if (!streams->video && IsEqualGUID(&major, &MFMediaType_Video)) {
                 mf_read_video_info(handler, &player->base.info);
-                hr = mf_api.create_video_renderer(player->window, &renderer);
+                /* --frames leaves the video stream to the reader. */
+                hr = player->frames_mode ? S_OK :
+                    mf_api.create_video_renderer(player->window, &renderer);
                 streams->video = SUCCEEDED(hr);
             } else if (!mute && !streams->audio &&
                 IsEqualGUID(&major, &MFMediaType_Audio)) {
@@ -283,6 +294,11 @@ static HRESULT mf_open_source(const wchar_t *path, IMFMediaSource **source)
 
 static void mf_release(MfPlayer *player)
 {
+    /* First: its worker reads the session clock. */
+    if (player->frames != NULL) {
+        video_frames_close(player->frames);
+        player->frames = NULL;
+    }
     if (player->volume != NULL) {
         IMFSimpleAudioVolume_Release(player->volume);
         player->volume = NULL;
@@ -309,6 +325,12 @@ static void mf_release(MfPlayer *player)
 
 static void mf_topology_ready(MfPlayer *player)
 {
+    if (player->frames_mode) {
+        if (player->base.state == VIDEO_STATE_OPENING) {
+            player->base.state = VIDEO_STATE_READY;
+        }
+        return;
+    }
     HRESULT hr = mf_api.get_service((IUnknown *)player->session,
         &MR_VIDEO_RENDER_SERVICE, &video_iid_display_control,
         (void **)&player->display);
@@ -425,9 +447,24 @@ static void mf_handle_event(MfPlayer *player, IMFMediaEvent *event)
     }
 }
 
+static void mf_start(VideoBackend *backend);
+
 static void mf_poll(VideoBackend *backend)
 {
     MfPlayer *player = (MfPlayer *)backend;
+    if (player->frames != NULL) {
+        if (video_frames_cued(player->frames)) {
+            backend->cued = true;
+            if (player->start_pending) {
+                player->start_pending = false;
+                mf_start(backend);
+            }
+        }
+        if (player->session == NULL && backend->state == VIDEO_STATE_PLAYING &&
+            video_frames_ended(player->frames)) {
+            backend->state = VIDEO_STATE_ENDED;
+        }
+    }
     if (player->session == NULL) {
         return;
     }
@@ -454,6 +491,21 @@ static void mf_poll(VideoBackend *backend)
 static void mf_start(VideoBackend *backend)
 {
     MfPlayer *player = (MfPlayer *)backend;
+    /* --frames: the clock starts with the first frame, not before it, as the
+     * decoder can take a while to start where the movie was not prepared. */
+    if (player->frames != NULL && !video_frames_cued(player->frames)) {
+        player->start_pending = true;
+        return;
+    }
+    if (player->session == NULL) {
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+        player->started_qpc = now.QuadPart;
+        if (backend->state == VIDEO_STATE_READY) {
+            backend->state = VIDEO_STATE_PLAYING;
+        }
+        return;
+    }
     if (player->prerolling) {
         /* Played as soon as the preroll's Start or Pause completes. */
         player->play_requested = true;
@@ -468,6 +520,9 @@ static void mf_start(VideoBackend *backend)
 static void mf_preroll(VideoBackend *backend)
 {
     MfPlayer *player = (MfPlayer *)backend;
+    if (player->session == NULL) {
+        return; /* --frames without sound: the reader cues itself */
+    }
     if (backend->state != VIDEO_STATE_READY || player->prerolling ||
         backend->cued || player->clock != NULL) {
         return;
@@ -498,6 +553,15 @@ static bool mf_position(VideoBackend *backend, LONGLONG *position_hns)
 {
     MfPlayer *player = (MfPlayer *)backend;
     MFTIME time = 0;
+    if (player->session == NULL && player->frames != NULL) {
+        LARGE_INTEGER now;
+        if (backend->state != VIDEO_STATE_PLAYING || !QueryPerformanceCounter(&now)) {
+            return false;
+        }
+        *position_hns = (now.QuadPart - player->started_qpc) * 10000000 /
+            player->qpc_frequency;
+        return true;
+    }
     if (player->clock == NULL ||
         FAILED(IMFPresentationClock_GetTime(player->clock, &time))) {
         return false;
@@ -545,13 +609,21 @@ static void mf_destroy(VideoBackend *backend)
     HeapFree(GetProcessHeap(), 0, player);
 }
 
+/* The worker thread's clock for --frames: false until playing. */
+static bool mf_frames_clock(void *context, LONGLONG *time_hns)
+{
+    MfPlayer *player = context;
+    return player->base.state == VIDEO_STATE_PLAYING &&
+        mf_position(&player->base, time_hns);
+}
+
 static const VideoBackendOps mf_ops = {
     mf_poll, mf_start, mf_preroll, mf_position, mf_layout, mf_repaint,
     mf_destroy
 };
 
 HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
-    VideoBackend **out, char *reason, size_t reason_size)
+    bool frames, VideoBackend **out, char *reason, size_t reason_size)
 {
     IMFPresentationDescriptor *presentation = NULL;
     IMFTopology *topology = NULL;
@@ -570,11 +642,22 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
         return E_OUTOFMEMORY;
     }
     player->base.ops = &mf_ops;
-    player->base.name = "media_foundation";
+    player->base.name = frames ? "media_foundation_frames" : "media_foundation";
+    player->frames_mode = frames;
     player->base.state = VIDEO_STATE_OPENING;
     player->window = window;
     const char *step = "Media Foundation could not open the file";
-    HRESULT hr = mf_open_source(path, &player->source);
+    HRESULT hr = S_OK;
+    if (frames) {
+        LARGE_INTEGER frequency;
+        QueryPerformanceFrequency(&frequency);
+        player->qpc_frequency = frequency.QuadPart;
+        player->frames = video_frames_open(path, &player->base.info, &hr, &step);
+    }
+    if (SUCCEEDED(hr)) {
+        step = "Media Foundation could not open the file";
+        hr = mf_open_source(path, &player->source);
+    }
     if (SUCCEEDED(hr)) {
         step = "Media Foundation could not read the presentation";
         hr = IMFMediaSource_CreatePresentationDescriptor(player->source,
@@ -596,13 +679,23 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
         hr = MF_E_INVALIDMEDIATYPE;
     }
     player->has_audio = streams.audio;
-    if (SUCCEEDED(hr)) {
+    /* --frames without sound needs no session at all. */
+    bool session = !frames || streams.audio;
+    if (SUCCEEDED(hr) && session) {
         step = "Media Foundation could not create a media session";
         hr = mf_api.create_media_session(NULL, &player->session);
     }
-    if (SUCCEEDED(hr)) {
+    if (SUCCEEDED(hr) && session) {
         step = "Media Foundation could not set the topology";
         hr = IMFMediaSession_SetTopology(player->session, 0, topology);
+    }
+    if (SUCCEEDED(hr) && frames) {
+        if (!session) {
+            player->base.state = VIDEO_STATE_READY;
+        }
+        step = "the frame worker could not start";
+        hr = video_frames_run(player->frames, mf_frames_clock, player) ? S_OK :
+            HRESULT_FROM_WIN32(GetLastError());
     }
     if (topology != NULL) {
         IMFTopology_Release(topology);
@@ -615,6 +708,9 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
         mf_release(player);
         HeapFree(GetProcessHeap(), 0, player);
         return hr;
+    }
+    if (player->frames != NULL) {
+        player->base.frames_published = video_frames_counter(player->frames);
     }
     *out = &player->base;
     return S_OK;

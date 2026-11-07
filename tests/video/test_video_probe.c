@@ -15,6 +15,7 @@
 #include <string.h>
 #include <wchar.h>
 
+#include "common/wo_video_frames.h"
 #include "video/video_core.h"
 
 #define WORK_DIR L"build\\test-work\\video-probe"
@@ -511,6 +512,66 @@ static void test_skip_event(const Source *source)
     printf("PASS: the inherited skip event ends playback.\n");
 }
 
+/* --frames: no window; each frame reaches Local\WO4KVideoFrames-<pid> at
+ * its presentation time. Held open here, the section outlives the player. */
+static void test_frames(const Source *source)
+{
+    Fixture fixture;
+    const wchar_t *movie = NULL;
+    wchar_t arguments[2 * VIDEO_PATH_CAPACITY];
+    if (!any_movie(source, &fixture, L"frames", &movie)) {
+        CHECK(false, "cannot prepare the frames fixture");
+        return;
+    }
+    Launch run;
+    if (!probe_arguments(arguments, 2 * VIDEO_PATH_CAPACITY, &fixture, movie,
+            L" --frames") || !launch(&run, arguments, NULL)) {
+        CHECK(false, "cannot start the player with --frames");
+        return;
+    }
+    wchar_t name[64];
+    swprintf(name, 64, L"%ls%lu", WO_VIDEO_FRAMES_NAME,
+        (unsigned long)run.process.dwProcessId);
+    HANDLE mapping = NULL;
+    ULONGLONG deadline = GetTickCount64() + 20000;
+    while (mapping == NULL && GetTickCount64() < deadline &&
+        WaitForSingleObject(run.process.hProcess, 1) == WAIT_TIMEOUT) {
+        mapping = OpenFileMappingW(FILE_MAP_READ, FALSE, name);
+    }
+    const WoVideoFrames *frames = mapping != NULL ?
+        MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0) : NULL;
+    DWORD code = finish(&run);
+    char text[LOG_TEXT_SIZE];
+    bool logged = movie_log(&fixture, movie, text) &&
+        strstr(text, "\"frames\":true") != NULL &&
+        strstr(text, "video_window_shown") == NULL;
+    CHECK(frames != NULL, "the player publishes its frame mapping");
+    if (frames != NULL) {
+        LONG latest = frames->latest;
+        CHECK(code == 0 && frames->magic == WO_VIDEO_FRAMES_MAGIC &&
+            frames->header_size == WO_VIDEO_FRAMES_HEADER,
+            "the frame header is complete");
+        CHECK(frames->width > 0 && frames->height > 0 &&
+            frames->stride >= frames->width * 4 &&
+            frames->slot_size == frames->stride * frames->height,
+            "the frame size is sane");
+        CHECK(frames->frames >= 2 && latest >= 0 &&
+            latest < WO_VIDEO_FRAMES_SLOTS &&
+            !(frames->sequence[latest] & 1) &&
+            frames->time_hns[latest] > 0,
+            "frames are published at advancing presentation times");
+        printf("INFO: --frames published %ld %lux%lu frames.\n",
+            (long)frames->frames, (unsigned long)frames->width,
+            (unsigned long)frames->height);
+        UnmapViewOfFile(frames);
+    }
+    if (mapping != NULL) {
+        CloseHandle(mapping);
+    }
+    CHECK(logged, "--frames plays without a window and is logged");
+    printf("PASS: --frames hands each frame to the game without a window.\n");
+}
+
 static bool wait_for_log(const Fixture *fixture, const wchar_t *movie,
     const char *needle, HANDLE process)
 {
@@ -727,6 +788,7 @@ int main(void)
         test_priority(&source);
         test_broken_replacement(&source);
         test_skip_event(&source);
+        test_frames(&source);
         test_controller(&source);
         test_game_exit(&source);
         test_prepared(&source, true);

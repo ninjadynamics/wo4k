@@ -220,7 +220,11 @@ static void test_arguments(void)
     CHECK(options.owner_window == (HWND)(LONG_PTR)65802);
     /* Handles from 32-bit processes widen like LongToHandle. */
     CHECK(options.skip_event == (HANDLE)(LONG_PTR)-1);
-    CHECK(options.probe && options.original_only);
+    CHECK(options.probe && options.original_only && !options.frames);
+    wchar_t frames_flag[] = L"--frames";
+    CHECK(parse(&options, &error, 6, program, root_flag, root, movie_flag,
+        movie, frames_flag));
+    CHECK(options.frames && !options.probe);
 
     CHECK(parse(&options, &error, 5, program, root_flag, root, movie_flag,
         movie));

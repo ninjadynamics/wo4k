@@ -3,7 +3,7 @@
  *   wo4k-video.exe --game-root <dir> --movie <intro|xtro1|xtro2|xtro3|xtro4>
  *       [--game-pid N] [--owner-window HWND] [--skip-event HANDLE]
  *       [--start-event HANDLE [--stage-event HANDLE]] [--probe]
- *       [--original-only]
+ *       [--original-only] [--frames]
  *
  *   --game-root      the game folder. Movies come from its movies folder;
  *                    breadcrumbs go to <parent>\logs\video-<movie>.log.
@@ -29,6 +29,10 @@
  *   --probe          automated tests: a muted 640x480 window that exits 0
  *                    once playback has advanced 250 ms.
  *   --original-only  only the original MPEG-1 file.
+ *   --frames         no window: Media Foundation hands each frame, at its
+ *                    presentation time, to the game through shared memory
+ *                    (common/wo_video_frames.h), and the game presents it
+ *                    itself. Exclusive fullscreen shows no other window.
  *
  * Exit codes: 0 finished, skipped or probe passed; 1 playback failed (or the
  * probe did not pass); 2 invalid command line; 3 no movie file found.
@@ -82,6 +86,7 @@ typedef struct VideoAttempt {
     ULONGLONG start_requested; /* GetTickCount64() when playback was asked for */
     bool failed;
     bool window_lost;
+    LONG frames; /* --frames: frames handed to the game */
     char result[256];
     double elapsed_seconds;
 } VideoAttempt;
@@ -174,6 +179,7 @@ static void video_log_requested(VideoApp *app, const wchar_t *path,
         NULL);
     json_member_bool(&json, "original_only", original_only);
     json_member_bool(&json, "probe", app->options.probe);
+    json_member_bool(&json, "frames", app->options.frames);
     json_member_bool(&json, "owner_window", app->owner != NULL);
     json_object_end(&json);
     /* A fresh request starts a fresh log; the original-file retry appends. */
@@ -209,6 +215,9 @@ static void video_log_closed(VideoApp *app, const VideoAttempt *attempt)
     json_member_bool(&json, "game_focus_lost", app->input.focus_lost);
     json_member_bool(&json, "player_activated", app->window.activated);
     json_member_fixed(&json, "elapsed_seconds", attempt->elapsed_seconds, 2);
+    if (app->options.frames) {
+        json_member_uint(&json, "frames", (uint64_t)attempt->frames);
+    }
     json_object_end(&json);
     video_log_event(&app->log, "video_closed",
         json_ok(&json) ? json.data : NULL, false);
@@ -442,8 +451,13 @@ static void video_play(VideoApp *app, const wchar_t *path,
     memset(attempt, 0, sizeof(*attempt));
     reason[0] = '\0';
     HRESULT hr = video_mf_create(app->window.hwnd, path, app->options.probe,
-        &backend, media_foundation_reason, sizeof(media_foundation_reason));
-    if (FAILED(hr)) {
+        app->options.frames, &backend, media_foundation_reason,
+        sizeof(media_foundation_reason));
+    /* DirectShow draws into a window, which --frames has none of. */
+    directshow_tried = app->options.frames;
+    if (FAILED(hr) && app->options.frames) {
+        video_set_text(reason, sizeof(reason), media_foundation_reason);
+    } else if (FAILED(hr)) {
         directshow_tried = true;
         backend = video_open_directshow(app, path, media_foundation_reason,
             reason, sizeof(reason));
@@ -511,10 +525,15 @@ static void video_play(VideoApp *app, const wchar_t *path,
         if (video_step(app, backend, attempt, elapsed)) {
             break;
         }
-        video_reveal(app, backend, attempt);
+        if (!app->options.frames) {
+            video_reveal(app, backend, attempt);
+        }
         video_pump(app);
     }
     attempt->elapsed_seconds = (double)(GetTickCount64() - started) / 1000.0;
+    if (backend != NULL && backend->frames_published != NULL) {
+        attempt->frames = *backend->frames_published;
+    }
     video_window_set_backend(&app->window, NULL);
     if (backend != NULL) {
         backend->ops->destroy(backend);
@@ -534,7 +553,7 @@ static int video_run(VideoApp *app)
                 "No movie file was found.");
             return VIDEO_EXIT_UNAVAILABLE;
         }
-        if (!app->window_ready) {
+        if (!app->window_ready && !app->options.frames) {
             bool hidden = !app->start_signalled;
             if (!video_window_create(&app->window, app->instance, app->owner,
                     app->options.probe, hidden)) {
