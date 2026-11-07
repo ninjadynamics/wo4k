@@ -2,6 +2,11 @@
  * Wrap its verified race CALL, before native menu reloading consumes those
  * flags. Never manufacture an achievement or change the original save state. */
 static WCHAR movie_root[MAX_PATH];
+/* WO2097_VIDEO_IN_GAME=1 (Play sets it for exclusive fullscreen): the
+ * player hands frames to the game, which presents them (movie_frames.c),
+ * instead of showing its own window over the game. */
+static BOOL movie_in_game;
+static UINT movie_display_width,movie_display_height;
 static void (__cdecl *old_movie_race)(BYTE *);
 static BOOL movie_intro_seen;
 static HWND cursor_window;
@@ -101,6 +106,7 @@ static BOOL movie_spawn(UINT movie,HWND window,HANDLE *skip,HANDLE start,HANDLE 
     if(ok && *skip)ok=movie_append(command,MAX_PATH*4,L" --skip-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)*skip);
     if(ok && start)ok=movie_append(command,MAX_PATH*4,L" --start-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)start);
     if(ok && stage)ok=movie_append(command,MAX_PATH*4,L" --stage-event ") && movie_append_number(command,MAX_PATH*4,(DWORD)(UINT_PTR)stage);
+    if(ok && movie_in_game)ok=movie_append(command,MAX_PATH*4,L" --frames");
     wo_render_event(start?"video_preparing":"video_launching",movie);
     BOOL started=ok && CreateProcessW(executable,command,0,0,listed,listed?EXTENDED_STARTUPINFO_PRESENT:0,0,movie_root,&startup.StartupInfo,child);
     /* The list only matters while the child is created. */
@@ -205,15 +211,18 @@ static void play_game_movie(UINT movie) {
     if(started){
         wo_render_event("video_started",movie);
         BOOL quit=FALSE,skipped=FALSE;int quit_code=0;
+        DWORD player=movie_in_game?GetProcessId(child.hProcess):0;
         for(;;){
-            DWORD waited=WaitForSingleObject(child.hProcess,20);if(waited!=WAIT_TIMEOUT)break;
+            DWORD waited=WaitForSingleObject(child.hProcess,movie_in_game?4:20);if(waited!=WAIT_TIMEOUT)break;
             MSG message;
             while(PeekMessageA(&message,0,0,0,PM_REMOVE)){
                 if(message.message==WM_QUIT){quit=TRUE;quit_code=(int)message.wParam;continue;}
                 if(skip && !skipped && movie_skip_key(&message,window)){SetEvent(skip);skipped=TRUE;wo_render_event("video_skip_key",(DWORD)message.wParam);}
                 TranslateMessage(&message);DispatchMessageA(&message);
             }
+            if(player)movie_frames_present(player);
         }
+        movie_frames_close();
         DWORD result=1;GetExitCodeProcess(child.hProcess,&result);wo_render_event("video_exit_code",result);
         wo_render_event("video_game_focus_retained",!window || GetForegroundWindow()==window);
         CloseHandle(child.hProcess);if(window && GetForegroundWindow()!=window)SetForegroundWindow(window);
@@ -243,7 +252,10 @@ static void __cdecl movie_race(BYTE *config) {
 static void movie_before_title(void) {
     if(movie_intro_seen)return;movie_intro_seen=TRUE;movie_player(0);
 }
-static void initialize_movies(const WCHAR *root) {
+static void initialize_movies(const WCHAR *root,UINT display_width,UINT display_height) {
+    WCHAR in_game[4];
+    movie_in_game=GetEnvironmentVariableW(L"WO2097_VIDEO_IN_GAME",in_game,4) && in_game[0]==L'1';
+    movie_display_width=display_width;movie_display_height=display_height;
     static const BYTE call[]={0xe8,0x40,0xa0,0xff,0xff};
     if(!refresh_active || !equal(game+0x2fb3b,call,sizeof(call)))return;
     UINT n=0;while(root[n] && n<MAX_PATH-50){movie_root[n]=root[n];++n;}

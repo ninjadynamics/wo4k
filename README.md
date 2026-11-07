@@ -86,8 +86,8 @@ Change **Audio output** in Setup anytime. It saves automatically for the next
 launch without reinstalling; Stereo is the default.
 **Fullscreen mode** also saves for the next launch without reinstalling.
 Borderless is the default and fills the display without a window border;
-Exclusive uses exclusive fullscreen presentation. The intro and ending movies
-only show in Borderless.
+Exclusive uses exclusive fullscreen presentation; the game then draws the
+intro and ending movies itself, as no other window can show over it.
 
 Change soundtracks on the fly in **Options → Audio** when both banks are
 installed. Your choice is saved. The PC bank contains nine songs; the optional

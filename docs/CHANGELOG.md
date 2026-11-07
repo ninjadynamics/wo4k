@@ -1,5 +1,12 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.7
+
+- Show the intro and ending movies in Exclusive fullscreen mode. There the
+  movie player opens no window: it hands each frame to the game, which
+  draws it itself at full resolution, as no other window can show over it.
+  Borderless mode plays them as before.
+
 ## 0.2.0-beta.6
 
 - Centre the menus in widescreen: the frame sat to the right of the screen's

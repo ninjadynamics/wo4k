@@ -339,6 +339,12 @@ static bool prepare_environment(const WoMod *mod, WoError *error) {
     wo_json_free(receipt);
     char *ddraw = wo_mod_game_path(mod, "DDrawCompat-Wipeout2097.ini", error);
     bool ok = ddraw && wo_settings_set_log_level(ddraw, "info", error);
+    /* Exclusive fullscreen shows no window but the game's, so the game
+     * presents the movies' frames itself there. Elsewhere a value set by
+     * hand is kept. */
+    if (ok && wo_settings_get_fullscreen(ddraw) == WO_FULLSCREEN_EXCLUSIVE) {
+        SetEnvironmentVariableW(L"WO2097_VIDEO_IN_GAME", L"1");
+    }
     wo_free(ddraw);
     if (ok) {
         wo_log_event("game_configuration", wo_settings_snapshot(mod->game));

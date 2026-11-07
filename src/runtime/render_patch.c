@@ -59,6 +59,8 @@ static void initialize_title(void);
 static void title_overlay_present(void);
 static void hide_game_cursor(void);
 static void prepare_intro_movie(void);
+static void movie_frames_present(DWORD player);
+static void movie_frames_close(void);
 static void startup_present(void);
 static void initialize_controller(void);
 static void initialize_credits(void);
@@ -121,6 +123,7 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 #include "audio_menu_patch.c"
 #include "png_art.c"
 #include "startup_art.c"
+#include "movie_frames.c"
 #include "dx_error.c"
 #include "ui_hd.c"
 #include "credits_patch.c"
@@ -373,7 +376,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     initialize_rotations(settings);
     initialize_distance();
     initialize_refresh(settings);
-    initialize_movies(root);
+    initialize_movies(root,(UINT)width,(UINT)height);
     initialize_title();
     initialize_audio_menu();
     initialize_startup_art(root,(UINT)width,(UINT)height);

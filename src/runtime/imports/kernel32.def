@@ -27,6 +27,9 @@ WriteFile@20
 CloseHandle@4
 GetCurrentProcessId@0
 CreateFileMappingW@24
+OpenFileMappingW@12
+UnmapViewOfFile@4
+GetProcessId@4
 MapViewOfFile@20
 CreateProcessW@40
 CreateThread@24
