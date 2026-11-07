@@ -1,5 +1,13 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.5
+
+- Keep the game running when switching away with Alt+Tab loses its screen:
+  WO4K restores the screen and skips that frame instead of letting the game
+  quit with a DirectX error.
+- Say that the game closed after a DirectX error, and at which line, instead
+  of claiming it could not be started.
+
 ## 0.2.0-beta.4
 
 - Fix track-side sprites, such as the striped pillars at the start of
