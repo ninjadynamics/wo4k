@@ -31,8 +31,15 @@ static BOOL ui_hd_draw_logo(float z,const BYTE *p,int blend) {
     draw_quad(old_scaled_quad,z,joined,blend,640,TRUE);
     if(*(BYTE **)(game+0x87038)==buffer && *(UINT *)(buffer+0x39214)==count+4){
         TLVertex *v=(TLVertex *)(buffer+0xa410)+count;
+        /* The native logo sits left of centre (anchor x141), leaving room
+         * for the swirl beside it at 4:3. The HD title is centred in its
+         * image; centre it on the frame, whose caps keep the swirl apart. */
+        float low=v[0].x,high=v[0].x;
+        for(UINT i=1;i<4;++i){if(v[i].x<low)low=v[i].x;if(v[i].x>high)high=v[i].x;}
+        float shift=*(float *)(game+0xaf0b4)*menu_frame_x(164)-(low+high)*0.5f;
         for(UINT i=0;i<4;++i){
             v[i].specular=UI_HD_LOGO_TAG;
+            v[i].x+=shift;
             v[i].u=(i&1)?232.0f/256:0;
             v[i].v=(i&2)?128.0f/256:0;
         }

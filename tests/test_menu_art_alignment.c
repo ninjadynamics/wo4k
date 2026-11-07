@@ -61,13 +61,23 @@ static void test_menu_art_alignment(BYTE *image,BYTE *buffer){
         if(*(UINT *)(buffer+0x39214)!=4)ExitProcess(160);v=(const TLVertex *)(buffer+0xa410);
         if(!frame_near(v[0].x/widths[aspect],main_left/widths[aspect]) || !frame_near(v[1].x/widths[aspect],main_right/widths[aspect]) ||
            !frame_near(v[0].y/heights[aspect],menu_y(art.footer_bottom)) || !frame_near(v[2].y/heights[aspect],menu_y(art.footer_end)))ExitProcess(161);
+        /* The START band meets the frame's caps, which move with the frame. */
         frame_fixture_flat(p,22,180,307,197,FALSE);frame_clear(image,buffer);flat_quad(.13f,p);v=(const TLVertex *)(buffer+0xa410);
-        if(*(UINT *)(buffer+0x39214)!=4 || !frame_near(v[0].x/widths[aspect],menu_x(art.inner_left)) ||
-           !frame_near(v[1].x/widths[aspect],menu_x(art.inner_right)) || !frame_near(v[0].y/heights[aspect],menu_y(art.start_top)) ||
+        if(*(UINT *)(buffer+0x39214)!=4 || !frame_near(v[0].x/widths[aspect],menu_frame_x(art.inner_left)) ||
+           !frame_near(v[1].x/widths[aspect],menu_frame_x(art.inner_right)) || !frame_near(v[0].y/heights[aspect],menu_y(art.start_top)) ||
            !frame_near(v[2].y/heights[aspect],menu_y(art.footer_top)))ExitProcess(162);
-        frame_fixture_flat(p,113,197,210,215,FALSE);frame_clear(image,buffer);flat_quad(.13f,p);v=(const TLVertex *)(buffer+0xa410);
-        if(*(UINT *)(buffer+0x39214)!=4 || !frame_near(v[0].x/widths[aspect],menu_x(112)) || !frame_near(v[1].x/widths[aspect],menu_x(209)) ||
-           !frame_near(v[0].y/heights[aspect],menu_y(art.footer_bottom)) || !frame_near(v[2].y/heights[aspect],menu_y(art.footer_end)))ExitProcess(163);
+        /* The selected footer cell's fill meets the drawn edges of both
+         * dividers (113-209 in this menu, 113-210 in others), leaving no
+         * strip of the panel between them. */
+        frame_fixture_flat(p,209,196,210,215,TRUE);frame_clear(image,buffer);flat_quad(.13f,p);
+        if(*(UINT *)(buffer+0x39214)!=4)ExitProcess(168);
+        float divider_right=((const TLVertex *)(buffer+0xa410))[0].x;
+        for(UINT end=209;end<=210;++end){
+            frame_fixture_flat(p,113,197,end,215,FALSE);frame_clear(image,buffer);flat_quad(.13f,p);v=(const TLVertex *)(buffer+0xa410);
+            if(*(UINT *)(buffer+0x39214)!=4 || !frame_near(v[0].x/widths[aspect],main_right/widths[aspect]) ||
+               !frame_near(v[1].x/widths[aspect],divider_right/widths[aspect]) ||
+               !frame_near(v[0].y/heights[aspect],menu_y(art.footer_bottom)) || !frame_near(v[2].y/heights[aspect],menu_y(art.footer_end)))ExitProcess(163);
+        }
         frame_fixture_flat(p,112,196,209,197,TRUE);frame_clear(image,buffer);flat_quad(.13f,p);
         if(*(UINT *)(buffer+0x39214))ExitProcess(164); /* artwork already supplies this band */
         for(UINT side=0;side<2;++side){

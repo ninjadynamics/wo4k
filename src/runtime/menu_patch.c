@@ -57,7 +57,18 @@ static float menu_axis(float value,float size,float first,float last,float scale
     float left=first*scale/size,right=1-(size-last)*scale/size;
     return left+(value-first)*(right-left)/(last-first);
 }
-static float menu_x(float x) {return menu_axis(x,320,32,296,ui_x);}
+/* The native menu frame has its caps at x32 and 296 (edges 20.3-308.1), so
+ * it centres on 164, while the columns inside it centre on 160.5 (dividers
+ * at 111 and 209) and their text and models on about 160. Widescreen keeps
+ * the caps at native scale beside a wider middle, which put the frame 38
+ * pixels right of centre at 4K. There, stretch the middle symmetrically
+ * about the screen's centre, between caps at 28 and 292, and move the frame
+ * 4 units left onto them and the contents half a unit, so the frame and its
+ * columns are both centred. 4:3 keeps the native layout. */
+static BOOL menu_frame_tile; /* drawing the frame itself, not its contents */
+static float menu_wide_x(float x) {return ui_x<1?menu_axis(x,320,28,292,ui_x):menu_axis(x,320,32,296,ui_x);}
+static float menu_x(float x) {return menu_wide_x(ui_x<1?x-.5f:x);}
+static float menu_frame_x(float x) {return menu_wide_x(ui_x<1?x-4:x);}
 static float menu_y(float y) {return menu_axis(y,240,44,204,ui_y);}
 typedef struct MenuArtBounds {
     float outer_left,inner_left,inner_right,outer_right,start_top,footer_top,footer_bottom,footer_end;
@@ -84,7 +95,8 @@ static BOOL menu_frame_art_bounds(MenuArtBounds *bounds){
 static void menu_adjust_vertex(TLVertex *v) {
     float width=*(float *)(game+0xaf0b4),height=*(float *)(game+0xc8630);
     float x=v->x*320/width,y=v->y*240/height;
-    v->x=width*(menu_thin_x?menu_x(menu_center_x)+(x-menu_center_x)*ui_x/320:menu_x(x));
+    if(menu_frame_tile)v->x=width*menu_frame_x(x);
+    else v->x=width*(menu_thin_x?menu_x(menu_center_x)+(x-menu_center_x)*ui_x/320:menu_x(x));
     v->y=height*(menu_thin_y?menu_y(menu_center_y)+(y-menu_center_y)*ui_y/240:menu_y(y));
 }
 static BOOL is_menu_frame(const BYTE *p) {
@@ -126,7 +138,7 @@ static void draw_menu_frame(float z,const BYTE *p,int blend) {
             part[offset+5]=menu_uv(p[13],p[29],(y-top)/(bottom-top));
         }
         BYTE *buffer=*(BYTE **)(game+0x87038);UINT before=buffer?*(UINT *)(buffer+0x39214):0;
-        ++menu_frame_depth;old_quad(z,part,blend);--menu_frame_depth;
+        ++menu_frame_depth;menu_frame_tile=TRUE;old_quad(z,part,blend);menu_frame_tile=FALSE;--menu_frame_depth;
         if(hd && buffer && *(BYTE **)(game+0x87038)==buffer && *(UINT *)(buffer+0x39214)==before+4){
             TLVertex *v=(TLVertex *)(buffer+0xa410)+before;
             for(UINT corner=0;corner<4;++corner){
@@ -134,7 +146,7 @@ static void draw_menu_frame(float z,const BYTE *p,int blend) {
                 v[corner].u=(u0+(u1-u0)*(x-left)/(right-left))/256;
                 v[corner].v=side?50.0f/256:(p[13]+((float)p[29]-p[13])*(y-top)/(bottom-top))/256;
                 if(side){
-                    v[corner].x=*(float *)(game+0xaf0b4)*menu_x(x+menu_motion_dx*320);
+                    v[corner].x=*(float *)(game+0xaf0b4)*menu_frame_x(x+menu_motion_dx*320);
                     v[corner].y=*(float *)(game+0xc8630)*menu_y(y);
                 }
             }
@@ -172,7 +184,7 @@ static void __cdecl flat_quad(float z,const BYTE *p) {
             /* MENU.DAT puts the footer's first divider at112, but the main
              * column above is111. Move its fill and outline as one unit. */
             if(white && max_x-min_x<=2 && min_x==112){left-=1;right-=1;}
-            if(!white && min_x==113 && max_x==210){left=112;right=209;}
+            if(!white && min_x==113){left=112;if(max_x==210)right=209;}
             if(top<art.footer_bottom)top=art.footer_bottom;
             if(bottom>art.footer_end)bottom=art.footer_end;
         }else if(!white && min_y>=179 && max_y<=197){
@@ -182,12 +194,25 @@ static void __cdecl flat_quad(float z,const BYTE *p) {
             if(top<83)top=83;if(bottom>179)bottom=179;
         }
         if(right>left && bottom>top){
+            /* Dividers keep their native width beside the stretched middle,
+             * so a fill ending at a divider's native edge stopped short of
+             * its drawn edge and showed a strip of the panel behind. Meet
+             * the divider's drawn edge. Ends at the frame's inner edges meet
+             * its caps, which move with the frame. */
+            BOOL fill=!white && !menu_thin_x;
+            BOOL meet_left=fill && left>art.inner_left,meet_right=fill && right<art.inner_right;
+            BOOL cap_left=!menu_thin_x && left<=art.inner_left,cap_right=!menu_thin_x && right>=art.inner_right;
+            float width=*(float *)(game+0xaf0b4);
             TLVertex *v=(TLVertex *)(buffer+0xa410)+before;
             for(UINT i=0;i<4;++i){
-                float x=*(const SHORT *)(p+8+i*4),y=*(const SHORT *)(p+10+i*4);
-                x=left+(right-left)*(x-min_x)/(max_x-min_x);
+                float native=*(const SHORT *)(p+8+i*4),y=*(const SHORT *)(p+10+i*4);
+                float x=left+(right-left)*(native-min_x)/(max_x-min_x);
                 y=top+(bottom-top)*(y-min_y)/(max_y-min_y);
-                v[i].x=*(float *)(game+0xaf0b4)*(menu_thin_x?menu_x((left+right)/2)+(x-(left+right)/2)*ui_x/320:menu_x(x));
+                v[i].x=width*(menu_thin_x?menu_x((left+right)/2)+(x-(left+right)/2)*ui_x/320:menu_x(x));
+                if(meet_left && native==min_x)v[i].x=width*(menu_x(left-.5f)+.5f*ui_x/320);
+                if(meet_right && native==max_x)v[i].x=width*(menu_x(right+.5f)-.5f*ui_x/320);
+                if(cap_left && native==min_x)v[i].x=width*menu_frame_x(left);
+                if(cap_right && native==max_x)v[i].x=width*menu_frame_x(right);
                 v[i].y=*(float *)(game+0xc8630)*(menu_thin_y?menu_y((top+bottom)/2)+(y-(top+bottom)/2)*ui_y/240:menu_y(y));
             }
         }
@@ -222,10 +247,39 @@ static void text_anchor(int x,int y,BOOL centered) {
         anchor_y=y<90?0:(y>150?1:0.5f);
     }
 }
+/* Footer prompts and key icons are laid out about x160: SELECT starts at 48
+ * and QUIT ends at 272, while the Enter and Esc icons sit three units off a
+ * mirror image. Left-anchored in widescreen, QUIT fell 108 pixels short at
+ * 4K. With the frame centred, place each right-hand one as the mirror image
+ * of its left-hand partner drawn earlier in the same frame. */
+enum {MENU_FOOTER_ICON,MENU_FOOTER_TEXT};
+static float menu_footer_left[2],menu_footer_right[2];
+static DWORD menu_footer_frame[2]={0xffffffffu,0xffffffffu};
+static void menu_mirror_footer(UINT kind,BOOL left_hand,TLVertex *v,UINT count) {
+    float low=v[0].x,high=v[0].x;
+    for(UINT i=1;i<count;++i){if(v[i].x<low)low=v[i].x;if(v[i].x>high)high=v[i].x;}
+    if(left_hand){menu_footer_left[kind]=low;menu_footer_right[kind]=high;menu_footer_frame[kind]=refresh_frame;return;}
+    if(menu_footer_frame[kind]!=refresh_frame)return;
+    /* An icon's left edge mirrors its partner's right; a prompt's right edge
+     * mirrors its partner's start. Sprites are drawn half a native pixel
+     * right of their vertices, so the displayed mirror axis is width-1. */
+    float width=*(float *)(game+0xaf0b4)-1;
+    float shift=kind==MENU_FOOTER_ICON?width-menu_footer_right[kind]-low:width-menu_footer_left[kind]-high;
+    for(UINT i=0;i<count;++i)v[i].x+=shift;
+}
+static BOOL menu_footer_icon(const BYTE *p) {
+    if(!menu_active() || ui_x>=1 || *(const WORD *)(p+22)!=32)return FALSE;
+    int x0=*(const SHORT *)(p+8),x1=*(const SHORT *)(p+16),y0=*(const SHORT *)(p+10),y1=*(const SHORT *)(p+26);
+    return x1-x0==30 && y1-y0==30 && y0>=380;
+}
 static void text4(Text4Fn original,const char *text,int x,int y,int color) {
     float ax=anchor_x,ay=anchor_y;int depth=ui_depth,ad=anchor_depth;
     if(menu_active() || hud_depth) {text_anchor(x,y,FALSE);++ui_depth;++anchor_depth;}
+    BYTE *buffer=*(BYTE **)(game+0x87038);UINT before=buffer?*(UINT *)(buffer+0x39214):0;
     original(text,x,y,color);
+    if(menu_active() && !ad && ui_x<1 && original==old_print_text && y>=196 && y<=212 &&
+       buffer && *(BYTE **)(game+0x87038)==buffer && *(UINT *)(buffer+0x39214)>before)
+        menu_mirror_footer(MENU_FOOTER_TEXT,x<160,(TLVertex *)(buffer+0xa410)+before,*(UINT *)(buffer+0x39214)-before);
     anchor_x=ax;anchor_y=ay;ui_depth=depth;anchor_depth=ad;
 }
 static BOOL title_prompt_pending;

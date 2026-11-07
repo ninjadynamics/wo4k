@@ -1,5 +1,14 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.6
+
+- Centre the menus in widescreen: the frame sat to the right of the screen's
+  centre, and the HD title to the left of it.
+- Mirror the menu footer: QUIT or BACK and the Esc key now sit as far from
+  the right edge as SELECT and the Enter key do from the left.
+- Close the strip of panel showing between the selected footer button and
+  its dividers.
+
 ## 0.2.0-beta.5
 
 - Keep the game running when switching away with Alt+Tab loses its screen:

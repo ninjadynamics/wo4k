@@ -171,7 +171,10 @@ static void draw_quad(QuadFn original,float z,const BYTE *p,int blend,float basi
     }
     UINT previous_group=hud_layout_group,first=hud_layout_count;
     hud_layout_group=(original==old_quad || original==old_scaled_quad)?hud_layout_classify(p):HUD_NONE;
+    BYTE *buffer=*(BYTE **)(game+0x87038);UINT before=buffer?*(UINT *)(buffer+0x39214):0;
     original(z,p,blend);
+    if(buffer && menu_footer_icon(p) && *(BYTE **)(game+0x87038)==buffer && *(UINT *)(buffer+0x39214)==before+4)
+        menu_mirror_footer(MENU_FOOTER_ICON,*(const SHORT *)(p+8)+15<320,(TLVertex *)(buffer+0xa410)+before,4);
     hud_layout_quad(p,first);hud_layout_group=previous_group;
     anchor_x=previous_x;anchor_y=previous_y;ui_depth=previous_depth;
     menu_motion_dx=previous_motion;

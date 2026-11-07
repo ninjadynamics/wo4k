@@ -35,7 +35,7 @@ static void test_menu_frame(BYTE *image,BYTE *buffer){
                 if(v[i].u<min_u)min_u=v[i].u;if(v[i].u>max_u)max_u=v[i].u;
                 if(v[i].v<min_v)min_v=v[i].v;if(v[i].v>max_v)max_v=v[i].v;
                 if(v[i].x<min_x)min_x=v[i].x;if(v[i].x>max_x)max_x=v[i].x;
-                if(v[i].x<widths[aspect]*menu_x(left)-.01f || v[i].x>widths[aspect]*menu_x(right)+.01f ||
+                if(v[i].x<widths[aspect]*menu_frame_x(left)-.01f || v[i].x>widths[aspect]*menu_frame_x(right)+.01f ||
                    v[i].y<heights[aspect]*menu_y(top)-.01f || v[i].y>heights[aspect]*menu_y(bottom)+.01f)ExitProcess(94);
                 /* Shared corners of the responsive cap/edge subdivisions
                  * must sample precisely the same point, with no byte rounding. */
@@ -55,13 +55,42 @@ static void test_menu_frame(BYTE *image,BYTE *buffer){
                 }
                 ExitProcess(96);
             }
-            if(!frame_near(min_x/widths[aspect],menu_x(left)) || !frame_near(max_x/widths[aspect],menu_x(right)))ExitProcess(97);
+            if(!frame_near(min_x/widths[aspect],menu_frame_x(left)) || !frame_near(max_x/widths[aspect],menu_frame_x(right)))ExitProcess(97);
             if(!hd && count){
                 /* Native SD fallback keeps its reserved columns exactly. */
                 if(!frame_near(max_u,p[20]/255.0f))ExitProcess(98);
             }
         }
     }
+    /* Widescreen centres the frame (caps at native x32 and 296) and the
+     * columns (dividers at 111 and 209) on the display; 4:3 keeps both native. */
+    ui_x=.75f;
+    if(!frame_near(menu_frame_x(32)+menu_frame_x(296),1) || !frame_near(menu_x(111.5f)+menu_x(209.5f),1))ExitProcess(102);
+    ui_x=1;
+    if(!frame_near(menu_frame_x(20.3f),20.3f/320) || !frame_near(menu_x(111.5f),111.5f/320))ExitProcess(103);
+    /* Footer partners: the right-hand icon mirrors the left-hand icon, the
+     * right-hand prompt's end mirrors the left-hand prompt's start, about the
+     * displayed centre (sprites draw half a native pixel right), and only
+     * within the frame that drew the left-hand one. */
+    ui_x=.75f;*(float *)(image+0xaf0b4)=640;
+    TLVertex footer[4]={{0}};
+    const float enter[4]={48,70,48,70},esc[4]={563,585,563,585},select[4]={81,134,81,134},quit[4]={500,550,500,550};
+    refresh_frame=7;
+    for(UINT i=0;i<4;++i)footer[i].x=enter[i];
+    menu_mirror_footer(MENU_FOOTER_ICON,TRUE,footer,4);
+    for(UINT i=0;i<4;++i)footer[i].x=esc[i];
+    menu_mirror_footer(MENU_FOOTER_ICON,FALSE,footer,4);
+    if(!frame_near(footer[0].x,639-70) || !frame_near(footer[1].x,639-48))ExitProcess(104);
+    for(UINT i=0;i<4;++i)footer[i].x=select[i];
+    menu_mirror_footer(MENU_FOOTER_TEXT,TRUE,footer,4);
+    for(UINT i=0;i<4;++i)footer[i].x=quit[i];
+    menu_mirror_footer(MENU_FOOTER_TEXT,FALSE,footer,4);
+    if(!frame_near(footer[1].x,639-81) || !frame_near(footer[0].x,639-81-50))ExitProcess(105);
+    refresh_frame=8;
+    for(UINT i=0;i<4;++i)footer[i].x=esc[i];
+    menu_mirror_footer(MENU_FOOTER_ICON,FALSE,footer,4);
+    if(!frame_near(footer[0].x,563))ExitProcess(106);
+    refresh_frame=0;
     /* Real execute-buffer packets: frame edges clamp; the following SD draw
      * and the packet's final state recover the inherited sampler mode. */
     BYTE packet[52]={8,8,1,0},out[512];
