@@ -762,8 +762,9 @@ static void draw_frame(void) {
     }
     y += combo_h + ui_px(10);
     option_row(W_FULLSCREEN, "Fullscreen mode",
-               "Borderless fills the screen and allows easy app switching. Exclusive uses exclusive "
-               "fullscreen presentation. Saved for the next launch.",
+               "Borderless fills the screen, allows easy app switching and shows the movies. "
+               "Exclusive uses exclusive fullscreen presentation, where the intro and ending "
+               "movies do not show. Saved for the next launch.",
                fullscreen_items, NULL, 2, &app.fullscreen, left, y, content, combo_h, &changed);
     if (changed) {
         save_preferences();

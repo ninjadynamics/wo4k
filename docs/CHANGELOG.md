@@ -7,6 +7,8 @@
   quit with a DirectX error.
 - Say that the game closed after a DirectX error, and at which line, instead
   of claiming it could not be started.
+- Known issue: the intro and ending movies do not show in Exclusive fullscreen
+  mode; Setup and the README now say so. Use Borderless to see them.
 
 ## 0.2.0-beta.4
 
