@@ -68,9 +68,37 @@ static void show_failure(const PlayOptions *options, const char *message) {
     wo_free(text);
 }
 
-static char *exit_description(DWORD code) {
+/* The game's own DirectX error exit (LogDXError) writes "Direct X ERROR:Line
+ * NNNNN" to its debug log, which the runtime redirects to logs\game-debug.txt,
+ * and ends the game with -1. 0 when there is no such line. */
+static long dx_error_line(const WoMod *mod) {
+    char *path = wo_mod_path(mod, "logs/game-debug.txt", NULL);
+    char *text = NULL;
+    long line = 0;
+    if (path && wo_read_text(path, 64u << 10, &text, NULL)) {
+        const char *found = strstr(text, "Direct X ERROR:Line ");
+        if (found) {
+            line = strtol(found + 20, NULL, 10);
+        }
+    }
+    wo_free(text);
+    wo_free(path);
+    return line;
+}
+
+static char *exit_description(const WoMod *mod, DWORD code) {
     const char *hint;
     switch (code) {
+    case 0xFFFFFFFF: {
+        long line = dx_error_line(mod);
+        if (line > 0) {
+            return wo_format(NULL, "The game closed after a DirectX error (Direct X ERROR, line "
+                             "%ld). Switching away with Alt+Tab can cause this; the log names "
+                             "the failing call.", line);
+        }
+        hint = "The game closed itself after an error; check this session log for details.";
+        break;
+    }
     case 0xC0000135:
         hint = "A required DLL could not be loaded.";
         break;
@@ -336,14 +364,16 @@ static double since_process_created_ms(void) {
     return to > from ? (double)((to - from) / 1000u) / 10.0 : 0.0;
 }
 
-static int run_game(const WoMod *mod, WoLaps *laps, WoError *error) {
+/* False when the game could not be started. Otherwise *exit_code is its exit
+ * code, which can itself be -1 (the game's DirectX error exit). */
+static bool run_game(const WoMod *mod, WoLaps *laps, DWORD *exit_code, WoError *error) {
     char *exe = wo_mod_game_path(mod, "Wipeout2097.exe", error);
     wchar_t *wide_exe = exe ? wo_wide_path(exe, error) : NULL;
     wchar_t *wide_dir = wide_exe ? wo_wide_path(mod->game, error) : NULL;
     wo_free(exe);
     if (!wide_dir) {
         wo_free(wide_exe);
-        return -1;
+        return false;
     }
     STARTUPINFOW startup;
     memset(&startup, 0, sizeof(startup));
@@ -360,7 +390,7 @@ static int run_game(const WoMod *mod, WoLaps *laps, WoError *error) {
     wo_free(wide_dir);
     if (!launched) {
         wo_fail_win32(error, launch_error, "Windows could not start the game");
-        return -1;
+        return false;
     }
     CloseHandle(process.hThread);
     wo_laps_mark(laps, "create_process_ms");
@@ -389,12 +419,13 @@ static int run_game(const WoMod *mod, WoLaps *laps, WoError *error) {
         /* Renamed before the failure message shows the log's path. */
         wo_log_mark_crash();
         log_crash_event(process.dwProcessId, started);
-        char *description = exit_description(code);
+        char *description = exit_description(mod, code);
         wo_fail(error, WO_ERR_INTERNAL, "%s", description ? description : "The game exited with an error.");
         wo_free(description);
     }
     CloseHandle(process.hProcess);
-    return (int)code;
+    *exit_code = code;
+    return true;
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, int show) {
@@ -447,7 +478,6 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
         ok = wo_fail(&error, WO_ERR_NOT_FOUND, "Run Setup / Install / repair before playing.");
     }
     WoStage stage = progress.stage;
-    int code = 0;
     if (ok && !options.refresh_only) {
         wo_log_stage("Checking game dependencies");
         stage = WO_STAGE_RUNTIME;
@@ -458,9 +488,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
         if (ok) {
             wo_log_stage("Starting the game");
             stage = WO_STAGE_LAUNCH;
-            code = run_game(&mod, &laps, &error);
-            ok = code == 0;
-            if (code > 0 || code < -1) {
+            DWORD exit_code = 0;
+            bool started = run_game(&mod, &laps, &exit_code, &error);
+            ok = started && exit_code == 0;
+            if (started && exit_code != 0) {
                 stage = WO_STAGE_GAME;
             }
         }
