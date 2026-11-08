@@ -1,6 +1,6 @@
 ﻿# Beta release changes
 
-## Unreleased
+## 0.2.0-beta.9
 
 - Play the original MPEG movies in Exclusive fullscreen mode too. They had
   shown nothing there: Media Foundation cannot open them, so the player now
