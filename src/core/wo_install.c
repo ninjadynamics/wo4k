@@ -156,13 +156,9 @@ static bool carry_movies(const char *target, const char *stage, WoError *error) 
     for (size_t i = 0; ok && i < WO_COUNT(names); i++) {
         char *mp4 = wo_format(error, "movies/%s.mp4", names[i]);
         if (mp4 && exists_in(target, mp4)) {
-            /* Drop-in MP4s belong to the user; the original MPEG is superseded. */
+            /* Drop-in MP4s belong to the user. The original MPEG stays: it
+             * plays when Windows cannot decode the replacement. */
             ok = copy_between(target, mp4, stage, mp4, true, error);
-            char *mpg = wo_format(error, "movies/%s.MPG", i == 0 ? "WXLINTR" : names[i]);
-            char *path = mpg ? wo_path_child(stage, mpg, error) : NULL;
-            ok = ok && path && wo_delete_file(path, error);
-            wo_free(path);
-            wo_free(mpg);
         }
         wo_free(mp4);
     }

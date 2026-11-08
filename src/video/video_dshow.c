@@ -6,14 +6,37 @@
  * Enhanced Video Renderer, windowless in the player window, and (unless
  * muted) a DirectSound renderer. DirectShow's default video renderer is
  * never used: it shows a child window with ShowWindow, which activates the
- * player and would take focus from the game. */
+ * player and would take focus from the game.
+ *
+ * --frames: a sample grabber taking 32-bit RGB, then a null renderer, take
+ * the video renderer's place. The null renderer holds each frame until its
+ * time, so the grabber sees a frame when the one before it is due: that one
+ * is published then (or by poll, when its time comes first), and the new
+ * one is written to the free slot, waiting its turn. */
 #include "video/video_backend.h"
 
+#include <stddef.h>
 #include <stdio.h>
 
 #include <dshow.h>
+#include <qedit.h>
 
 #include "video/video_evr.h"
+#include "video/video_frames.h"
+
+/* qedit.dll: deprecated, still in every Windows since XP. */
+static const GUID dshow_clsid_sample_grabber = {
+    0xc1f400a0, 0x3f08, 0x11d3, { 0x9f, 0x0b, 0x00, 0x60, 0x08, 0x03, 0x9e, 0x37 }
+};
+static const GUID dshow_clsid_null_renderer = {
+    0xc1f400a4, 0x3f08, 0x11d3, { 0x9f, 0x0b, 0x00, 0x60, 0x08, 0x03, 0x9e, 0x37 }
+};
+static const GUID dshow_iid_sample_grabber = {
+    0x6b652fff, 0x11fe, 0x4fce, { 0x92, 0xad, 0x02, 0x66, 0xb5, 0xd7, 0xc7, 0x8f }
+};
+static const GUID dshow_iid_sample_grabber_cb = {
+    0x0579154a, 0x2b53, 0x4994, { 0xb0, 0xd0, 0xe7, 0x73, 0x14, 0x8e, 0xff, 0x85 }
+};
 
 typedef struct DshowPlayer {
     VideoBackend base;
@@ -24,6 +47,21 @@ typedef struct DshowPlayer {
     IMediaSeeking *seeking;
     IBaseFilter *video_renderer;
     IMFVideoDisplayControl *display;
+    /* --frames */
+    bool frames_mode;
+    IBaseFilter *grabber_filter;
+    ISampleGrabber *grabber;
+    ISampleGrabberCB callback; /* lives as long as the player */
+    CRITICAL_SECTION lock;     /* pending, and the slot written */
+    bool lock_ready;
+    VideoFrameSlots slots;
+    uint32_t frame_width;
+    uint32_t frame_height;
+    LONG frame_pitch; /* negative: bottom-up rows */
+    LONG pending;     /* a written slot not yet published, or -1 */
+    LONGLONG pending_time;
+    volatile LONG stopping;
+    volatile LONG slots_failed;
 } DshowPlayer;
 
 static void dshow_reason(char *reason, size_t size, const char *what,
@@ -37,9 +75,18 @@ static void dshow_reason(char *reason, size_t size, const char *what,
 
 static void dshow_release(DshowPlayer *player)
 {
+    InterlockedExchange(&player->stopping, 1);
     if (player->control != NULL) {
         IMediaControl_Stop(player->control);
         IMediaControl_Release(player->control);
+    }
+    if (player->grabber != NULL) {
+        /* Stopped: no streaming thread is in the callback. */
+        ISampleGrabber_SetCallback(player->grabber, NULL, 0);
+        ISampleGrabber_Release(player->grabber);
+    }
+    if (player->grabber_filter != NULL) {
+        IBaseFilter_Release(player->grabber_filter);
     }
     if (player->display != NULL) {
         IMFVideoDisplayControl_Release(player->display);
@@ -55,6 +102,112 @@ static void dshow_release(DshowPlayer *player)
     }
     if (player->graph != NULL) {
         IGraphBuilder_Release(player->graph);
+    }
+    video_frame_slots_close(&player->slots);
+    if (player->lock_ready) {
+        DeleteCriticalSection(&player->lock);
+    }
+}
+
+/* Publishes the frame waiting its turn, if any. Under the lock. */
+static void dshow_publish_pending(DshowPlayer *player)
+{
+    if (player->pending >= 0) {
+        video_frame_slots_publish(&player->slots, player->pending);
+        player->pending = -1;
+    }
+}
+
+static HRESULT STDMETHODCALLTYPE dshow_callback_query(ISampleGrabberCB *callback,
+    REFIID iid, void **out)
+{
+    if (IsEqualGUID(iid, &IID_IUnknown) || IsEqualGUID(iid, &dshow_iid_sample_grabber_cb)) {
+        *out = callback;
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+/* The player owns the callback; the grabber lets go of it before the
+ * player is freed (dshow_release). */
+static ULONG STDMETHODCALLTYPE dshow_callback_add_ref(ISampleGrabberCB *callback)
+{
+    (void)callback;
+    return 2;
+}
+
+static ULONG STDMETHODCALLTYPE dshow_callback_release(ISampleGrabberCB *callback)
+{
+    (void)callback;
+    return 1;
+}
+
+/* On a streaming thread, as the null renderer lets the frame before go. */
+static HRESULT STDMETHODCALLTYPE dshow_callback_sample(ISampleGrabberCB *callback,
+    double time, IMediaSample *sample)
+{
+    DshowPlayer *player = (DshowPlayer *)((BYTE *)callback - offsetof(DshowPlayer, callback));
+    BYTE *data = NULL;
+    DWORD span = player->frame_pitch < 0 ? -(DWORD)player->frame_pitch :
+        (DWORD)player->frame_pitch;
+    if (player->stopping || player->slots_failed ||
+        FAILED(IMediaSample_GetPointer(sample, &data)) ||
+        (ULONGLONG)IMediaSample_GetActualDataLength(sample) <
+            (ULONGLONG)span * player->frame_height) {
+        return S_OK;
+    }
+    EnterCriticalSection(&player->lock);
+    dshow_publish_pending(player);
+    if (player->slots.view == NULL &&
+        !video_frame_slots_create(&player->slots, player->frame_width, player->frame_height)) {
+        InterlockedExchange(&player->slots_failed, 1);
+    } else {
+        const BYTE *top = player->frame_pitch < 0 ?
+            data + (SIZE_T)span * (player->frame_height - 1) : data;
+        player->pending_time = (LONGLONG)(time * 1e7 + 0.5);
+        player->pending = video_frame_slots_write(&player->slots, top,
+            player->frame_pitch, player->pending_time);
+    }
+    LeaveCriticalSection(&player->lock);
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE dshow_callback_buffer(ISampleGrabberCB *callback,
+    double time, BYTE *buffer, LONG length)
+{
+    (void)callback;
+    (void)time;
+    (void)buffer;
+    (void)length;
+    return E_NOTIMPL;
+}
+
+static ISampleGrabberCBVtbl dshow_callback_vtable = {
+    dshow_callback_query, dshow_callback_add_ref, dshow_callback_release,
+    dshow_callback_sample, dshow_callback_buffer
+};
+
+static bool dshow_position(VideoBackend *backend, LONGLONG *position_hns);
+
+/* Before playing, the first frame goes at once; then each when due. */
+static void dshow_poll_frames(DshowPlayer *player)
+{
+    VideoBackend *backend = &player->base;
+    LONGLONG now = 0;
+    if (player->slots_failed) {
+        video_backend_fail(backend, E_OUTOFMEMORY,
+            "the frames cannot be shared with the game");
+        return;
+    }
+    EnterCriticalSection(&player->lock);
+    if (player->pending >= 0 && (backend->state != VIDEO_STATE_PLAYING ||
+            (dshow_position(backend, &now) && now >= player->pending_time))) {
+        dshow_publish_pending(player);
+    }
+    LeaveCriticalSection(&player->lock);
+    if (player->slots.published > 0) {
+        backend->cued = true;
     }
 }
 
@@ -75,6 +228,9 @@ static void dshow_poll(VideoBackend *backend)
             video_backend_fail(backend, E_ABORT, "DirectShow playback stopped");
         }
         IMediaEventEx_FreeEventParams(player->events, code, first, second);
+    }
+    if (player->frames_mode && backend->state != VIDEO_STATE_FAILED) {
+        dshow_poll_frames(player);
     }
 }
 
@@ -104,13 +260,17 @@ static bool dshow_position(VideoBackend *backend, LONGLONG *position_hns)
 static void dshow_layout(VideoBackend *backend, const RECT *client)
 {
     DshowPlayer *player = (DshowPlayer *)backend;
-    video_evr_layout(player->display, client);
+    if (player->display != NULL) {
+        video_evr_layout(player->display, client);
+    }
 }
 
 static void dshow_repaint(VideoBackend *backend)
 {
     DshowPlayer *player = (DshowPlayer *)backend;
-    IMFVideoDisplayControl_RepaintVideo(player->display);
+    if (player->display != NULL) {
+        IMFVideoDisplayControl_RepaintVideo(player->display);
+    }
 }
 
 static void dshow_destroy(VideoBackend *backend)
@@ -120,14 +280,15 @@ static void dshow_destroy(VideoBackend *backend)
     HeapFree(GetProcessHeap(), 0, player);
 }
 
-/* A paused graph is cued: the first frame is presented, nothing plays. */
+/* A paused graph is cued: the first frame is presented, nothing plays.
+ * --frames is cued once that frame is published (dshow_poll_frames). */
 static void dshow_preroll(VideoBackend *backend)
 {
     DshowPlayer *player = (DshowPlayer *)backend;
     if (backend->state != VIDEO_STATE_READY || backend->cued) {
         return;
     }
-    if (SUCCEEDED(IMediaControl_Pause(player->control))) {
+    if (SUCCEEDED(IMediaControl_Pause(player->control)) && !player->frames_mode) {
         backend->cued = true;
     }
 }
@@ -220,6 +381,174 @@ static void dshow_add_audio_renderer(IGraphBuilder *graph)
     IBaseFilter_Release(audio);
 }
 
+/* --frames: the sample grabber, taking only 32-bit RGB, and the null
+ * renderer that paces it. */
+static HRESULT dshow_add_frames(DshowPlayer *player)
+{
+    AM_MEDIA_TYPE type;
+    HRESULT hr = CoCreateInstance(&dshow_clsid_sample_grabber, NULL,
+        CLSCTX_INPROC_SERVER, &IID_IBaseFilter, (void **)&player->grabber_filter);
+    if (SUCCEEDED(hr)) {
+        hr = IGraphBuilder_AddFilter(player->graph, player->grabber_filter, L"Frames");
+    }
+    if (SUCCEEDED(hr)) {
+        hr = IBaseFilter_QueryInterface(player->grabber_filter,
+            &dshow_iid_sample_grabber, (void **)&player->grabber);
+    }
+    if (SUCCEEDED(hr)) {
+        memset(&type, 0, sizeof(type));
+        type.majortype = MEDIATYPE_Video;
+        type.subtype = MEDIASUBTYPE_RGB32;
+        type.formattype = FORMAT_VideoInfo;
+        hr = ISampleGrabber_SetMediaType(player->grabber, &type);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = ISampleGrabber_SetBufferSamples(player->grabber, FALSE);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = ISampleGrabber_SetOneShot(player->grabber, FALSE);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = ISampleGrabber_SetCallback(player->grabber, &player->callback, 0);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = CoCreateInstance(&dshow_clsid_null_renderer, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IBaseFilter, (void **)&player->video_renderer);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = IGraphBuilder_AddFilter(player->graph, player->video_renderer, L"Frame Clock");
+    }
+    return hr;
+}
+
+/* Connects output to the first input pin of filter, through whatever
+ * splitter and decoders DirectShow finds. */
+static HRESULT dshow_connect(IGraphBuilder *graph, IPin *output, IBaseFilter *filter)
+{
+    IPin *input = dshow_find_pin(filter, PINDIR_INPUT);
+    if (input == NULL) {
+        return VFW_E_CANNOT_CONNECT;
+    }
+    HRESULT hr = IGraphBuilder_Connect(graph, output, input);
+    IPin_Release(input);
+    return hr;
+}
+
+/* Every output still unconnected (the sound) goes to the renderers in the
+ * graph; without an audio renderer it stays silent. */
+static void dshow_render_rest(IGraphBuilder *graph)
+{
+    IEnumFilters *filters = NULL;
+    IBaseFilter *filter = NULL;
+    IPin *outputs[16];
+    ULONG count = 0;
+    if (FAILED(IGraphBuilder_EnumFilters(graph, &filters))) {
+        return;
+    }
+    while (count < 16 && IEnumFilters_Next(filters, 1, &filter, NULL) == S_OK) {
+        IEnumPins *pins = NULL;
+        IPin *pin = NULL;
+        if (SUCCEEDED(IBaseFilter_EnumPins(filter, &pins))) {
+            while (count < 16 && IEnumPins_Next(pins, 1, &pin, NULL) == S_OK) {
+                PIN_DIRECTION direction = PINDIR_INPUT;
+                IPin *peer = NULL;
+                if (SUCCEEDED(IPin_QueryDirection(pin, &direction)) &&
+                    direction == PINDIR_OUTPUT && IPin_ConnectedTo(pin, &peer) != S_OK) {
+                    outputs[count++] = pin;
+                } else {
+                    IPin_Release(pin);
+                }
+                if (peer != NULL) {
+                    IPin_Release(peer);
+                }
+            }
+            IEnumPins_Release(pins);
+        }
+        IBaseFilter_Release(filter);
+    }
+    IEnumFilters_Release(filters);
+    IFilterGraph2 *graph2 = NULL;
+    bool render = SUCCEEDED(dshow_query(graph, &IID_IFilterGraph2, (void **)&graph2));
+    for (ULONG i = 0; i < count; ++i) {
+        if (render) {
+            IFilterGraph2_RenderEx(graph2, outputs[i],
+                AM_RENDEREX_RENDERTOEXISTINGRENDERERS, NULL);
+        }
+        IPin_Release(outputs[i]);
+    }
+    if (graph2 != NULL) {
+        IFilterGraph2_Release(graph2);
+    }
+}
+
+/* source -> splitter -> decoder -> grabber -> null renderer, then sound. */
+static HRESULT dshow_render_frames(DshowPlayer *player, const wchar_t *path)
+{
+    IBaseFilter *source = NULL;
+    IPin *output = NULL;
+    HRESULT hr = IGraphBuilder_AddSourceFilter(player->graph, path, L"Source", &source);
+    if (SUCCEEDED(hr)) {
+        output = dshow_find_pin(source, PINDIR_OUTPUT);
+        hr = output != NULL ? S_OK : VFW_E_CANNOT_RENDER;
+    }
+    if (SUCCEEDED(hr)) {
+        hr = dshow_connect(player->graph, output, player->grabber_filter);
+    }
+    if (output != NULL) {
+        IPin_Release(output);
+        output = NULL;
+    }
+    if (SUCCEEDED(hr)) {
+        output = dshow_find_pin(player->grabber_filter, PINDIR_OUTPUT);
+        hr = output != NULL ? dshow_connect(player->graph, output, player->video_renderer) :
+            VFW_E_CANNOT_CONNECT;
+    }
+    if (output != NULL) {
+        IPin_Release(output);
+    }
+    if (source != NULL) {
+        IBaseFilter_Release(source);
+    }
+    if (SUCCEEDED(hr)) {
+        dshow_render_rest(player->graph);
+    }
+    return hr;
+}
+
+/* The grabber's agreed frame: top-down when its height is negative. */
+static HRESULT dshow_read_frame_format(DshowPlayer *player)
+{
+    AM_MEDIA_TYPE type;
+    memset(&type, 0, sizeof(type));
+    HRESULT hr = ISampleGrabber_GetConnectedMediaType(player->grabber, &type);
+    if (FAILED(hr)) {
+        return hr;
+    }
+    hr = VFW_E_INVALIDMEDIATYPE;
+    if (IsEqualGUID(&type.formattype, &FORMAT_VideoInfo) && type.pbFormat != NULL &&
+        type.cbFormat >= sizeof(VIDEOINFOHEADER)) {
+        const BITMAPINFOHEADER *bitmap = &((const VIDEOINFOHEADER *)type.pbFormat)->bmiHeader;
+        LONG height = bitmap->biHeight < 0 ? -bitmap->biHeight : bitmap->biHeight;
+        if (bitmap->biBitCount == 32 && bitmap->biWidth > 0 && height > 0 &&
+            bitmap->biWidth <= WO_VIDEO_FRAMES_MAX_WIDTH && height <= WO_VIDEO_FRAMES_MAX_HEIGHT) {
+            player->frame_width = (uint32_t)bitmap->biWidth;
+            player->frame_height = (uint32_t)height;
+            LONG stride = bitmap->biWidth * 4;
+            player->frame_pitch = bitmap->biHeight < 0 ? stride : -stride;
+            player->base.info.width = player->frame_width;
+            player->base.info.height = player->frame_height;
+            hr = S_OK;
+        }
+    }
+    if (type.cbFormat != 0) {
+        CoTaskMemFree(type.pbFormat);
+    }
+    if (type.pUnk != NULL) {
+        IUnknown_Release(type.pUnk);
+    }
+    return hr;
+}
+
 /* source -> splitter -> decoders -> the renderers already in the graph. */
 static HRESULT dshow_render(IGraphBuilder *graph, const wchar_t *path)
 {
@@ -266,7 +595,7 @@ static void dshow_read_video_info(DshowPlayer *player)
 }
 
 HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
-    VideoBackend **out, char *reason, size_t reason_size)
+    bool frames, VideoBackend **out, char *reason, size_t reason_size)
 {
     *out = NULL;
     DshowPlayer *player = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
@@ -276,13 +605,21 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
         return E_OUTOFMEMORY;
     }
     player->base.ops = &dshow_ops;
-    player->base.name = "directshow";
+    player->base.name = frames ? "directshow_frames" : "directshow";
     player->base.state = VIDEO_STATE_OPENING;
     player->window = window;
+    player->frames_mode = frames;
+    player->pending = -1;
+    player->callback.lpVtbl = &dshow_callback_vtable;
+    InitializeCriticalSection(&player->lock);
+    player->lock_ready = true;
     const char *step = "DirectShow is unavailable";
     HRESULT hr = CoCreateInstance(&CLSID_FilterGraph, NULL,
         CLSCTX_INPROC_SERVER, &IID_IGraphBuilder, (void **)&player->graph);
-    if (SUCCEEDED(hr)) {
+    if (SUCCEEDED(hr) && frames) {
+        step = "the DirectShow sample grabber is unavailable";
+        hr = dshow_add_frames(player);
+    } else if (SUCCEEDED(hr)) {
         step = "the Enhanced Video Renderer is unavailable";
         hr = dshow_add_video_renderer(player);
     }
@@ -291,7 +628,11 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
             dshow_add_audio_renderer(player->graph);
         }
         step = "DirectShow could not render the file";
-        hr = dshow_render(player->graph, path);
+        hr = frames ? dshow_render_frames(player, path) : dshow_render(player->graph, path);
+    }
+    if (SUCCEEDED(hr) && frames) {
+        step = "DirectShow could not decode the video to RGB";
+        hr = dshow_read_frame_format(player);
     }
     if (SUCCEEDED(hr) && !dshow_input_connected(player->video_renderer)) {
         step = "no video stream";
@@ -312,7 +653,11 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
         HeapFree(GetProcessHeap(), 0, player);
         return hr;
     }
-    dshow_read_video_info(player);
+    if (frames) {
+        player->base.frames_published = &player->slots.published;
+    } else {
+        dshow_read_video_info(player);
+    }
     LONGLONG duration = 0;
     if (SUCCEEDED(dshow_query(player->graph, &IID_IMediaSeeking,
             (void **)&player->seeking)) &&

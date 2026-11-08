@@ -60,6 +60,7 @@ typedef struct MfPlayer {
     LONGLONG started_qpc;
     LONGLONG qpc_frequency;
     bool start_pending; /* start() came before the first frame */
+    ULONGLONG first_frame_deadline;
     bool has_audio;
     /* Preroll: a muted Start, then Pause as soon as it has started. */
     bool prerolling;
@@ -459,6 +460,15 @@ static void mf_poll(VideoBackend *backend)
                 player->start_pending = false;
                 mf_start(backend);
             }
+        } else if (video_frames_ended(player->frames)) {
+            /* Failed at once, so the original can still play. */
+            video_backend_fail(backend, MF_E_INVALIDMEDIATYPE,
+                "Media Foundation decoded no frame");
+            return;
+        } else if (GetTickCount64() > player->first_frame_deadline) {
+            video_backend_fail(backend, HRESULT_FROM_WIN32(ERROR_TIMEOUT),
+                "Media Foundation decoded no frame in time");
+            return;
         }
         if (player->session == NULL && backend->state == VIDEO_STATE_PLAYING &&
             video_frames_ended(player->frames)) {
@@ -653,6 +663,10 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
         QueryPerformanceFrequency(&frequency);
         player->qpc_frequency = frequency.QuadPart;
         player->frames = video_frames_open(path, &player->base.info, &hr, &step);
+        /* A decoder normally starts in well under a second; one that hangs
+         * (some 10-bit H.264) would otherwise hold the game until the
+         * playback limit. */
+        player->first_frame_deadline = GetTickCount64() + 15000;
     }
     if (SUCCEEDED(hr)) {
         step = "Media Foundation could not open the file";

@@ -29,8 +29,8 @@
  *   --probe          automated tests: a muted 640x480 window that exits 0
  *                    once playback has advanced 250 ms.
  *   --original-only  only the original MPEG-1 file.
- *   --frames         no window: Media Foundation hands each frame, at its
- *                    presentation time, to the game through shared memory
+ *   --frames         no window: each frame goes, at its presentation time,
+ *                    to the game through shared memory
  *                    (common/wo_video_frames.h), and the game presents it
  *                    itself. Exclusive fullscreen shows no other window.
  *
@@ -39,7 +39,9 @@
  *
  * Media Foundation plays MP4 replacements. The original MPEG-1 video
  * elementary streams are rejected by its MPEG source, so they fall back to
- * DirectShow. A failing MP4 falls back to the original MPG when present. */
+ * DirectShow, with --frames too. A failing MP4 falls back to the original
+ * MPG when present; with --frames only if it gave the game no frame, as the
+ * frame mapping is created with the first. */
 #include <windows.h>
 #include <objbase.h>
 #include <shellapi.h>
@@ -281,7 +283,7 @@ static VideoBackend *video_open_directshow(VideoApp *app, const wchar_t *path,
     char directshow_reason[192];
     video_log_fallback(app, media_foundation_reason);
     HRESULT hr = video_dshow_create(app->window.hwnd, path,
-        app->options.probe, &backend, directshow_reason,
+        app->options.probe, app->options.frames, &backend, directshow_reason,
         sizeof(directshow_reason));
     if (FAILED(hr)) {
         int written = snprintf(reason, reason_size, "%s; %s",
@@ -453,11 +455,7 @@ static void video_play(VideoApp *app, const wchar_t *path,
     HRESULT hr = video_mf_create(app->window.hwnd, path, app->options.probe,
         app->options.frames, &backend, media_foundation_reason,
         sizeof(media_foundation_reason));
-    /* DirectShow draws into a window, which --frames has none of. */
-    directshow_tried = app->options.frames;
-    if (FAILED(hr) && app->options.frames) {
-        video_set_text(reason, sizeof(reason), media_foundation_reason);
-    } else if (FAILED(hr)) {
+    if (FAILED(hr)) {
         directshow_tried = true;
         backend = video_open_directshow(app, path, media_foundation_reason,
             reason, sizeof(reason));
@@ -477,7 +475,8 @@ static void video_play(VideoApp *app, const wchar_t *path,
         }
         backend->ops->poll(backend);
         if (backend->state == VIDEO_STATE_FAILED) {
-            if (!attempt->opened && !directshow_tried) {
+            if (!attempt->opened && !directshow_tried &&
+                (backend->frames_published == NULL || *backend->frames_published == 0)) {
                 /* Media Foundation gave up before playing anything. */
                 directshow_tried = true;
                 video_set_text(media_foundation_reason,
@@ -572,6 +571,7 @@ static int video_run(VideoApp *app)
         wchar_t original[VIDEO_PATH_CAPACITY];
         /* A broken replacement can still fall back to the supplied MPG. */
         if (attempt.failed && !original_only && !attempt.window_lost &&
+            (!app->options.frames || attempt.frames == 0) &&
             video_has_extension(path, L".mp4") &&
             video_find_movie(app->game_root, app->options.movie, true,
                 original, VIDEO_PATH_CAPACITY)) {

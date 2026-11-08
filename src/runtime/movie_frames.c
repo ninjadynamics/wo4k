@@ -12,13 +12,18 @@ static IDirectDrawSurface *movie_frames_surface;
 static UINT movie_frames_width,movie_frames_height;
 /* The header as validated at open: sizes are never re-read from the view. */
 static WoVideoFrames movie_frames_format;
+static HRESULT movie_frames_error; /* the last failure logged */
+static void movie_frames_failed(const char *event,HRESULT hr) {
+    if(hr!=movie_frames_error)wo_render_event(event,(DWORD)hr);
+    movie_frames_error=hr;
+}
 static void movie_frames_close(void) {
     if(movie_frames_presented)wo_render_event("movie_frames_presented",movie_frames_presented);
     movie_frames_presented=0;
     if(movie_frames_surface){movie_frames_surface->lpVtbl->Release(movie_frames_surface);movie_frames_surface=0;}
     if(movie_frames_view){UnmapViewOfFile((void *)movie_frames_view);movie_frames_view=0;}
     if(movie_frames_mapping){CloseHandle(movie_frames_mapping);movie_frames_mapping=0;}
-    movie_frames_player=0;movie_frames_shown=0;
+    movie_frames_player=0;movie_frames_shown=0;movie_frames_error=0;
 }
 /* The player creates the mapping once it knows the frame size. */
 static BOOL movie_frames_open(DWORD player) {
@@ -55,7 +60,7 @@ static BOOL movie_frames_surface_ready(UINT width,UINT height) {
         desc.ddsCaps.dwCaps=DDSCAPS_OFFSCREENPLAIN|DDSCAPS_SYSTEMMEMORY;
         hr=dd->lpVtbl->CreateSurface(dd,&desc,&movie_frames_surface,0);
     }
-    if(hr<0){movie_frames_surface=0;wo_render_event("movie_frames_surface_failed",(DWORD)hr);return FALSE;}
+    if(hr<0){movie_frames_surface=0;movie_frames_failed("movie_frames_surface_failed",hr);return FALSE;}
     movie_frames_width=width;movie_frames_height=height;return TRUE;
 }
 /* Copies the newest frame, if it is new and was not rewritten meanwhile. */
@@ -101,9 +106,12 @@ static void movie_frames_present(DWORD player) {
     target->lpVtbl->Blt(target,&full,0,0,DDBLT_COLORFILL|DDBLT_WAIT,&fx);
     ArtLayout layout=startup_layout(f->width,f->height,width,height,movie_display_width,movie_display_height,TRUE);
     HRESULT hr=target->lpVtbl->Blt(target,&layout.destination,movie_frames_surface,&layout.source,DDBLT_WAIT,0);
-    if(hr<0){wo_render_event("movie_frames_blt_failed",(DWORD)hr);return;}
+    /* Lost after Alt+Tab: the game draws nothing during the movie, so
+     * nothing else would bring its surfaces back. */
+    if(hr==DDERR_SURFACELOST){primary->lpVtbl->Restore(primary);if(target!=primary)target->lpVtbl->Restore(target);}
+    if(hr<0){movie_frames_failed("movie_frames_blt_failed",hr);return;}
     hr=primary->lpVtbl->Flip(primary,0,DDFLIP_WAIT);
     if(hr==DDERR_SURFACELOST)primary->lpVtbl->Restore(primary);
-    else if(hr<0)wo_render_event("movie_frames_flip_failed",(DWORD)hr);
+    else if(hr<0)movie_frames_failed("movie_frames_flip_failed",hr);
     else ++movie_frames_presented;
 }

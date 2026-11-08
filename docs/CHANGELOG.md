@@ -1,5 +1,20 @@
 ﻿# Beta release changes
 
+## Unreleased
+
+- Play the original MPEG movies in Exclusive fullscreen mode too. They had
+  shown nothing there: Media Foundation cannot open them, so the player now
+  decodes them through DirectShow for the game, as it does in Borderless.
+- Fix replacement MP4 movies whose size is not a multiple of 16 (1366x768,
+  854x480, 1080p) in Exclusive mode: they showed sheared.
+- A replacement MP4 that Windows cannot decode no longer holds the game for
+  half a minute in Exclusive mode: after at most 15 seconds the original
+  MPEG plays instead. When decoding falls behind, the movie shows fewer
+  frames instead of freezing.
+- Keep the original MPEG movies when you add MP4 replacements, as the
+  README promises: Install / repair deleted them, leaving no fallback.
+- Restore the screen after Alt+Tab during a movie in Exclusive mode.
+
 ## 0.2.0-beta.8
 
 - Fix track panels drawn nearly see-through with HD artwork on, such as at

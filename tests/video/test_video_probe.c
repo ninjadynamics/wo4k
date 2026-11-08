@@ -514,17 +514,14 @@ static void test_skip_event(const Source *source)
 
 /* --frames: no window; each frame reaches Local\WO4KVideoFrames-<pid> at
  * its presentation time. Held open here, the section outlives the player. */
-static void test_frames(const Source *source)
+/* One file with --frames: the mapping appears with the first frame and
+ * holds advancing frames when the probe ends. */
+static void frames_pass(const Fixture *fixture, const wchar_t *movie,
+    const wchar_t *file)
 {
-    Fixture fixture;
-    const wchar_t *movie = NULL;
     wchar_t arguments[2 * VIDEO_PATH_CAPACITY];
-    if (!any_movie(source, &fixture, L"frames", &movie)) {
-        CHECK(false, "cannot prepare the frames fixture");
-        return;
-    }
     Launch run;
-    if (!probe_arguments(arguments, 2 * VIDEO_PATH_CAPACITY, &fixture, movie,
+    if (!probe_arguments(arguments, 2 * VIDEO_PATH_CAPACITY, fixture, movie,
             L" --frames") || !launch(&run, arguments, NULL)) {
         CHECK(false, "cannot start the player with --frames");
         return;
@@ -542,7 +539,7 @@ static void test_frames(const Source *source)
         MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0) : NULL;
     DWORD code = finish(&run);
     char text[LOG_TEXT_SIZE];
-    bool logged = movie_log(&fixture, movie, text) &&
+    bool logged = movie_log(fixture, movie, text) &&
         strstr(text, "\"frames\":true") != NULL &&
         strstr(text, "video_window_shown") == NULL;
     CHECK(frames != NULL, "the player publishes its frame mapping");
@@ -560,15 +557,43 @@ static void test_frames(const Source *source)
             !(frames->sequence[latest] & 1) &&
             frames->time_hns[latest] > 0,
             "frames are published at advancing presentation times");
-        printf("INFO: --frames published %ld %lux%lu frames.\n",
+        printf("INFO: --frames published %ld %lux%lu frames of %ls via %s.\n",
             (long)frames->frames, (unsigned long)frames->width,
-            (unsigned long)frames->height);
+            (unsigned long)frames->height, file,
+            strstr(text, "\"backend\":\"directshow_frames\"") ? "DirectShow" :
+            "Media Foundation");
         UnmapViewOfFile(frames);
     }
     if (mapping != NULL) {
         CloseHandle(mapping);
     }
     CHECK(logged, "--frames plays without a window and is logged");
+}
+
+/* Every movie file, each alone in its fixture: MP4 through Media
+ * Foundation, the original MPEG-1 through DirectShow. */
+static void test_frames(const Source *source)
+{
+    static const wchar_t *const movies[] = {
+        L"intro", L"xtro1", L"xtro2", L"xtro3", L"xtro4"
+    };
+    for (int m = 0; m < VIDEO_MOVIE_COUNT; ++m) {
+        const wchar_t *names[VIDEO_MAX_CANDIDATES];
+        size_t count = video_movie_candidates((VideoMovie)m, false, names);
+        for (size_t i = 0; i < count; ++i) {
+            wchar_t path[VIDEO_PATH_CAPACITY];
+            Fixture fixture;
+            if (!source_file(source, names[i], path)) {
+                continue;
+            }
+            if (!fixture_create(&fixture, L"frames") ||
+                !fixture_add(&fixture, path, names[i])) {
+                CHECK(false, "cannot prepare the frames fixture");
+                continue;
+            }
+            frames_pass(&fixture, movies[m], names[i]);
+        }
+    }
     printf("PASS: --frames hands each frame to the game without a window.\n");
 }
 
