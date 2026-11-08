@@ -254,12 +254,13 @@ static void text_anchor(int x,int y,BOOL centered) {
  * of its left-hand partner drawn earlier in the same frame. */
 enum {MENU_FOOTER_ICON,MENU_FOOTER_TEXT};
 static float menu_footer_left[2],menu_footer_right[2];
+/* present_serial: refresh_frame only advances in races. */
 static DWORD menu_footer_frame[2]={0xffffffffu,0xffffffffu};
 static void menu_mirror_footer(UINT kind,BOOL left_hand,TLVertex *v,UINT count) {
     float low=v[0].x,high=v[0].x;
     for(UINT i=1;i<count;++i){if(v[i].x<low)low=v[i].x;if(v[i].x>high)high=v[i].x;}
-    if(left_hand){menu_footer_left[kind]=low;menu_footer_right[kind]=high;menu_footer_frame[kind]=refresh_frame;return;}
-    if(menu_footer_frame[kind]!=refresh_frame)return;
+    if(left_hand){menu_footer_left[kind]=low;menu_footer_right[kind]=high;menu_footer_frame[kind]=present_serial;return;}
+    if(menu_footer_frame[kind]!=present_serial)return;
     /* An icon's left edge mirrors its partner's right; a prompt's right edge
      * mirrors its partner's start. Sprites are drawn half a native pixel
      * right of their vertices, so the displayed mirror axis is width-1. */

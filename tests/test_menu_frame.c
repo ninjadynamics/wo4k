@@ -75,7 +75,7 @@ static void test_menu_frame(BYTE *image,BYTE *buffer){
     ui_x=.75f;*(float *)(image+0xaf0b4)=640;
     TLVertex footer[4]={{0}};
     const float enter[4]={48,70,48,70},esc[4]={563,585,563,585},select[4]={81,134,81,134},quit[4]={500,550,500,550};
-    refresh_frame=7;
+    present_serial=7;
     for(UINT i=0;i<4;++i)footer[i].x=enter[i];
     menu_mirror_footer(MENU_FOOTER_ICON,TRUE,footer,4);
     for(UINT i=0;i<4;++i)footer[i].x=esc[i];
@@ -86,11 +86,11 @@ static void test_menu_frame(BYTE *image,BYTE *buffer){
     for(UINT i=0;i<4;++i)footer[i].x=quit[i];
     menu_mirror_footer(MENU_FOOTER_TEXT,FALSE,footer,4);
     if(!frame_near(footer[1].x,639-81) || !frame_near(footer[0].x,639-81-50))ExitProcess(105);
-    refresh_frame=8;
+    present_serial=8;
     for(UINT i=0;i<4;++i)footer[i].x=esc[i];
     menu_mirror_footer(MENU_FOOTER_ICON,FALSE,footer,4);
     if(!frame_near(footer[0].x,563))ExitProcess(106);
-    refresh_frame=0;
+    present_serial=0;
     /* Real execute-buffer packets: frame edges clamp; the following SD draw
      * and the packet's final state recover the inherited sampler mode. */
     BYTE packet[52]={8,8,1,0},out[512];

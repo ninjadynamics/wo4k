@@ -10,6 +10,8 @@ static LONG movie_frames_shown;
 static DWORD movie_frames_presented;
 static IDirectDrawSurface *movie_frames_surface;
 static UINT movie_frames_width,movie_frames_height;
+/* The header as validated at open: sizes are never re-read from the view. */
+static WoVideoFrames movie_frames_format;
 static void movie_frames_close(void) {
     if(movie_frames_presented)wo_render_event("movie_frames_presented",movie_frames_presented);
     movie_frames_presented=0;
@@ -26,15 +28,16 @@ static BOOL movie_frames_open(DWORD player) {
     if(!movie_append(name,64,WO_VIDEO_FRAMES_NAME) || !movie_append_number(name,64,player))return FALSE;
     HANDLE mapping=OpenFileMappingW(FILE_MAP_READ,FALSE,name);if(!mapping)return FALSE;
     const WoVideoFrames *view=MapViewOfFile(mapping,FILE_MAP_READ,0,0,0);
-    MEMORY_BASIC_INFORMATION region;
-    BOOL valid=view && VirtualQuery(view,&region,sizeof(region)) && view->magic==WO_VIDEO_FRAMES_MAGIC &&
-        view->header_size==WO_VIDEO_FRAMES_HEADER && view->width && view->height &&
-        view->width<=WO_VIDEO_FRAMES_MAX_WIDTH && view->height<=WO_VIDEO_FRAMES_MAX_HEIGHT &&
-        view->stride>=view->width*4 && view->slot_size==view->stride*view->height &&
-        region.RegionSize>=WO_VIDEO_FRAMES_HEADER+(SIZE_T)WO_VIDEO_FRAMES_SLOTS*view->slot_size;
+    MEMORY_BASIC_INFORMATION region;WoVideoFrames *f=&movie_frames_format;
+    if(view)copy((BYTE *)f,(const BYTE *)view,sizeof(*f));
+    BOOL valid=view && VirtualQuery(view,&region,sizeof(region)) && f->magic==WO_VIDEO_FRAMES_MAGIC &&
+        f->header_size==WO_VIDEO_FRAMES_HEADER && f->width && f->height &&
+        f->width<=WO_VIDEO_FRAMES_MAX_WIDTH && f->height<=WO_VIDEO_FRAMES_MAX_HEIGHT &&
+        f->stride>=f->width*4 && f->stride<=WO_VIDEO_FRAMES_MAX_WIDTH*4 && f->slot_size==f->stride*f->height &&
+        region.RegionSize>=WO_VIDEO_FRAMES_HEADER+(SIZE_T)WO_VIDEO_FRAMES_SLOTS*f->slot_size;
     if(!valid){if(view)UnmapViewOfFile((void *)view);CloseHandle(mapping);return FALSE;}
     movie_frames_mapping=mapping;movie_frames_view=view;movie_frames_player=player;
-    wo_render_event("movie_frames_width",view->width);wo_render_event("movie_frames_height",view->height);
+    wo_render_event("movie_frames_width",f->width);wo_render_event("movie_frames_height",f->height);
     return TRUE;
 }
 static BOOL movie_frames_surface_ready(UINT width,UINT height) {
@@ -63,11 +66,13 @@ static BOOL movie_frames_copy(const WoVideoFrames *view,LONG slot) {
     if(hr==DDERR_SURFACELOST && movie_frames_surface->lpVtbl->Restore(movie_frames_surface)>=0)
         hr=movie_frames_surface->lpVtbl->Lock(movie_frames_surface,0,&locked,DDLOCK_WAIT|DDLOCK_WRITEONLY,0);
     if(hr<0)return FALSE;
-    const BYTE *source=(const BYTE *)view+view->header_size+(SIZE_T)slot*view->slot_size;
-    BOOL fits=locked.lpSurface && locked.lPitch>=(LONG)(view->width*4);
-    if(fits)for(UINT y=0;y<view->height;++y)
-        copy((BYTE *)locked.lpSurface+y*locked.lPitch,source+(SIZE_T)y*view->stride,view->width*4);
+    const WoVideoFrames *f=&movie_frames_format;
+    const BYTE *source=(const BYTE *)view+WO_VIDEO_FRAMES_HEADER+(SIZE_T)slot*f->slot_size;
+    BOOL fits=locked.lpSurface && locked.lPitch>=(LONG)(f->width*4);
+    if(fits)for(UINT y=0;y<f->height;++y)
+        copy((BYTE *)locked.lpSurface+y*locked.lPitch,source+(SIZE_T)y*f->stride,f->width*4);
     movie_frames_surface->lpVtbl->Unlock(movie_frames_surface,0);
+    __asm__ __volatile__("":::"memory"); /* the copy reads finish before the recheck */
     return fits && view->sequence[slot]==before;
 }
 /* Called by the movie loop while the player runs; presents each new frame. */
@@ -76,7 +81,8 @@ static void movie_frames_present(DWORD player) {
     const WoVideoFrames *view=movie_frames_view;
     LONG count=view->frames,slot=view->latest;
     if(count==movie_frames_shown || slot<0 || slot>=WO_VIDEO_FRAMES_SLOTS)return;
-    if(!movie_frames_surface_ready(view->width,view->height) || !movie_frames_copy(view,slot))return;
+    const WoVideoFrames *f=&movie_frames_format;
+    if(!movie_frames_surface_ready(f->width,f->height) || !movie_frames_copy(view,slot))return;
     if(!movie_frames_shown)wo_render_event("movie_frames_first",(DWORD)count);
     movie_frames_shown=count;
     IDirectDrawSurface *target=*(IDirectDrawSurface **)(game+0xabd24);
@@ -93,7 +99,7 @@ static void movie_frames_present(DWORD player) {
     }
     DDBLTFX fx={0};fx.dwSize=sizeof(fx);fx.dwFillColor=0;
     target->lpVtbl->Blt(target,&full,0,0,DDBLT_COLORFILL|DDBLT_WAIT,&fx);
-    ArtLayout layout=startup_layout(view->width,view->height,width,height,movie_display_width,movie_display_height,TRUE);
+    ArtLayout layout=startup_layout(f->width,f->height,width,height,movie_display_width,movie_display_height,TRUE);
     HRESULT hr=target->lpVtbl->Blt(target,&layout.destination,movie_frames_surface,&layout.source,DDBLT_WAIT,0);
     if(hr<0){wo_render_event("movie_frames_blt_failed",(DWORD)hr);return;}
     hr=primary->lpVtbl->Flip(primary,0,DDFLIP_WAIT);

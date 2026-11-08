@@ -64,12 +64,16 @@ static void frames_publish(VideoFrames *frames, IMFSample *sample, LONGLONG time
     if (FAILED(IMFSample_ConvertToContiguousBuffer(sample, &buffer))) {
         return;
     }
+    DWORD row = header->width * 4;
     if (SUCCEEDED(IMFMediaBuffer_QueryInterface(buffer, &IID_IMF2DBuffer, (void **)&plane)) &&
         SUCCEEDED(IMF2DBuffer_Lock2D(plane, &first, &pitch))) {
         locked2d = true;
+        if ((pitch < 0 ? -(DWORD)pitch : (DWORD)pitch) < row) {
+            first = NULL;
+        }
     } else if (SUCCEEDED(IMFMediaBuffer_Lock(buffer, &data, NULL, &length))) {
-        LONG span = pitch < 0 ? -pitch : pitch;
-        if (span == 0 || length < (DWORD)span * header->height) {
+        DWORD span = pitch < 0 ? -(DWORD)pitch : (DWORD)pitch;
+        if (span < row || length < (ULONGLONG)span * (header->height - 1) + row) {
             IMFMediaBuffer_Unlock(buffer);
             data = NULL;
         } else {
@@ -79,7 +83,6 @@ static void frames_publish(VideoFrames *frames, IMFSample *sample, LONGLONG time
     if (first != NULL) {
         LONG slot = header->latest == 0 ? 1 : 0;
         BYTE *target = frames->slots + (SIZE_T)slot * header->slot_size;
-        DWORD row = header->width * 4;
         InterlockedIncrement(&header->sequence[slot]);
         for (DWORD y = 0; y < header->height; ++y) {
             memcpy(target + (SIZE_T)y * header->stride, first + (LONG_PTR)y * pitch, row);
@@ -119,6 +122,17 @@ static bool frames_wait(VideoFrames *frames, LONGLONG time)
 }
 
 static HRESULT frames_open_reader(VideoFrames *frames);
+static HRESULT frames_read_type(VideoFrames *frames, VideoInfo *info);
+
+/* A decoder may change its output type mid-stream. The shared memory keeps
+ * the size it was made for: the same size continues with the new stride, a
+ * different one ends the frames rather than copying past either buffer. */
+static bool frames_type_still_fits(VideoFrames *frames)
+{
+    VideoInfo info = { 0 };
+    return SUCCEEDED(frames_read_type(frames, &info)) &&
+        info.width == frames->view->width && info.height == frames->view->height;
+}
 
 static DWORD WINAPI frames_worker(void *parameter)
 {
@@ -134,6 +148,12 @@ static DWORD WINAPI frames_worker(void *parameter)
         HRESULT hr = IMFSourceReader_ReadSample(frames->reader,
             (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, NULL, &flags, &time, &sample);
         if (FAILED(hr) || (flags & MF_SOURCE_READERF_ENDOFSTREAM)) {
+            if (sample != NULL) {
+                IMFSample_Release(sample);
+            }
+            break;
+        }
+        if ((flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED) && !frames_type_still_fits(frames)) {
             if (sample != NULL) {
                 IMFSample_Release(sample);
             }
@@ -195,13 +215,20 @@ static HRESULT frames_configure(VideoFrames *frames, CreateMediaTypeFn create_ty
     }
     if (type != NULL) {
         IMFMediaType_Release(type);
-        type = NULL;
     }
     if (SUCCEEDED(hr)) {
         *what = "Media Foundation cannot report the RGB frame size";
-        hr = IMFSourceReader_GetCurrentMediaType(frames->reader,
-            (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, &type);
+        hr = frames_read_type(frames, info);
     }
+    return hr;
+}
+
+/* Reads the current RGB frame size and row stride. */
+static HRESULT frames_read_type(VideoFrames *frames, VideoInfo *info)
+{
+    IMFMediaType *type = NULL;
+    HRESULT hr = IMFSourceReader_GetCurrentMediaType(frames->reader,
+        (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM, &type);
     UINT64 size = 0;
     if (SUCCEEDED(hr)) {
         hr = IMFMediaType_GetUINT64(type, &MF_MT_FRAME_SIZE, &size);
@@ -353,9 +380,14 @@ void video_frames_close(VideoFrames *frames)
     if (frames->thread != NULL) {
         InterlockedExchange(&frames->stop, 1);
         SetEvent(frames->run);
-        /* A ReadSample in progress finishes within a frame's decoding. */
-        WaitForSingleObject(frames->thread, 5000);
+        /* A ReadSample in progress finishes within a frame's decoding. A
+         * worker still opening the file after that keeps the memory it
+         * uses: the player is exiting, so it is left, not freed under it. */
+        bool exited = WaitForSingleObject(frames->thread, 5000) == WAIT_OBJECT_0;
         CloseHandle(frames->thread);
+        if (!exited) {
+            return;
+        }
     }
     if (frames->opened != NULL) {
         CloseHandle(frames->opened);
