@@ -173,7 +173,66 @@ static void test_prune(void) {
     wo_mod_free(&mod);
 }
 
+typedef struct LockAttempt {
+    const WoMod *mod;
+    bool locked;
+    WoErrorKind kind;
+} LockAttempt;
+
+static DWORD WINAPI lock_from_another_thread(void *parameter) {
+    LockAttempt *attempt = parameter;
+    WoModLock lock;
+    WoError error = {0};
+    attempt->locked = wo_mod_lock(attempt->mod, 0, &lock, &error);
+    attempt->kind = error.kind;
+    wo_mod_unlock(&lock);
+    return 0;
+}
+
+static void test_lock(void) {
+    const char *dir = wo_test_dir("mod-lock");
+    if (!dir) {
+        return;
+    }
+    WoMod mod;
+    WoMod again;
+    WoError error = {0};
+    CHECK_OK(wo_mod_init(&mod, dir, &error), &error);
+    char *upper = wo_strdup(dir, &error);
+    for (char *c = upper; c && *c; c++) {
+        *c = (char)(*c >= 'a' && *c <= 'z' ? *c - 32 : *c);
+    }
+    CHECK_OK(wo_mod_init(&again, upper, &error), &error);
+    WoModLock outer;
+    WoModLock inner;
+    CHECK_OK(wo_mod_lock(&mod, 0, &outer, &error), &error);
+    /* Reentrant: a repair inside a launch check takes it again. */
+    CHECK_OK(wo_mod_lock(&mod, 0, &inner, &error), &error);
+    wo_mod_unlock(&inner);
+    /* Still held: another holder, by any spelling of the folder, is refused. */
+    LockAttempt attempt = {&again, true, WO_ERR_NONE};
+    HANDLE thread = CreateThread(NULL, 0, lock_from_another_thread, &attempt, 0, NULL);
+    CHECK(thread != NULL);
+    if (thread) {
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
+    }
+    CHECK(!attempt.locked && attempt.kind == WO_ERR_BUSY);
+    wo_mod_unlock(&outer);
+    attempt.locked = false;
+    thread = CreateThread(NULL, 0, lock_from_another_thread, &attempt, 0, NULL);
+    if (thread) {
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
+    }
+    CHECK(attempt.locked);
+    wo_free(upper);
+    wo_mod_free(&again);
+    wo_mod_free(&mod);
+}
+
 int main(void) {
+    RUN(test_lock);
     RUN(test_prune);
     RUN(test_defaults_without_state);
     RUN(test_save_round_trip_and_revision);

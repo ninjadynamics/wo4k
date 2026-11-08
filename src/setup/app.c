@@ -186,15 +186,23 @@ static void show_failure(const char *message) {
 
 /* --- Preferences ----------------------------------------------------------------- */
 
-static void save_preferences(void) {
+/* In Repair mode the source fields are saved only when Install confirms
+ * them (Cancel drops them): a half-typed path saved on the way, or kept by
+ * closing Setup, made every later Play repair from it, or refuse to start.
+ * The other preferences save as they change. */
+static void save_preferences_with(bool commit_sources) {
     if (app.restoring) {
         return;
     }
+    const WoConfig *kept = app.repair_mode && !commit_sources && app.repair_snapshot.game_source
+                               ? &app.repair_snapshot
+                               : NULL;
     WoConfig config = {0};
-    config.game_source = trimmed(app.game.text);
+    config.game_source = kept ? wo_strdup(kept->game_source, NULL) : trimmed(app.game.text);
     config.pc_music_source = wo_strdup(app.saved.pc_music_source ? app.saved.pc_music_source : "",
                                        NULL);
-    config.psx_source = trimmed(app.psx.text);
+    config.psx_source = kept ? wo_strdup(kept->psx_source ? kept->psx_source : "", NULL)
+                             : trimmed(app.psx.text);
     config.soundtrack = (WoSoundtrack)app.soundtrack;
     config.hd_textures = app.hd;
     config.clean_audio = app.clean;
@@ -210,6 +218,10 @@ static void save_preferences(void) {
         wo_log_failure("Saving Setup preferences", &error);
     }
     wo_config_free(&config);
+}
+
+static void save_preferences(void) {
+    save_preferences_with(false);
 }
 
 static void show_config(const WoConfig *config) {
@@ -406,7 +418,7 @@ static void start_installation(void) {
     if (app.busy) {
         return;
     }
-    save_preferences();
+    save_preferences_with(true);
     char *game = trimmed(app.game.text);
     bool empty = !game || !game[0];
     wo_free(game);

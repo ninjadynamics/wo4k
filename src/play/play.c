@@ -25,6 +25,10 @@
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, int show);
 
+/* Long enough for a double-clicked first Play to start the game when the
+ * installation is healthy; a repair or Setup at work takes longer. */
+#define PLAY_LOCK_WAIT_MS 5000
+
 typedef struct PlayOptions {
     bool refresh_only;
     bool no_dialog;
@@ -375,7 +379,10 @@ static double since_process_created_ms(void) {
 
 /* False when the game could not be started. Otherwise *exit_code is its exit
  * code, which can itself be -1 (the game's DirectX error exit). */
-static bool run_game(const WoMod *mod, WoLaps *laps, DWORD *exit_code, WoError *error) {
+/* The installation lock is let go once the game runs: from then on, the
+ * running game itself keeps Setup and the updater away. */
+static bool run_game(const WoMod *mod, WoModLock *lock, WoLaps *laps, DWORD *exit_code,
+                     WoError *error) {
     char *exe = wo_mod_game_path(mod, "Wipeout2097.exe", error);
     wchar_t *wide_exe = exe ? wo_wide_path(exe, error) : NULL;
     wchar_t *wide_dir = wide_exe ? wo_wide_path(mod->game, error) : NULL;
@@ -395,6 +402,7 @@ static bool run_game(const WoMod *mod, WoLaps *laps, DWORD *exit_code, WoError *
     BOOL launched = CreateProcessW(wide_exe, NULL, NULL, NULL, FALSE, 0, NULL, wide_dir, &startup,
                                    &process);
     DWORD launch_error = GetLastError();
+    wo_mod_unlock(lock);
     wo_free(wide_exe);
     wo_free(wide_dir);
     if (!launched) {
@@ -480,8 +488,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
     WoError error = {0};
     WoProgress progress = {NULL, NULL, NULL, WO_STAGE_GENERAL};
     WoReconcileResult result;
+    /* A second Play (a double click) waits for the first to start the game,
+     * then leaves it be; Setup at work makes Play say so. */
+    WoModLock lock;
+    bool ok = wo_mod_lock(&mod, PLAY_LOCK_WAIT_MS, &lock, &error);
+    if (ok && wo_mod_game_running(&mod)) {
+        wo_log_text("already_running", "The game is already running; nothing to do.");
+        wo_mod_unlock(&lock);
+        wo_log_end();
+        wo_mod_free(&mod);
+        wo_free(root);
+        return 0;
+    }
     wo_log_stage("Checking the installation");
-    bool ok = wo_reconcile(&mod, false, &progress, &result, &error);
+    ok = ok && wo_reconcile(&mod, false, &progress, &result, &error);
     wo_laps_mark(&laps, "reconcile_ms");
     if (ok && !result.installed) {
         ok = wo_fail(&error, WO_ERR_NOT_FOUND, "Run Setup / Install / repair before playing.");
@@ -498,7 +518,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
             wo_log_stage("Starting the game");
             stage = WO_STAGE_LAUNCH;
             DWORD exit_code = 0;
-            bool started = run_game(&mod, &laps, &exit_code, &error);
+            bool started = run_game(&mod, &lock, &laps, &exit_code, &error);
             ok = started && exit_code == 0;
             if (started && exit_code != 0) {
                 stage = WO_STAGE_GAME;
@@ -509,6 +529,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
         /* Refresh only, or the game was never started. */
         wo_laps_log(&laps, "launch_timing");
     }
+    wo_mod_unlock(&lock);
     save_game_logs(&mod);
     if (ok) {
         wo_log_text("complete", options.refresh_only ? "Assets refreshed without starting the game."

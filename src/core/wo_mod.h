@@ -35,11 +35,23 @@ void wo_mod_remove_work_dir(const WoMod *mod, const char *path);
  * path cannot be read also counts, to stay on the safe side). */
 bool wo_mod_game_running(const WoMod *mod);
 
+/* One process at a time changes an installation: Setup's jobs, Play's
+ * launch check and the updater each hold this lock, a named mutex for the
+ * mod folder, so none deletes or replaces what another is building. It is
+ * reentrant on the thread holding it. Waits up to wait_ms; WO_ERR_BUSY when
+ * another still holds it. */
+typedef struct WoModLock {
+    void *handle;
+} WoModLock;
+bool wo_mod_lock(const WoMod *mod, uint32_t wait_ms, WoModLock *lock, WoError *error);
+void wo_mod_unlock(WoModLock *lock);
+
 /* Keep disk use bounded (a whole installation stays well under 3 GB):
  *   - one previous game folder is kept, without its soundtracks (music/ is
  *     most of its size and is re-extracted from the sources anyway);
  *   - the newest WO_KEEP_UPDATE_BACKUPS update backups are kept;
- *   - install scratch sessions are removed, and other scratch sessions once
+ *   - install scratch sessions are removed (only ever run under the
+ *     installation lock, so none is in use), and other scratch sessions once
  *     older than WO_WORK_MAX_AGE_DAYS;
  *   - logs older than WO_LOG_MAX_AGE_DAYS are removed.
  * Unrecognised files are untouched. Failures are logged, never fatal. */

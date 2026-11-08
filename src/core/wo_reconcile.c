@@ -882,6 +882,11 @@ static void close_integrity_cache(WoHashCache *cache, bool complete, bool fresh)
 
 bool wo_reconcile(const WoMod *mod, bool force_repair, WoProgress *progress,
                   WoReconcileResult *result, WoError *error) {
+    WoModLock lock;
+    if (!wo_mod_lock(mod, 0, &lock, error)) {
+        memset(result, 0, sizeof(*result));
+        return false;
+    }
     WoLaps laps;
     wo_laps_begin(&laps);
     WoHashCache *cache = open_integrity_cache(mod, force_repair);
@@ -898,5 +903,6 @@ bool wo_reconcile(const WoMod *mod, bool force_repair, WoProgress *progress,
         wo_progress(progress, WO_STAGE_GENERAL, 100, "Installation checked and ready.");
     }
     wo_laps_log(&laps, "reconcile_timing");
+    wo_mod_unlock(&lock);
     return ok;
 }

@@ -326,8 +326,22 @@ static bool swap_in(const WoMod *mod, const char *stage, WoError *error) {
     return ok;
 }
 
+static bool install_locked(const WoMod *mod, const WoConfig *config, bool preserve_configuration,
+                           WoProgress *progress, WoError *error);
+
 bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configuration,
                 WoProgress *progress, WoError *error) {
+    WoModLock lock;
+    if (!wo_mod_lock(mod, 0, &lock, error)) {
+        return false;
+    }
+    bool ok = install_locked(mod, config, preserve_configuration, progress, error);
+    wo_mod_unlock(&lock);
+    return ok;
+}
+
+static bool install_locked(const WoMod *mod, const WoConfig *config, bool preserve_configuration,
+                           WoProgress *progress, WoError *error) {
     wo_progress(progress, WO_STAGE_GAME_SOURCE, 3, "Verifying sources");
     if (!config->game_source || !config->game_source[0]) {
         return wo_fail(error, WO_ERR_NOT_FOUND, "Select the Windows game source.");
@@ -389,6 +403,11 @@ bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configur
         options.ps1_source = psx_input;
         options.configured_source = psx_input ? config->psx_source : NULL;
         options.retain_from = wo_is_dir(mod->game) ? mod->game : NULL;
+        /* A previous WO4K installation as the source brings its patched
+         * sheets (wo_sd_extract); only original game data is pristine. */
+        char *previous_sd = wo_path_join(native, "textures/sd", error);
+        options.sheets_pristine = previous_sd && !wo_is_dir(previous_sd);
+        wo_free(previous_sd);
         WoJson *receipt = NULL;
         ok = wo_natives_install(&options, &receipt, error);
         ps1_textures = wo_json_bool(receipt, "ps1_textures", false);

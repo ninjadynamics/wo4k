@@ -556,9 +556,10 @@ static bool native_paths(const char *game_root, NativePaths *p, WoError *error) 
     return true;
 }
 
-static bool retain_caches(const char *retain_from, const char *game, WoError *error) {
+static bool retain_caches(const char *retain_from, const char *game, bool sheets_pristine,
+                          WoError *error) {
     static const char *const folders[] = {"textures/ps1-source", "textures/native-source"};
-    for (size_t i = 0; i < WO_COUNT(folders); i++) {
+    for (size_t i = 0; i < (sheets_pristine ? 1 : WO_COUNT(folders)); i++) {
         char *old = wo_path_join(retain_from, folders[i], error);
         char *now = old ? wo_path_child(game, folders[i], error) : NULL;
         bool ok = now && (!wo_is_dir(old) || wo_copy_tree(old, now, error));
@@ -572,10 +573,10 @@ static bool retain_caches(const char *retain_from, const char *game, WoError *er
 }
 
 /* Rebuild one sheet from its pristine copy; *built is false when the game
- * folder has no such sheet. */
+ * folder has no such sheet. Freshly extracted sheets are the pristine copy. */
 static bool build_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJson *plan,
-                        const char *atlas, WoNativeCounts *counts, WoJson *files, bool *built,
-                        WoError *error) {
+                        const char *atlas, bool sheets_pristine, WoNativeCounts *counts,
+                        WoJson *files, bool *built, WoError *error) {
     *built = false;
     char *target = wo_path_child(p->sd, atlas, error);
     char *pristine = target ? wo_path_child(p->original, atlas, error) : NULL;
@@ -587,7 +588,7 @@ static bool build_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJ
     if (wo_is_file(target)) {
         WoBuf bytes = {0};
         char hash[WO_SHA256_HEX_SIZE];
-        if (!wo_is_file(pristine)) {
+        if (sheets_pristine || !wo_is_file(pristine)) {
             ok = wo_copy_file(target, pristine, error);
         }
         ok = ok && wo_read_file(pristine, SHEET_MAX_BYTES, &bytes, error) &&
@@ -664,8 +665,8 @@ static bool build_all(const WoNativeOptions *options, const NativePaths *p, WoJs
     }
     for (size_t i = 0; ok && i < atlases.count; i++) {
         bool built = false;
-        ok = build_sheet(builder, p, options->plan, atlases.items[i], &counts, files, &built,
-                         error);
+        ok = build_sheet(builder, p, options->plan, atlases.items[i], options->sheets_pristine,
+                         &counts, files, &built, error);
         sheets += built ? 1 : 0;
     }
     if (ok && options->require_ps1 && counts.pending_ps1_regions) {
@@ -709,7 +710,7 @@ bool wo_natives_install(const WoNativeOptions *options, WoJson **receipt, WoErro
         }
     }
     if (options->retain_from) {
-        ok = retain_caches(options->retain_from, p.game, error);
+        ok = retain_caches(options->retain_from, p.game, options->sheets_pristine, error);
     }
     if (ok && options->ps1_source) {
         bool imported = false;

@@ -14,6 +14,18 @@
 - Keep the original MPEG movies when you add MP4 replacements, as the
   README promises: Install / repair deleted them, leaving no fallback.
 - Restore the screen after Alt+Tab during a movie in Exclusive mode.
+- Let only one of Setup and Play change the installation at a time. A
+  second Play started while the first was still preparing the game (a
+  double click), or Play started while Setup was installing, could delete
+  the other's work in progress. A second Play now waits for the first,
+  then leaves the running game alone instead of reporting an error and
+  deleting its logs.
+- Closing Setup in Repair mode no longer keeps the half-edited source
+  paths: they are saved only when you click Install, as Cancel already
+  implied. A cleared path there made Play refuse to start.
+- Install / repair rebuilds the cached original texture sheets from the
+  freshly extracted game data, so a damaged cache can no longer make every
+  launch and repair fail, or keep wrong colours.
 
 ## 0.2.0-beta.8
 

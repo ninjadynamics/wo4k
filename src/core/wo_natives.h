@@ -78,6 +78,10 @@ typedef struct WoNativeOptions {
     bool incremental;              /* keep a healthy build when nothing new is supplied */
     bool require_ps1;              /* the PlayStation artwork must be present and complete */
     WoHashCache *cache;            /* optional: digests of unchanged sheets */
+    /* The game folder's sheets were just extracted from original game data,
+     * so they are the pristine copies: the previous folder's are not kept,
+     * and a damaged one is never carried into a repair. */
+    bool sheets_pristine;
 } WoNativeOptions;
 
 /* Build every sheet in the plan and write textures/selection.json. Each

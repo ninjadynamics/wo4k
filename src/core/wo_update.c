@@ -394,9 +394,41 @@ static bool apply_package(const WoMod *mod, const char *zip_path, const char *se
                           const char *running_exe, const WoUpdateCallbacks *callbacks,
                           WoUpdateResult *result, bool *keep_session, WoError *error);
 
+static bool update_run_locked(const WoMod *mod, const char *running_exe,
+                              const WoUpdateCallbacks *callbacks, WoUpdateResult *result,
+                              WoError *error);
+static bool update_zip_locked(const WoMod *mod, const char *zip_path, const char *running_exe,
+                              const WoUpdateCallbacks *callbacks, WoUpdateResult *result,
+                              WoError *error);
+
 bool wo_update_run(const WoMod *mod, const char *running_exe, const WoUpdateCallbacks *callbacks,
                    WoUpdateResult *result, WoError *error) {
+    WoModLock lock;
     memset(result, 0, sizeof(*result));
+    if (!wo_mod_lock(mod, 0, &lock, error)) {
+        return false;
+    }
+    bool ok = update_run_locked(mod, running_exe, callbacks, result, error);
+    wo_mod_unlock(&lock);
+    return ok;
+}
+
+bool wo_update_from_zip(const WoMod *mod, const char *zip_path, const char *running_exe,
+                        const WoUpdateCallbacks *callbacks, WoUpdateResult *result,
+                        WoError *error) {
+    WoModLock lock;
+    memset(result, 0, sizeof(*result));
+    if (!wo_mod_lock(mod, 0, &lock, error)) {
+        return false;
+    }
+    bool ok = update_zip_locked(mod, zip_path, running_exe, callbacks, result, error);
+    wo_mod_unlock(&lock);
+    return ok;
+}
+
+static bool update_run_locked(const WoMod *mod, const char *running_exe,
+                              const WoUpdateCallbacks *callbacks, WoUpdateResult *result,
+                              WoError *error) {
     report(callbacks, 5, "Checking the latest release...");
     char *link = read_release_link(mod, error);
     char *endpoint = link ? wo_release_endpoint(link) : NULL;
@@ -440,10 +472,9 @@ bool wo_update_run(const WoMod *mod, const char *running_exe, const WoUpdateCall
     return ok;
 }
 
-bool wo_update_from_zip(const WoMod *mod, const char *zip_path, const char *running_exe,
-                        const WoUpdateCallbacks *callbacks, WoUpdateResult *result,
-                        WoError *error) {
-    memset(result, 0, sizeof(*result));
+static bool update_zip_locked(const WoMod *mod, const char *zip_path, const char *running_exe,
+                              const WoUpdateCallbacks *callbacks, WoUpdateResult *result,
+                              WoError *error) {
     char *session = wo_mod_new_work_dir(mod, "update-", error);
     bool keep_session = false;
     bool ok = session && apply_package(mod, zip_path, session, running_exe, callbacks, result,
