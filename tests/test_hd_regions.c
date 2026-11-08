@@ -110,12 +110,30 @@ static void test_hd_region_assets(void){
         UINT pages=*(WORD *)(header+12)/256,size=0;BYTE *page=hd_asset_pixels(filename,r->page,pages,&size);
         if(!page || size<256 || !hd_region_scale(r,w,h))ExitProcess(218);
         UINT scale=size/256,rw=r->width*scale,rh=r->height*scale;
+        /* An opaque RGB region keeps the native page's colour key, not the
+         * replacement's own exact black. */
+        WCHAR wholePath[MAX_PATH];BOOL strip=FALSE;
+        BYTE *native=hd_find(filename,r->page,wholePath,&strip)?0:hd_native_page(filename,r->page,pages,size);
         for(UINT y=0;y<rh;++y)for(UINT x=0;x<rw;++x){
-            const BYTE *a=image+((y*h/rh)*w+x*w/rw)*4,*b=page+(((r->y*scale+y)*size+r->x*scale+x)*4);
-            UINT alpha=r->alpha || (a[0]|a[1]|a[2])?a[3]:0;
+            UINT at=((r->y*scale+y)*size+r->x*scale+x)*4;
+            const BYTE *a=image+((y*h/rh)*w+x*w/rw)*4,*b=page+at;
+            UINT alpha=r->alpha?a[3]:(native?native[at+3]:b[3]);
             if(a[0]!=b[0] || a[1]!=b[1] || a[2]!=b[2] || alpha!=b[3])ExitProcess(219);
         }
+        if(native)VirtualFree(native,0,MEM_RELEASE);
         VirtualFree(image,0,MEM_RELEASE);VirtualFree(page,0,MEM_RELEASE);++tested;
     }
     if(tested!=hd_region_count)ExitProcess(220);
+    /* Black paint over an opaque native texel stays opaque; colour over a
+     * keyed texel stays transparent. A region with its own alpha keeps it. */
+    static BYTE keyed_page[256*256*4],paint[2*4];
+    static HdRegion painted;painted.x=10;painted.y=20;painted.width=2;painted.height=1;
+    BYTE *under=keyed_page+(20*256+10)*4;
+    under[3]=255;under[7]=0;
+    paint[3]=255;paint[4]=200;paint[5]=100;paint[6]=50;paint[7]=255;
+    hd_region_paste(keyed_page,256,&painted,paint,2,1);
+    if(under[3]!=255 || under[0] || under[7] || under[4]!=200)ExitProcess(250);
+    painted.alpha=1;paint[3]=0;under[3]=255;
+    hd_region_paste(keyed_page,256,&painted,paint,2,1);
+    if(under[3] || under[7]!=255)ExitProcess(251);
 }

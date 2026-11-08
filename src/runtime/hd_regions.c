@@ -89,11 +89,15 @@ static UINT hd_region_scale(const HdRegion *region,UINT w,UINT h) {
 static void hd_region_paste(BYTE *base,UINT size,const HdRegion *region,const BYTE *image,UINT w,UINT h) {
     UINT scale=size/256,left=region->x*scale,top=region->y*scale,rw=region->width*scale,rh=region->height*scale;
     for(UINT y=0;y<rh;++y)for(UINT x=0;x<rw;++x){
-        BYTE *dst=base+((top+y)*size+left+x)*4;
+        BYTE *dst=base+((top+y)*size+left+x)*4,key=dst[3];
         copy(dst,image+((y*h/rh)*w+x*w/rw)*4,4);
-        /* Exact black is the native key, including inside opaque RGB PNGs.
-         * An independent opaque upload ignores this alpha when keying is off. */
-        if(!region->alpha && !(dst[0]|dst[1]|dst[2]))dst[3]=0;
+        /* An opaque RGB replacement keeps the native texture's colour key:
+         * the original keyed texels stay transparent, and nothing else does.
+         * Keying by the replacement's own exact black punched holes wherever
+         * upscaling had crushed dark paint to black (Phenitia Park's tunnel
+         * panels: 28% keyed natively, 50% exact black in HD). An independent
+         * opaque upload ignores this alpha when keying is off. */
+        if(!region->alpha)dst[3]=key;
     }
 }
 static BYTE *hd_compose_regions(const char *filename,UINT page,UINT pages,BYTE *base,UINT *size) {

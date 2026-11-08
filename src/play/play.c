@@ -291,7 +291,7 @@ static void save_game_logs(const WoMod *mod) {
                 {"video-intro.log", false, NULL}, {"video-xtro1.log", false, NULL},
                 {"video-xtro2.log", false, NULL}, {"video-xtro3.log", false, NULL},
                 {"video-xtro4.log", false, NULL}, {"video-error.log", false, NULL},
-                {"game.log", false, "title_left "}};
+                {"controller.log", false, NULL},  {"game.log", false, "title_left "}};
     char *paths[WO_COUNT(logs)] = {0};
     size_t present = 0;
     for (size_t i = 0; i < WO_COUNT(logs); i++) {
@@ -316,6 +316,9 @@ static void save_game_logs(const WoMod *mod) {
                                      logs[i].start_marker);
         left -= wrote < left ? wrote : left;
         present--;
+        /* Each run writes these afresh. Kept, they looked like logs to send:
+         * a crash-free game-crash.log is only its four header lines. */
+        wo_delete_file(paths[i], NULL);
         wo_free(paths[i]);
     }
 }

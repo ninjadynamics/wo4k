@@ -1,5 +1,19 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.8
+
+- Fix track panels drawn nearly see-through with HD artwork on, such as at
+  the Phenitia Park tunnel. HD replacements now keep exactly the original
+  texture's transparent pixels, instead of turning all their pure black
+  transparent: upscaling had crushed dark paint to black.
+- Delete the game's separate log files once Play has copied them into the
+  session log, so only the `play-….log` files to share are left in `logs\`.
+  The controller log is included now too.
+- Log frame pacing during races once a second: the usual frame time, late
+  and empty frames, and failed effect rewrites, with the first few late
+  frames timed. Capture software such as OBS can cause hitches and black
+  frames; this shows them in the log.
+
 ## 0.2.0-beta.7
 
 - Show the intro and ending movies in Exclusive fullscreen mode. There the

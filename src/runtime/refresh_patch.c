@@ -12,6 +12,15 @@ static DWORD menu_profile_frames,menu_profile_max_us,menu_profile_late;
 static DWORD stall_present_max_us,stall_frame_max_us,stall_frame_count,stall_present_count;
 static LARGE_INTEGER profile_frame_end;
 static BOOL profile_frame_valid;
+/* Race pacing, once a second: the typical interval between presentations
+ * (median), how many came later than 1.5 times that, and how many presents
+ * executed no queued buffers, which shows an empty, black frame. The first
+ * few late frames each second are logged with their present/work split. */
+#define PACING_BUCKET_US 250
+#define PACING_BUCKETS 160 /* up to 40 ms; the last also counts longer ones */
+static DWORD pacing_buckets[PACING_BUCKETS],pacing_frames,pacing_empty,pacing_median_us,pacing_hitches_logged;
+static LARGE_INTEGER pacing_last;
+static BOOL pacing_last_valid;
 static RefreshVoidFn old_refresh_reset,old_refresh_input;
 static RefreshSkeletonFn old_refresh_skeleton;
 static LARGE_INTEGER refresh_frequency,refresh_last_time,refresh_measure_time;
@@ -161,6 +170,7 @@ static int __cdecl refresh_present(void) {
         if(us>=50000)++stall_frame_count;
     }
     title_overlay_present();
+    if(race && !*(UINT *)(game+0x8f8dc))++pacing_empty;
     int result=old_refresh_present();QueryPerformanceCounter(&end);
     ui_hd_presented();
     double ui_seconds=ui_last_time.QuadPart?(double)(end.QuadPart-ui_last_time.QuadPart)/refresh_frequency.QuadPart:0;
@@ -189,8 +199,19 @@ static int __cdecl refresh_present(void) {
         DWORD us=refresh_elapsed_us(begin,end);
         if(us>stall_present_max_us)stall_present_max_us=us;
         if(us>=50000)++stall_present_count;
+        if(pacing_last_valid) {
+            DWORD interval=refresh_elapsed_us(pacing_last,end),bucket=interval/PACING_BUCKET_US;
+            ++pacing_buckets[bucket<PACING_BUCKETS?bucket:PACING_BUCKETS-1];++pacing_frames;
+            if(pacing_median_us && interval*2>pacing_median_us*3 && pacing_hitches_logged<3) {
+                ++pacing_hitches_logged;
+                wo_render_event("pacing_late_us",interval);
+                wo_render_event("pacing_late_present_us",us);
+                wo_render_event("pacing_late_work_us",profile_frame_valid?refresh_elapsed_us(profile_frame_end,begin):0);
+            }
+        }
+        pacing_last=end;pacing_last_valid=TRUE;
         profile_frame_end=end;profile_frame_valid=TRUE;
-    }
+    } else pacing_last_valid=FALSE;
     return result;
 }
 static UINT advance_refresh_clock(double seconds) {
@@ -300,6 +321,8 @@ static void __cdecl __attribute__((noinline)) refresh_reset(void) {
     refresh_extra_serial=0;if(simulation_active)wo_sim_reset();refresh_pose_valid=FALSE;
     refresh_frames_measured=refresh_ticks_measured=refresh_measured_fps=0;
     profile_frame_valid=FALSE;stall_present_max_us=stall_frame_max_us=stall_frame_count=stall_present_count=0;
+    for(UINT i=0;i<PACING_BUCKETS;++i)pacing_buckets[i]=0;
+    pacing_frames=pacing_empty=pacing_median_us=pacing_hitches_logged=0;pacing_last_valid=FALSE;
     for(UINT i=0;i<4096;++i)render_history[i].skeleton=0;
     QueryPerformanceCounter(&refresh_last_time);refresh_measure_time=refresh_last_time;
     *(DWORD *)(game+0x89c7c)=2;
@@ -340,6 +363,18 @@ static int __cdecl __attribute__((noinline)) refresh_clock(int unused) {
         wo_render_event("profile_work_max_us",stall_frame_max_us);
         wo_render_event("profile_present_over_50ms",stall_present_count);
         wo_render_event("profile_work_over_50ms",stall_frame_count);
+        if(pacing_frames) {
+            DWORD seen=0,median=0,late=0;
+            for(UINT i=0;i<PACING_BUCKETS;++i){seen+=pacing_buckets[i];if(seen*2>=pacing_frames){median=i;break;}}
+            pacing_median_us=median*PACING_BUCKET_US+PACING_BUCKET_US/2;
+            for(UINT i=0;i<PACING_BUCKETS;++i)if((i*PACING_BUCKET_US)*2>pacing_median_us*3)late+=pacing_buckets[i];
+            wo_render_event("pacing_median_us",pacing_median_us);
+            wo_render_event("pacing_late_frames",late);
+        }
+        wo_render_event("pacing_empty_frames",pacing_empty);
+        wo_render_event("effect_rewrite_failures",effect_rewrite_failures);effect_rewrite_failures=0;
+        for(UINT i=0;i<PACING_BUCKETS;++i)pacing_buckets[i]=0;
+        pacing_frames=pacing_empty=pacing_hitches_logged=0;
         stall_present_max_us=stall_frame_max_us=stall_frame_count=stall_present_count=0;
         refresh_frames_measured=refresh_ticks_measured=0;refresh_measure_time=now;
     }

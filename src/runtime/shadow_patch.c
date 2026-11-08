@@ -147,6 +147,10 @@ static BOOL emit_world_reset(BYTE *output,UINT *written,UINT capacity) {
     *(UINT *)(p+4)=15;*(UINT *)(p+8)=0;
     *written+=12;return TRUE;
 }
+/* A rewrite that cannot complete leaves the buffer native: its effect
+ * triangles then draw with the game's opaque state. Counted per second. */
+static DWORD effect_rewrite_failures;
+static UINT effect_rewrite_failed(void){++effect_rewrite_failures;return 0;}
 static UINT rewrite_effect_material_ps1(const BYTE *input,UINT length,BYTE *output,UINT capacity,DWORD handle15,DWORD handle16,
                                    const BYTE *vertices,UINT vertex_count,BOOL screen,const WORD *white_indices) {
     UINT original[6]={0,2,2,2,1,1},effective[6]={0,2,2,2,1,1};
@@ -160,24 +164,24 @@ static UINT rewrite_effect_material_ps1(const BYTE *input,UINT length,BYTE *outp
          * placeholder and fills it AFTER this rewrite. Keep that packet at
          * its native address; insert states immediately AFTER it. */
         for(UINT at=0;at<length;) {
-            if(length-at<4)return 0;
+            if(length-at<4)return effect_rewrite_failed();
             UINT size=input[at+1],n=*(const WORD *)(input+at+2),bytes=4+size*n;
-            if(bytes>length-at)return 0;
+            if(bytes>length-at)return effect_rewrite_failed();
             if(input[at]==9){reset_at=at+bytes;break;}
             at+=bytes;
         }
     }
     while(offset<length) {
-        if(length-offset<4)return 0;
+        if(length-offset<4)return effect_rewrite_failed();
         UINT opcode=input[offset],size=input[offset+1],n=*(const WORD *)(input+offset+2);
         UINT bytes=4+size*n;
-        if(bytes>length-offset)return 0;
+        if(bytes>length-offset)return effect_rewrite_failed();
         if(!reset_done && offset==reset_at) {
-            if(!emit_world_reset(output,&written,capacity))return 0;
+            if(!emit_world_reset(output,&written,capacity))return effect_rewrite_failed();
             reset_done=TRUE;touched=TRUE;
         }
         if(opcode==8) {
-            if(size!=8)return 0;
+            if(size!=8)return effect_rewrite_failed();
             for(UINT j=0;j<n;++j) {
                 UINT state=*(const UINT *)(input+offset+4+j*8),value=*(const UINT *)(input+offset+8+j*8);
                 if(state==1)texture=value;
@@ -185,7 +189,7 @@ static UINT rewrite_effect_material_ps1(const BYTE *input,UINT length,BYTE *outp
             }
         }
         if(opcode==3) {
-            if(size!=8)return 0;
+            if(size!=8)return effect_rewrite_failed();
             UINT first=0;
             while(first<n) {
                 const BYTE *triangle=input+offset+4+first*8;
@@ -204,7 +208,7 @@ static UINT rewrite_effect_material_ps1(const BYTE *input,UINT length,BYTE *outp
                      * 1 - clamp(1-B+F) = clamp(B-F). Run per triangle so
                      * intersecting smoke quads cannot cancel the inversions.
                      * Depth writes stay off, including the two white passes. */
-                    if(!white_indices || !texture)return 0;
+                    if(!white_indices || !texture)return effect_rewrite_failed();
                     for(UINT tri=first;tri<last;++tri){
                         const BYTE *source=input+offset+4+tri*8;
                         if(!ps1_texture_state(output,&written,capacity,0) ||
@@ -216,7 +220,7 @@ static UINT rewrite_effect_material_ps1(const BYTE *input,UINT length,BYTE *outp
                            !ps1_texture_state(output,&written,capacity,0) ||
                            !emit_material(output,&written,capacity,effective,ps1_invert_values) ||
                            !ps1_triangle(output,&written,capacity,source,white_indices,vertex_count) ||
-                           !ps1_texture_state(output,&written,capacity,texture))return 0;
+                           !ps1_texture_state(output,&written,capacity,texture))return effect_rewrite_failed();
                     }
                     touched=TRUE;first=last;continue;
                 }
@@ -226,9 +230,9 @@ static UINT rewrite_effect_material_ps1(const BYTE *input,UINT length,BYTE *outp
                  * of multiplying filtered coverage a second time. */
                 sprite_values[0]=1;sprite_values[1]=2;sprite_values[3]=4;sprite_values[4]=0;sprite_values[5]=1;
                 const UINT *wanted=kind==7?ps1_add_values:(kind==1?shadow_values:(kind==2?trail_values:(kind==3?flare_values:(kind==4?backdrop_values:(kind==5?sprite_values:original)))));
-                if(!emit_material(output,&written,capacity,effective,wanted))return 0;
+                if(!emit_material(output,&written,capacity,effective,wanted))return effect_rewrite_failed();
                 UINT run_bytes=(last-first)*8;
-                if(written+4+run_bytes>capacity)return 0;
+                if(written+4+run_bytes>capacity)return effect_rewrite_failed();
                 output[written]=3;output[written+1]=8;*(WORD *)(output+written+2)=(WORD)(last-first);
                 copy(output+written+4,triangle,run_bytes);written+=4+run_bytes;
                 if(kind)touched=TRUE;
@@ -236,11 +240,11 @@ static UINT rewrite_effect_material_ps1(const BYTE *input,UINT length,BYTE *outp
             }
             offset+=bytes;continue;
         }
-        if(written+bytes>capacity)return 0;
+        if(written+bytes>capacity)return effect_rewrite_failed();
         copy(output+written,input+offset,bytes);written+=bytes;offset+=bytes;
     }
-    if(!reset_done){if(!emit_world_reset(output,&written,capacity))return 0;touched=TRUE;}
-    if(!emit_material(output,&written,capacity,effective,original))return 0;
+    if(!reset_done){if(!emit_world_reset(output,&written,capacity))return effect_rewrite_failed();touched=TRUE;}
+    if(!emit_material(output,&written,capacity,effective,original))return effect_rewrite_failed();
     return touched?written:0;
 }
 static UINT rewrite_effect_material(const BYTE *input,UINT length,BYTE *output,UINT capacity,DWORD handle15,DWORD handle16,
