@@ -26,6 +26,15 @@
 - Install / repair rebuilds the cached original texture sheets from the
   freshly extracted game data, so a damaged cache can no longer make every
   launch and repair fail, or keep wrong colours.
+- Read disc sources more forgivingly. A folder holding another rip's
+  unreadable CUE or MDS beside the right disc no longer stops the install;
+  a lone .bin with no .cue installs as Setup said it would; a CUE whose
+  last track runs a fraction of a sector past the end of its .bin imports;
+  and a game ZIP with a stray entry that cannot be extracted (such as a
+  macOS Icon file) installs without it.
+- A crafted disc image can no longer write more than its own size.
+- Setup's audio mode change takes effect when Wipeout2097.ini has comments
+  after `[Audio]` or the value.
 
 ## 0.2.0-beta.8
 

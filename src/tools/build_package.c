@@ -157,10 +157,13 @@ static bool collect(WoStrList *paths, WoError *error) {
     for (size_t i = 0; ok && i < WO_COUNT(top_level); i++) {
         ok = add_path(paths, top_level[i], error);
     }
+    /* Every one ships: a package without one would make the updater's
+     * retired-file cleanup delete it from installations. */
     for (size_t i = 0; ok && i < WO_COUNT(runtime_files); i++) {
-        if (wo_is_file(runtime_files[i])) {
-            ok = add_path(paths, runtime_files[i], error);
-        }
+        ok = wo_is_file(runtime_files[i])
+                 ? add_path(paths, runtime_files[i], error)
+                 : wo_fail(error, WO_ERR_NOT_FOUND, "%s is missing; build it first.",
+                           runtime_files[i]);
     }
     for (size_t f = 0; ok && f < WO_COUNT(folders); f++) {
         WoTreeList files = {0};

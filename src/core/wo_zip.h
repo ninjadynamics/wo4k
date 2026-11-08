@@ -37,6 +37,10 @@ typedef struct WoZipLimits {
     uint64_t max_total_bytes;
     size_t max_entries;
     bool reject_duplicates; /* case-insensitive duplicate names */
+    /* Leave out entries that cannot be extracted safely (a macOS "Icon\r",
+     * a link, an encrypted file) instead of rejecting the archive: for
+     * user-supplied sources, whose needed files are checked afterwards. */
+    bool skip_unsafe;
 } WoZipLimits;
 
 /* Extract every entry beneath dest_dir after checking all names and the

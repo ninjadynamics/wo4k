@@ -170,8 +170,78 @@ static void test_iso_and_mds(void) {
     wo_free(path);
 }
 
+/* A .bin with no .cue beside it imports as a plain image, as the probe
+ * offers it. */
+static void test_lone_bin(void) {
+    const char *dir = wo_test_dir("disc-lone-bin");
+    if (!dir) {
+        return;
+    }
+    IsoImage iso;
+    iso_build_sample(&iso, "BOOT = cdrom:\\SLES_003.27;1\r\n");
+    size_t len = 0;
+    uint8_t *raw = iso_raw(&iso, 2352, 24, 0, &len);
+    write_bytes(dir, "game.bin", raw, len);
+    wo_free(raw);
+    wo_free(iso.data);
+    WoError error = {0};
+    char *bin = wo_path_join(dir, "game.bin", &error);
+    char *image = NULL;
+    uint64_t offset = 1;
+    CHECK_OK(wo_disc_data_track(bin, &image, &offset, &error), &error);
+    CHECK(image && wo_str_ieq(image, bin) && offset == 0);
+    wo_free(image);
+    char *out = wo_path_join(dir, "imported", &error);
+    size_t calls = 0;
+    size_t imported = 0;
+    CHECK_OK(wo_disc_import_image(bin, out, common_only, &calls, &imported, &error), &error);
+    CHECK(imported == 2);
+    wo_free(out);
+    wo_free(bin);
+}
+
+static bool accept_all(void *context, const char *relative) {
+    (void)context;
+    (void)relative;
+    return true;
+}
+
+/* A crafted image whose entries all cover the whole image writes no more
+ * than the image holds. */
+static void test_overlapping_entries(void) {
+    const char *dir = wo_test_dir("disc-overlap");
+    if (!dir) {
+        return;
+    }
+    const size_t sectors = 64;
+    IsoImage iso;
+    iso_init(&iso, sectors);
+    iso_pvd(&iso, 18, ISO_SECTOR);
+    size_t at = iso_dir_begin(&iso, 18, ISO_SECTOR);
+    at += iso_record(iso_sector(&iso, 18) + at, "COMMON", 6, 19, ISO_SECTOR, true);
+    at = iso_dir_begin(&iso, 19, ISO_SECTOR);
+    for (unsigned i = 0; i < 8; i++) {
+        char name[16];
+        int n = snprintf(name, sizeof(name), "F%02u.DAT;1", i);
+        at += iso_record(iso_sector(&iso, 19) + at, name, (size_t)n, 0,
+                         (uint32_t)(sectors * ISO_SECTOR), false);
+    }
+    write_bytes(dir, "overlap.iso", iso.data, sectors * ISO_SECTOR);
+    wo_free(iso.data);
+    WoError error = {0};
+    char *image = wo_path_join(dir, "overlap.iso", &error);
+    char *out = wo_path_join(dir, "out", &error);
+    size_t imported = 0;
+    CHECK_FAILS(wo_disc_import(image, 0, out, accept_all, NULL, &imported, &error), &error,
+                WO_ERR_LIMIT);
+    wo_free(out);
+    wo_free(image);
+}
+
 int main(void) {
     RUN(test_cue_bin);
     RUN(test_iso_and_mds);
+    RUN(test_lone_bin);
+    RUN(test_overlapping_entries);
     return wo_test_finish();
 }

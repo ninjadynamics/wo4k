@@ -60,13 +60,13 @@ static void test_round_trip(void) {
     wo_buf_free(&buf);
 
     char *out = wo_path_join(dir, "out", &error);
-    WoZipLimits limits = {1024, 10, true};
+    WoZipLimits limits = {1024, 10, true, false};
     CHECK_OK(wo_zip_extract_all(zip, out, &limits, &error), &error);
     char *extracted = wo_path_join(out, "runtime/wohr.dll", &error);
     CHECK(wo_is_file(extracted));
-    WoZipLimits tight = {10, 10, true};
+    WoZipLimits tight = {10, 10, true, false};
     CHECK_FAILS(wo_zip_extract_all(zip, out, &tight, &error), &error, WO_ERR_LIMIT);
-    WoZipLimits few = {0, 1, false};
+    WoZipLimits few = {0, 1, false, false};
     CHECK_FAILS(wo_zip_extract_all(zip, out, &few, &error), &error, WO_ERR_LIMIT);
     wo_zip_close(zip);
     wo_free(extracted);
@@ -97,7 +97,7 @@ static void test_hostile_names(void) {
         CHECK_OK(wo_zip_open(path, &zip, &error), &error);
         if (zip) {
             char *out = wo_path_join(dir, "out", &error);
-            WoZipLimits limits = {0, 0, true};
+            WoZipLimits limits = {0, 0, true, false};
             if (wo_zip_extract_all(zip, out, &limits, &error)) {
                 wo_test_fail(__FILE__, __LINE__, hostile[i], "was extracted");
             } else {
@@ -105,6 +105,13 @@ static void test_hostile_names(void) {
             }
             /* Nothing is written when an archive is rejected up front. */
             CHECK(!wo_exists(out));
+            /* A game source leaves the entry out and takes the rest. */
+            WoZipLimits lenient = {0, 0, true, true};
+            CHECK_OK(wo_zip_extract_all(zip, out, &lenient, &error), &error);
+            char *kept = wo_path_join(out, "ok.txt", &error);
+            CHECK(kept && wo_is_file(kept));
+            wo_free(kept);
+            wo_delete_tree(dir, out, NULL);
             wo_free(out);
             wo_zip_close(zip);
         }
@@ -128,7 +135,7 @@ static void test_duplicates_and_cp437(void) {
     CHECK_OK(wo_zip_open(path, &zip, &error), &error);
     if (zip) {
         char *out = wo_path_join(dir, "out", &error);
-        WoZipLimits strict = {0, 0, true};
+        WoZipLimits strict = {0, 0, true, false};
         CHECK_FAILS(wo_zip_extract_all(zip, out, &strict, &error), &error, WO_ERR_FORMAT);
         wo_free(out);
         wo_zip_close(zip);

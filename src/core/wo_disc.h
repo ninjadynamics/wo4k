@@ -37,6 +37,11 @@ typedef bool (*WoDiscFilterFn)(void *context, const char *relative);
 bool wo_disc_import(const char *image, uint64_t offset, const char *destination,
                     WoDiscFilterFn filter, void *context, size_t *imported, WoError *error);
 
+/* Charges an entry to an import's budget, which starts at the image's size:
+ * a disc's files never hold more than the disc, so entries that overlap
+ * (in a crafted image) cannot multiply what is written. */
+bool wo_disc_budget_take(uint64_t *budget, const WoIsoEntry *entry, WoError *error);
+
 /* Convenience: wo_disc_data_track followed by wo_disc_import. */
 bool wo_disc_import_image(const char *path, const char *destination, WoDiscFilterFn filter,
                           void *context, size_t *imported, WoError *error);

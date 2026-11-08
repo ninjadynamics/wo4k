@@ -95,12 +95,22 @@ bool wo_disc_tracks(const char *path, WoTrackList *out, WoError *error) {
     return true;
 }
 
+static bool has_cue_sibling(const char *bin) {
+    char *cue = wo_path_change_extension(bin, ".cue", NULL);
+    bool exists = cue && wo_is_file(cue);
+    wo_free(cue);
+    return exists;
+}
+
 bool wo_disc_data_track(const char *path, char **image, uint64_t *offset, WoError *error) {
     *image = NULL;
     *offset = 0;
     const char *ext = wo_path_extension(path);
+    /* A .bin with no .cue beside it is a plain image, as the probe that
+     * offered it treats it. */
     bool described = wo_str_ieq(ext, ".mds") || wo_str_ieq(ext, ".mdf") ||
-                     wo_str_ieq(ext, ".cue") || wo_str_ieq(ext, ".bin");
+                     wo_str_ieq(ext, ".cue") ||
+                     (wo_str_ieq(ext, ".bin") && has_cue_sibling(path));
     if (!described) {
         *image = wo_path_full(path, error);
         return *image != NULL;
@@ -176,12 +186,15 @@ bool wo_disc_import(const char *image, uint64_t offset, const char *destination,
     WoIso iso;
     bool ok = wo_iso_open(&iso, &source, offset, error);
     size_t count = 0;
+    uint64_t budget = source.size;
     for (size_t i = 0; ok && i < iso.count; i++) {
         const WoIsoEntry *entry = &iso.entries[i];
         if (entry->is_dir || !filter(context, entry->path)) {
             continue;
         }
-        char *target = wo_path_child(destination, entry->path, error);
+        char *target = wo_disc_budget_take(&budget, entry, error)
+                           ? wo_path_child(destination, entry->path, error)
+                           : NULL;
         ok = target && wo_disc_extract_entry(&iso, entry, target, error);
         wo_free(target);
         count += ok ? 1 : 0;
@@ -192,6 +205,15 @@ bool wo_disc_import(const char *image, uint64_t offset, const char *destination,
         *imported = count;
     }
     return ok;
+}
+
+bool wo_disc_budget_take(uint64_t *budget, const WoIsoEntry *entry, WoError *error) {
+    if (entry->length > *budget) {
+        return wo_fail(error, WO_ERR_LIMIT,
+                       "The disc image lists more data than it holds (at \"%s\").", entry->path);
+    }
+    *budget -= entry->length;
+    return true;
 }
 
 bool wo_disc_import_image(const char *path, const char *destination, WoDiscFilterFn filter,

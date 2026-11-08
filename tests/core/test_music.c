@@ -167,10 +167,15 @@ static void test_extract_from_disc(void) {
     char *nothing = wo_path_join(root, "nothing", &error);
     CHECK_FAILS(wo_music_extract(nothing, psx, WO_MUSIC_PC, true, &extracted, &error), &error,
                 WO_ERR_NOT_FOUND);
-    /* A broken descriptor is an error even with allow_missing. */
+    /* A broken descriptor is an error, even with allow_missing, when no
+     * other matches; beside the matching disc it is skipped. */
     put_text(sub, "broken.cue", "TRACK 01 AUDIO\n");
     CHECK_FAILS(wo_music_extract(discs, psx, WO_MUSIC_PSX, true, &extracted, &error), &error,
                 WO_ERR_FORMAT);
+    char *again = wo_path_join(root, "again", &error);
+    CHECK_OK(wo_music_extract(discs, again, WO_MUSIC_PC, false, &extracted, &error), &error);
+    CHECK(extracted && has(again, "track02.wav"));
+    wo_free(again);
 
     /* Installing the extracted bank. */
     char *game = wo_path_join(root, "game", &error);
@@ -262,10 +267,50 @@ static void test_toc_encodings(void) {
     wo_free(dir);
 }
 
+/* A BIN ending in a partial sector: the TOC rounds the last track up, as
+ * the previous implementation did, and the WAV holds the whole sectors. */
+static void test_partial_last_sector(void) {
+    const char *root = wo_test_dir("music-partial");
+    if (!root) {
+        return;
+    }
+    WoError error = {0};
+    char *discs = wo_path_join(root, "discs", &error);
+    write_disc(discs, "pc", 9);
+    char *bin = wo_path_join(discs, "pc.bin", &error);
+    WoBuf bytes = {0};
+    CHECK_OK(wo_read_file(bin, 1 << 20, &bytes, &error), &error);
+    size_t whole = bytes.len;
+    uint8_t *longer = wo_alloc(whole + 1500, &error);
+    CHECK(longer != NULL);
+    if (longer) {
+        memcpy(longer, bytes.data, whole);
+        memcpy(longer + whole, bytes.data + whole - 1500, 1500);
+        CHECK_OK(wo_write_file(bin, longer, whole + 1500, &error), &error);
+    }
+    wo_free(longer);
+    wo_buf_free(&bytes);
+    char *out = wo_path_join(root, "out", &error);
+    bool extracted = false;
+    CHECK_OK(wo_music_extract(discs, out, WO_MUSIC_PC, false, &extracted, &error), &error);
+    char *last = wo_path_join(out, "track10.wav", &error);
+    WoFileInfo info;
+    CHECK_OK(extracted && wo_stat(last, &info, &error), &error);
+    CHECK(info.exists && info.size == 44 + TRACK_SECTORS * 2352);
+    char *toc = read_all(out, "tracks.ini");
+    CHECK(toc && strstr(toc, "[Track10]") && strstr(strstr(toc, "[Track10]"), "Frames=5"));
+    wo_free(toc);
+    wo_free(last);
+    wo_free(out);
+    wo_free(bin);
+    wo_free(discs);
+}
+
 int main(void) {
     RUN(test_toc_matching);
     RUN(test_find_and_copy_folder);
     RUN(test_extract_from_disc);
     RUN(test_toc_encodings);
+    RUN(test_partial_last_sector);
     return wo_test_finish();
 }

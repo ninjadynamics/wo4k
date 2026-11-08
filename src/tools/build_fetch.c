@@ -124,7 +124,7 @@ bool build_fetch(const char *manifest_path, const char *deps, WoError *error) {
             }
             if (ok && wo_str_iends_with(archive_name, ".zip")) {
                 WoZip *zip = NULL;
-                WoZipLimits limits = {2ull << 30, 200000, false};
+                WoZipLimits limits = {2ull << 30, 200000, false, false};
                 ok = wo_zip_open(archive, &zip, error) && wo_zip_extract_all(zip, deps, &limits, error);
                 wo_zip_close(zip);
             } else if (ok) {

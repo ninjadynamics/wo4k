@@ -80,7 +80,7 @@ char *wo_resolve_input(const char *source, const char *work, WoError *error) {
     if (wo_str_iends_with(full, ".zip") && wo_is_file(full)) {
         char *destination = random_child(work, "", error);
         WoZip *zip = NULL;
-        WoZipLimits limits = {SOURCE_ZIP_LIMIT, 0, false};
+        WoZipLimits limits = {SOURCE_ZIP_LIMIT, 0, false, true};
         bool ok = destination && wo_zip_open(full, &zip, error) &&
                   wo_zip_extract_all(zip, destination, &limits, error);
         wo_zip_close(zip);

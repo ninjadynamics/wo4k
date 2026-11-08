@@ -378,6 +378,9 @@ bool wo_zip_extract_all(WoZip *zip, const char *dest_dir, const WoZipLimits *lim
     uint64_t total = 0;
     for (size_t i = 0; i < zip->count; i++) {
         const WoZipEntry *entry = &zip->entries[i];
+        if (!entry->safe && limits->skip_unsafe) {
+            continue;
+        }
         if (!entry->safe) {
             return wo_fail(error, WO_ERR_UNSAFE,
                            "%s contains an entry that cannot be extracted safely: \"%s\".",
@@ -399,6 +402,9 @@ bool wo_zip_extract_all(WoZip *zip, const char *dest_dir, const WoZipLimits *lim
     }
     for (size_t i = 0; i < zip->count; i++) {
         const WoZipEntry *entry = &zip->entries[i];
+        if (!entry->safe) {
+            continue; /* skip_unsafe: checked above */
+        }
         char *target = wo_path_child(dest_dir, entry->name, error);
         if (!target) {
             return false;

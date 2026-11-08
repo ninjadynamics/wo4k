@@ -125,7 +125,7 @@ static bool verify_package(const char *zip_path, const char *stage, WoInventory 
     if (!wo_zip_open(zip_path, &zip, error)) {
         return false;
     }
-    WoZipLimits limits = {PACKAGE_MAX_EXTRACTED, PACKAGE_MAX_ENTRIES, true};
+    WoZipLimits limits = {PACKAGE_MAX_EXTRACTED, PACKAGE_MAX_ENTRIES, true, false};
     bool ok = wo_zip_extract_all(zip, stage, &limits, error);
     size_t file_entries = 0;
     for (size_t i = 0; ok && i < wo_zip_count(zip); i++) {

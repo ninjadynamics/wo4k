@@ -6,6 +6,7 @@
 #include "core/wo_disc.h"
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
+#include "core/wo_log.h"
 #include "core/wo_tree.h"
 
 #define TOC_MAX_BYTES (1024u * 1024u)
@@ -220,9 +221,13 @@ static bool has_cue_sibling(const char *bin) {
     return exists;
 }
 
+/* A descriptor that cannot be read (another rip's CUE, a stray MDS) is
+ * skipped: another in the folder may still be the disc. Its error is
+ * reported when none matches, so a broken disc is not taken for none. */
 static bool choose_tracks(const WoStrList *descriptors, size_t wanted, bool allow_missing,
                           WoTrackList *chosen, bool *found, WoError *error) {
     *found = false;
+    WoError skipped = {0};
     for (size_t i = 0; i < descriptors->count; i++) {
         const char *descriptor = descriptors->items[i];
         if (allow_missing && wo_str_ieq(wo_path_extension(descriptor), ".bin") &&
@@ -230,8 +235,13 @@ static bool choose_tracks(const WoStrList *descriptors, size_t wanted, bool allo
             continue;
         }
         WoTrackList tracks;
-        if (!wo_disc_tracks(descriptor, &tracks, error)) {
-            return false;
+        WoError unreadable = {0};
+        if (!wo_disc_tracks(descriptor, &tracks, &unreadable)) {
+            wo_log_text("disc_descriptor_skipped", unreadable.message);
+            if (!wo_error_is_set(&skipped)) {
+                skipped = unreadable;
+            }
+            continue;
         }
         if (wo_tracks_audio_count(&tracks) == wanted) {
             *chosen = tracks;
@@ -239,6 +249,12 @@ static bool choose_tracks(const WoStrList *descriptors, size_t wanted, bool allo
             return true;
         }
         wo_tracks_free(&tracks);
+    }
+    if (wo_error_is_set(&skipped)) {
+        if (error) {
+            *error = skipped;
+        }
+        return false;
     }
     return true;
 }
@@ -253,8 +269,16 @@ static bool convert_tracks(const WoTrackList *tracks, const char *destination, W
         }
         char name[32];
         snprintf(name, sizeof(name), "track%02d.wav", t->number);
+        /* The TOC rounds a file's partial last sector up, as the previous
+         * implementation did; the WAV holds the whole sectors there are. */
+        uint64_t frames = t->frames;
+        WoFileInfo image;
+        if (wo_stat(t->image, &image, NULL) && image.exists && image.size > t->offset &&
+            (image.size - t->offset) / t->stride + 1 == frames) {
+            frames--;
+        }
         char *target = wo_path_child(destination, name, error);
-        ok = target && wo_cdaudio_extract(t->image, t->offset, t->frames, t->stride, target, error);
+        ok = target && wo_cdaudio_extract(t->image, t->offset, frames, t->stride, target, error);
         wo_free(target);
     }
     char *toc_path = ok ? wo_path_child(destination, TOC_NAME, error) : NULL;

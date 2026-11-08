@@ -70,6 +70,16 @@ static void test_sound_mode(void) {
     CHECK_STR(text, "[Render]\r\nShowFPS=1\r\n\r\n[Audio]\r\nSoundMode=1\r\n");
     wo_free(text);
     wo_free(bare);
+
+    /* Comments after a section name or a value, as Windows reads them. */
+    char *commented = write_temp(dir, "commented.ini",
+                                 "[Audio] ; sound\nSoundMode=5 ; surround\n");
+    CHECK(wo_settings_get_sound_mode(commented) == 5);
+    CHECK_OK(wo_settings_set_sound_mode(commented, 1, &error), &error);
+    text = read_back(commented);
+    CHECK_STR(text, "[Audio] ; sound\r\nSoundMode=1\r\n");
+    wo_free(text);
+    wo_free(commented);
     wo_free(path);
 }
 

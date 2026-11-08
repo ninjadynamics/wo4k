@@ -14,14 +14,22 @@ static const char *skip_space(const char *s) {
     return s;
 }
 
-/* Section name of a "[name]" line copied into out, or false. */
+/* A value ends at the line's end or a ";" comment, as the game's Windows
+ * profile reader stops there. */
+static bool value_ends(const char *s) {
+    s = skip_space(s);
+    return *s == 0 || *s == ';';
+}
+
+/* Section name of a "[name]" line, which may end in a comment, copied into
+ * out, or false. */
 static bool line_section(const char *line, char *out, size_t cap) {
     const char *s = skip_space(line);
     if (*s != '[') {
         return false;
     }
     const char *close = strchr(s + 1, ']');
-    if (!close || close == s + 1 || *skip_space(close + 1) != 0) {
+    if (!close || close == s + 1 || !value_ends(close + 1)) {
         return false;
     }
     size_t len = (size_t)(close - (s + 1));
@@ -440,7 +448,7 @@ int wo_settings_get_sound_mode(const char *game_ini) {
                 continue;
             }
             char digit = value[0];
-            if ((digit == '1' || digit == '2' || digit == '5') && *skip_space(value + 1) == 0) {
+            if ((digit == '1' || digit == '2' || digit == '5') && value_ends(value + 1)) {
                 mode = digit - '0';
                 break;
             }

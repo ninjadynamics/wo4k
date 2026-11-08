@@ -6,6 +6,7 @@
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
 #include "core/wo_iso.h"
+#include "core/wo_log.h"
 #include "core/wo_music.h"
 #include "core/wo_texfmt.h"
 #include "core/wo_texsrc.h"
@@ -123,17 +124,21 @@ bool wo_ps1_find_disc(const char *source, WoPs1Disc *out, bool *found, WoError *
         char *image = NULL;
         uint64_t offset = 0;
         if (described) {
+            /* An unreadable descriptor (another rip's CUE) is skipped: the
+             * disc may still be another candidate. */
             WoTrackList tracks;
-            ok = wo_disc_tracks(candidate, &tracks, error);
-            const WoTrack *data = ok ? wo_tracks_first_data(&tracks) : NULL;
+            WoError unreadable = {0};
+            if (!wo_disc_tracks(candidate, &tracks, &unreadable)) {
+                wo_log_text("disc_descriptor_skipped", unreadable.message);
+                continue;
+            }
+            const WoTrack *data = wo_tracks_first_data(&tracks);
             if (data) {
                 image = wo_strdup(data->image, error);
                 offset = data->offset;
                 ok = image != NULL;
             }
-            if (ok) {
-                wo_tracks_free(&tracks);
-            }
+            wo_tracks_free(&tracks);
         } else {
             image = wo_strdup(candidate, error);
             ok = image != NULL;
@@ -203,13 +208,16 @@ static bool extract_ps1_textures(const WoPs1Disc *disc, const char *destination,
     }
     WoIso iso;
     bool ok = wo_iso_open(&iso, &source, disc->offset, error);
+    uint64_t budget = source.size;
     for (size_t i = 0; ok && i < iso.count; i++) {
         const WoIsoEntry *entry = &iso.entries[i];
         const char *relative = entry->is_dir ? NULL : ps1_texture_relative(entry->path);
         if (!relative || reused_from_pc(plan, relative)) {
             continue;
         }
-        char *target = wo_path_child(destination, relative, error);
+        char *target = wo_disc_budget_take(&budget, entry, error)
+                           ? wo_path_child(destination, relative, error)
+                           : NULL;
         ok = target && wo_disc_extract_entry(&iso, entry, target, error);
         wo_free(target);
         *count += ok ? 1 : 0;
