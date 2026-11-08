@@ -16,6 +16,11 @@
   {
     "archive": "SDL3.pkg.tar.zst",
     "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-sdl3-3.4.16-1-any.pkg.tar.zst",
+    "mirrors": [
+      {
+        "url": "https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-sdl3-3.4.16-1-any.pkg.tar.zst"
+      }
+    ],
     "marker_sha256": "5252df18cbf7e6d3ab64a91ab5487d58208f4e8260f0b24b88f1eabbb988e1c3",
     "marker": "mingw64/lib/libSDL3.a",
     "sha256": "1aa752a71578f4ae554bfb3d93f6737657f369dc071c944611c0316c250ed387",
@@ -24,6 +29,11 @@
   {
     "archive": "libiconv.pkg.tar.zst",
     "url": "https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libiconv-1.18-1-any.pkg.tar.zst",
+    "mirrors": [
+      {
+        "url": "https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-libiconv-1.18-1-any.pkg.tar.zst"
+      }
+    ],
     "marker_sha256": "ff31fa811f9c07cc7fdaa68c9e8bca3a7b4fdf6e0a079a58175ea58ba139c7ae",
     "marker": "mingw64/bin/libiconv-2.dll",
     "sha256": "fda1cb18d83c363c73df1a836fe9ff5c830d28b8a3a693e1c05d1fdfea799119",
@@ -46,6 +56,11 @@
   {
     "archive": "raylib-5.5.zip",
     "url": "https://github.com/raysan5/raylib/archive/refs/tags/5.5.zip",
+    "mirrors": [
+      {
+        "url": "https://codeload.github.com/raysan5/raylib/zip/refs/tags/5.5"
+      }
+    ],
     "marker_sha256": "afb287ecd313de61e0000921375190b7e1cc35cd381ad6caf914489473a3c871",
     "marker": "raylib-5.5/src/raylib.h",
     "sha256": "00e8a7c85f7a5221e56ee8e4e1c6642b773eae73d29379a91c8ac5149e803f42",
