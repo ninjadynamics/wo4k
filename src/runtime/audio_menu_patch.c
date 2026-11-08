@@ -174,6 +174,8 @@ static void __cdecl audio_pause_draw(BYTE *config,BYTE *box) {
     audio_library_label(85,212,selected);
 }
 static void initialize_audio_menu(void) {
+    /* Its screens draw through the menu text hooks. */
+    if(!menu_patching)return;
     old_audio_config=(void *)hook(RVA_audio_config,entry_audio_config,sizeof(entry_audio_config),audio_config);
     old_audio_game_data=(void *)hook(RVA_audio_game_data,entry_audio_game_data,sizeof(entry_audio_game_data),audio_game_data);
     old_audio_pause_input=(void *)hook(RVA_audio_pause_input,entry_audio_pause_input,sizeof(entry_audio_pause_input),audio_pause_input);

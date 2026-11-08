@@ -35,6 +35,15 @@
 - A crafted disc image can no longer write more than its own size.
 - Setup's audio mode change takes effect when Wipeout2097.ini has comments
   after `[Audio]` or the value.
+- In Borderless mode too, a replacement MP4 whose decoding never starts
+  gives way to the original MPEG after 15 seconds, instead of the player
+  being stopped after a minute with no movie at all.
+- Keep the gamepad working through Windows' own joystick support when the
+  controller helper cannot start (for example when security software
+  blocks it), instead of leaving it dead for the session. Play now checks
+  for the helper's libiconv-2.dll too.
+- A hand-edited `tracks.ini` listing more than 13 tracks no longer crashes
+  the pause menu; the first 12 songs are used.
 
 ## 0.2.0-beta.8
 

@@ -97,6 +97,10 @@ typedef struct VideoAttempt {
  * returns, the game would wait for this process forever, so a watchdog ends
  * it once the playback loop has made no progress for this long. */
 #define VIDEO_HANG_MS 30000
+/* A decoder normally shows the first frame well within a second of the
+ * start; one that hangs (some 10-bit H.264) fails here, so the original
+ * MPEG can play instead. */
+#define VIDEO_START_MS 15000
 
 static volatile LONG64 video_heartbeat;
 
@@ -250,6 +254,8 @@ static void video_follow_focus(VideoApp *app)
         "video_window_raised" : "video_window_behind", NULL, false);
 }
 
+static bool video_signalled(HANDLE handle);
+
 /* Sleeps until input, a window message, the skip or start event or the
  * game's exit, at most 15 ms, then dispatches the window's messages and
  * follows the game in and out of the front. */
@@ -260,7 +266,10 @@ static void video_pump(VideoApp *app)
     if (app->start_event != NULL && !app->start_signalled) {
         handles[count] = app->start_event;
         ++count;
-        if (app->stage_event != NULL && !app->window.staged) {
+        /* Manual-reset: once signalled it would end every wait at once
+         * while staging waits for the first frame. */
+        if (app->stage_event != NULL && !app->window.staged &&
+            !video_signalled(app->stage_event)) {
             handles[count] = app->stage_event;
             ++count;
         }
@@ -344,6 +353,11 @@ static bool video_step(VideoApp *app, VideoBackend *backend,
         position >= VIDEO_PROBE_POSITION_HNS) {
         video_set_text(attempt->result, sizeof(attempt->result),
             "probe passed");
+        return true;
+    }
+    if (attempt->start_requested && !attempt->clock_moving &&
+        GetTickCount64() - attempt->start_requested > VIDEO_START_MS) {
+        video_fail(app, attempt, "playback did not start", false);
         return true;
     }
     if (video_timed_out(attempt->opened, elapsed,

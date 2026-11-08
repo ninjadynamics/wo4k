@@ -35,7 +35,8 @@ static BOOL audio_load_bank(UINT bank) {
     copyw(directory,root);copyw(directory+lenw(directory),bank?L"music\\psx\\":L"music\\pc\\");
     copyw(toc,directory);copyw(toc+lenw(toc),L"tracks.ini");
     UINT advertised=GetPrivateProfileIntW(L"CD",L"Tracks",0,toc);
-    if(advertised<2 || advertised>LAST_TRACK)return FALSE;
+    if(advertised<2)return FALSE;
+    if(advertised>NAMED_TRACKS)advertised=NAMED_TRACKS;
     for(UINT i=2;i<=advertised;++i) {
         WCHAR path[MAX_PATH];copyw(path,directory);UINT at=lenw(path);
         copyw(path+at,L"track00.wav");path[at+5]=L'0'+i/10;path[at+6]=L'0'+i%10;

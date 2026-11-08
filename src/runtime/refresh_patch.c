@@ -426,6 +426,10 @@ static void initialize_refresh(const WCHAR *settings) {
         if(VirtualProtect(game+0x2bca9,4,PAGE_EXECUTE_READWRITE,&protection)) {
             *(DWORD *)(game+0x2bca9)=0x489c7c;VirtualProtect(game+0x2bca9,4,protection,&ignored);
         }
+        /* model_units only advances with the refresh hooks. */
+        if(VirtualProtect(game+0x33d1d,4,PAGE_EXECUTE_READWRITE,&protection)) {
+            *(DWORD *)(game+0x33d1d)=0x489c7c;VirtualProtect(game+0x33d1d,4,protection,&ignored);
+        }
         if(VirtualProtect(game+0x2ab92,4,PAGE_EXECUTE_READWRITE,&protection)) {
             *(DWORD *)(game+0x2ab92)=1;VirtualProtect(game+0x2ab92,4,protection,&ignored);
         }
@@ -433,6 +437,8 @@ static void initialize_refresh(const WCHAR *settings) {
     refresh_show_fps=GetPrivateProfileIntW(L"Render",L"ShowFPS",1,settings)!=0;
     initialize_race_ui(settings);
     FlushInstructionCache(GetCurrentProcess(),game+0x2ab92,4);
+    FlushInstructionCache(GetCurrentProcess(),game+0x2bca9,4);
+    FlushInstructionCache(GetCurrentProcess(),game+0x33d1d,4);
     wo_render_event("render_high_refresh_test",refresh_active);
     if(refresh_active)wo_render_event("render_ui_animation_hz",30);
     old_slide_menu=(void *)hook(RVA_slide_menu,entry_slide_menu,sizeof(entry_slide_menu),slide_menu);

@@ -150,8 +150,12 @@ static const char *signature_status(WoHashCache *cache, const char *path, const 
 }
 
 static void log_dependencies(const WoMod *mod, WoError *error) {
+    /* All but the movie player are required; the controller helper needs
+     * libiconv-2.dll beside it. */
     static const char *const names[] = {"Wipeout2097.exe", "wohr.dll", "ddraw.dll",
-                                        "wo2097-controller.exe", "wo4k-video.exe"};
+                                        "wo2097-controller.exe", "libiconv-2.dll",
+                                        "wo4k-video.exe"};
+    const size_t required = WO_COUNT(names) - 1;
     /* Reconcile has just checked these files, so their digests are cached. */
     char *cache_path = wo_path_child(mod->state, "integrity.json", NULL);
     const char *note = NULL;
@@ -163,14 +167,14 @@ static void log_dependencies(const WoMod *mod, WoError *error) {
         char *path = wo_mod_game_path(mod, names[i], error);
         WoFileInfo info;
         if (!path || !wo_stat(path, &info, NULL) || !info.exists) {
-            if (i < 4) {
+            if (i < required) {
                 wo_fail(error, WO_ERR_NOT_FOUND,
                         "Missing %s. Run Install / repair. Check Windows Security if a file was "
                         "removed.",
                         names[i]);
             }
             wo_free(path);
-            if (i < 4) {
+            if (i < required) {
                 break;
             }
             continue;

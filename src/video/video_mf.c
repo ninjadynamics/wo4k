@@ -596,8 +596,22 @@ static void mf_repaint(VideoBackend *backend)
     }
 }
 
+/* On a thread of its own: a session whose decoder never answers blocks in
+ * Shutdown. */
+static DWORD WINAPI mf_abandon(void *parameter)
+{
+    MfPlayer *player = parameter;
+    CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    mf_release(player);
+    HeapFree(GetProcessHeap(), 0, player);
+    CoUninitialize();
+    return 0;
+}
+
 /* Close is asynchronous. Keep the window responsive while the session
- * finishes, but never wait more than two seconds. */
+ * finishes, but never wait more than two seconds. A session that has not
+ * closed by then (a hung decoder) is shut down on another thread, which may
+ * never return, so the player can still go on to the original MPEG. */
 static void mf_destroy(VideoBackend *backend)
 {
     MfPlayer *player = (MfPlayer *)backend;
@@ -613,6 +627,13 @@ static void mf_destroy(VideoBackend *backend)
                 DispatchMessageW(&message);
             }
             mf_poll(backend);
+        }
+        if (!player->closed) {
+            HANDLE thread = CreateThread(NULL, 0, mf_abandon, player, 0, NULL);
+            if (thread != NULL) {
+                CloseHandle(thread);
+                return;
+            }
         }
     }
     mf_release(player);

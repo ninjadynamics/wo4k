@@ -7,9 +7,14 @@ static WORD controller_previous_pad;
 static LONG controller_left,controller_right;
 static WORD controller_keyboard;
 static void (__cdecl *old_controller_brake)(BYTE *);
-/* SDL owns the joystick backend even when waiting or unfocused; otherwise
- * legacy WinMM can inject duplicate buttons or bypass the focus guard. */
-BOOL wo_controller_present(void) {return controller_ready;}
+/* While its helper runs, SDL owns the joystick backend even when waiting or
+ * unfocused; otherwise legacy WinMM can inject duplicate buttons or bypass
+ * the focus guard. The helper writes every few milliseconds: one that never
+ * started, or died, leaves the pad to WinMM rather than dead all session. */
+BOOL wo_controller_present(void) {
+    return controller_ready && controller_wire && controller_wire->magic==CONTROLLER_MAGIC &&
+        GetTickCount()-controller_wire->timestamp<1000;
+}
 static LONG controller_axis(LONG v) {
     const LONG dead=4096;
     if(v>=-dead && v<=dead)return 0;

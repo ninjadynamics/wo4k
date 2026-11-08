@@ -9,6 +9,9 @@
 
 #define VIRTUAL_CD 0x2097
 #define LAST_TRACK 25
+/* The game names 13 tracks at most: its pause menu reads a 13-slot title
+ * table directly, past which a hand-edited tracks.ini would crash it. */
+#define NAMED_TRACKS 13
 static HMODULE module;
 static WCHAR root[MAX_PATH], files[LAST_TRACK+1][MAX_PATH];
 static DWORD lengths[LAST_TRACK+1], starts[LAST_TRACK+1];

@@ -449,8 +449,11 @@ static void initialize_ui_hd(const WCHAR *root) {
     if(root[n])return;
     for(UINT i=0;i<=n;++i)ui_hd_game_root[i]=root[i];
     const WCHAR *suffix=L"..\\assets\\hd\\";while((*((WCHAR *)ui_hd_directory+n++)=*suffix++)) {}
+    /* Replaced pages are released after the next present (ui_hd_retire),
+     * which only the refresh hooks see: without them, native art stays. */
+    if(!refresh_active){wo_render_event("ui_hd_needs_refresh",1);return;}
     hd_load_region_index();
-    ui_hd_deferred_release=refresh_active;
+    ui_hd_deferred_release=TRUE;
     old_ui_native_load=(UiNativeLoadFn)hook(RVA_ui_native_load,entry_ui_native_load,sizeof(entry_ui_native_load),ui_native_load);
     wo_render_event("ui_hd_loader_hook",old_ui_native_load!=0);
 }

@@ -144,8 +144,8 @@ static void __cdecl billboards(int count,const BYTE *q,const float *m) {
     if(count>0 && before+(UINT)count*4<=1000)
         correct_billboards((LitVertex *)(game+0x537490)+before,count,q,m);
 }
-static void __cdecl update_explosions(void) {if(!refresh_active)old_update_explosions();}
-static void __cdecl update_flares(void) {if(!refresh_active)old_update_flares();}
+static void __cdecl update_explosions(void) {if(!sprites_active)old_update_explosions();} /* else draw_explosions steps it */
+static void __cdecl update_flares(void) {if(!sprites_active)old_update_flares();}
 static void call_native_explosions(void){++explosion_submission_depth;old_draw_explosions();--explosion_submission_depth;}
 static void __cdecl draw_explosions(void) {
     BYTE *live=game+0x665be0;BYTE saved[32*24];
@@ -157,7 +157,7 @@ static void __cdecl draw_explosions(void) {
         DWORD *angle=(DWORD *)(game+angles[i]);
         if(flare_history && *angle==flare_drawn[i])*angle=flare_raw[i];
     }
-    if(refresh_active && !*(DWORD *)(game+0x89cb0))for(UINT n=0;n<ui_steps;++n) {
+    if(sprites_active && !*(DWORD *)(game+0x89cb0))for(UINT n=0;n<ui_steps;++n) {
         copy(explosion_previous,live,sizeof(explosion_previous));explosion_history=TRUE;
         old_update_explosions();old_update_flares();
     }
