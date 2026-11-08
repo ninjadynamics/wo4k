@@ -26,7 +26,9 @@ ASLR, DEP and a version resource. Everything builds with warnings as errors.
 `make deps` uses `manifests/dependencies.json` to fetch upstream SDL3,
 libiconv, DDrawCompat and raylib source, plus a portable zstd unpacker.
 Downloads stay under `.work/deps/`. Their exact archive and extracted-file
-hashes are verified. No dependency is installed globally. raylib is compiled
+hashes are verified. An entry may list `mirrors` (a URL and an optional Accept
+header) to try when its main URL fails, such as GitHub's API download of the
+same release asset; every source must give the same pinned bytes. No dependency is installed globally. raylib is compiled
 from its pinned source with only the modules Setup uses (no audio, models or
 screenshot hotkeys). Runtime licenses are retained under `licenses/`; see
 THIRD-PARTY.md there.

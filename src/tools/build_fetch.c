@@ -95,6 +95,44 @@ static char *find_zstd(const char *deps) {
     return found;
 }
 
+/* Downloads the archive from url, then from each of the entry's "mirrors"
+ * ({"url", "accept"}) until one gives the pinned bytes, for a few rounds: a
+ * host that fails, as GitHub's release downloads at times answer 504, need
+ * not stop a release. Every copy must match the same SHA-256. */
+#define FETCH_ROUNDS 3
+static bool download(const WoJson *entry, const char *name, const char *url, const char *archive,
+                     const char *sha256, WoError *error) {
+    const WoJson *mirrors = wo_json_get(entry, "mirrors");
+    size_t sources = 1 + wo_json_length(mirrors);
+    size_t count = sources * FETCH_ROUNDS;
+    for (size_t i = 0; i < count; i++) {
+        if (i && i % sources == 0) {
+            Sleep(15000);
+        }
+        const WoJson *mirror = i % sources ? wo_json_at(mirrors, i % sources - 1) : NULL;
+        const char *from = mirror ? wo_json_str(mirror, "url", "") : url;
+        const char *accept = mirror ? wo_json_str(mirror, "accept", NULL) : NULL;
+        printf("%s: downloading %s\n", name, from);
+        fflush(stdout);
+        WoError failure = {0};
+        bool ok = wo_http_download(from, accept, archive, 1ull << 30, 1800, NULL, &failure);
+        if (ok && !file_matches(archive, sha256)) {
+            ok = wo_fail(&failure, WO_ERR_CHECKSUM, "Dependency checksum failed: %s", name);
+        }
+        if (ok) {
+            return true;
+        }
+        if (i + 1 == count) {
+            if (error) {
+                *error = failure;
+            }
+            return false;
+        }
+        printf("%s: %s Trying the next source.\n", name, failure.message);
+    }
+    return false;
+}
+
 bool build_fetch(const char *manifest_path, const char *deps, WoError *error) {
     WoJson *manifest = NULL;
     if (!wo_read_json(manifest_path, 1u << 20, &manifest, error)) {
@@ -115,12 +153,7 @@ bool build_fetch(const char *manifest_path, const char *deps, WoError *error) {
             printf("%s: up to date\n", name);
         } else if (ok) {
             if (!file_matches(archive, sha256)) {
-                printf("%s: downloading %s\n", name, url);
-                fflush(stdout);
-                ok = wo_http_download(url, archive, 1ull << 30, 1800, NULL, error);
-                if (ok && !file_matches(archive, sha256)) {
-                    ok = wo_fail(error, WO_ERR_CHECKSUM, "Dependency checksum failed: %s", name);
-                }
+                ok = download(entry, name, url, archive, sha256, error);
             }
             if (ok && wo_str_iends_with(archive_name, ".zip")) {
                 WoZip *zip = NULL;

@@ -19,8 +19,9 @@ typedef struct WoNetProgress {
  * Accept header value or NULL. */
 bool wo_http_get(const char *url, const char *accept, size_t max_bytes, unsigned timeout_seconds,
                  const WoNetProgress *progress, WoBuf *out, WoError *error);
-/* GET an HTTPS URL into a file (written to path.part, then renamed). */
-bool wo_http_download(const char *url, const char *path, uint64_t max_bytes,
+/* GET an HTTPS URL into a file (written to path.part, then renamed). accept
+ * is an Accept header value or NULL. */
+bool wo_http_download(const char *url, const char *accept, const char *path, uint64_t max_bytes,
                       unsigned timeout_seconds, const WoNetProgress *progress, WoError *error);
 
 typedef struct WoSignature {

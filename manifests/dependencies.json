@@ -2,6 +2,12 @@
   {
     "archive": "zstd.zip",
     "url": "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-v1.5.7-win64.zip",
+    "mirrors": [
+      {
+        "url": "https://api.github.com/repos/facebook/zstd/releases/assets/233456224",
+        "accept": "application/octet-stream"
+      }
+    ],
     "marker_sha256": "8076aae03feac7c66b319579e82172eed168deed2a3f25e5e2d3c60f55e84111",
     "marker": "zstd-v1.5.7-win64/zstd.exe",
     "sha256": "acb4e8111511749dc7a3ebedca9b04190e37a17afeb73f55d4425dbf0b90fad9",
@@ -26,6 +32,12 @@
   {
     "archive": "DDrawCompat.zip",
     "url": "https://github.com/narzoul/DDrawCompat/releases/download/v0.7.2/DDrawCompat-v0.7.2.zip",
+    "mirrors": [
+      {
+        "url": "https://api.github.com/repos/narzoul/DDrawCompat/releases/assets/641679401",
+        "accept": "application/octet-stream"
+      }
+    ],
     "marker_sha256": "94895cf6ede8fd0f74ee1447fdc08b7044a9c65a1a25a49a4df893a0370975a3",
     "marker": "ddraw.dll",
     "sha256": "a932a4dcb2100552b6918fd4a3cc7de138bb97448bbca2a7051954993a397b39",

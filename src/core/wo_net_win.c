@@ -297,7 +297,7 @@ bool wo_http_get(const char *url, const char *accept, size_t max_bytes, unsigned
     return ok;
 }
 
-bool wo_http_download(const char *url, const char *path, uint64_t max_bytes,
+bool wo_http_download(const char *url, const char *accept, const char *path, uint64_t max_bytes,
                       unsigned timeout_seconds, const WoNetProgress *progress, WoError *error) {
     char *partial = wo_format(error, "%s.part", path);
     if (!partial) {
@@ -305,7 +305,7 @@ bool wo_http_download(const char *url, const char *path, uint64_t max_bytes,
     }
     Request r;
     WoFile *file = NULL;
-    bool ok = request_open(&r, url, NULL, timeout_seconds, error);
+    bool ok = request_open(&r, url, accept, timeout_seconds, error);
     if (ok) {
         ok = wo_file_create(partial, &file, error) &&
              request_read(&r, url, max_bytes, timeout_seconds, progress, sink_file, file, error);

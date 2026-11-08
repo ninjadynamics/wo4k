@@ -451,7 +451,7 @@ static bool update_run_locked(const WoMod *mod, const char *running_exe,
               !cancelled(callbacks, error);
     if (ok) {
         report(callbacks, 20, "Downloading the latest mod release...");
-        ok = wo_http_download(url, zip_path, PACKAGE_MAX_BYTES, 900, &net, error);
+        ok = wo_http_download(url, NULL, zip_path, PACKAGE_MAX_BYTES, 900, &net, error);
     }
     if (ok && expected[0]) {
         char digest[WO_SHA256_HEX_SIZE];
