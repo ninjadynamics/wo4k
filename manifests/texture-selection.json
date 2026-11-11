@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "revision": 2,
+  "revision": 3,
   "edition": "WipEout 2097 Europe SLES-00327",
   "policy": "Fixed project-time selection: PS1 unless native bytes are identical; keep PC-only assets and authored HD UI.",
   "archives": [
