@@ -1,5 +1,12 @@
 ﻿# Beta release changes
 
+## Unreleased
+
+- Fix the game crashing the moment it starts on PCs where Windows enforces
+  Data Execution Prevention for every program. The original game marks its
+  own code as data during startup, which only older DEP defaults forgive;
+  WO4K now keeps that code executable.
+
 ## 0.2.0-beta.9
 
 - Play the original MPEG movies in Exclusive fullscreen mode too. They had

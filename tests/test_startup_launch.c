@@ -13,6 +13,10 @@ static void WINAPI fixture_startup_quit(int code){if(code!=1)ExitProcess(111);++
 #undef PostQuitMessage
 static void __cdecl fixture_startup_graphics(void){if(startup_show_calls)ExitProcess(112);++startup_graphics_calls;}
 static void test_startup_launch(BYTE *image,const WCHAR *settings){
+    /* WinMain's VirtualProtect of the code section keeps it executable; a
+     * second pass finds nothing left to change. */
+    if(image[0x5ba24]!=PAGE_READWRITE || !wo_startup_keep_code_executable(image) ||
+       image[0x5ba24]!=PAGE_EXECUTE_READWRITE || wo_startup_keep_code_executable(image))ExitProcess(125);
     BYTE original=image[0x5bef4];image[0x5bef4]=0;
     if(wo_startup_install(image,settings) || image[0x5bb38]!=1)ExitProcess(113);
     image[0x5bef4]=original;

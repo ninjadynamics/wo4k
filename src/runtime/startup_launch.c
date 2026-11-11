@@ -44,6 +44,20 @@ static void __cdecl wo_startup_graphics(void){
     wo_startup_native_graphics();
     ShowWindow(*(HWND *)(wo_startup_image+0xaf60c),SW_SHOWNORMAL);
 }
+/* WinMain makes the game's whole code section writable with
+ * VirtualProtect(code, size, PAGE_READWRITE): no longer executable. Windows
+ * forgives that only while DEP is off for the process, which an old EXE gets
+ * by default; where DEP is enforced for every program the game died at the
+ * very next instruction. Ask for PAGE_EXECUTE_READWRITE instead. */
+static BOOL wo_startup_keep_code_executable(BYTE *image){
+    static const BYTE protect_call[]={0x52,0x6a,PAGE_READWRITE,0x8d,0x4c,0x28,0x18,0x8b,0x44,0x28,0x1c,0x50,0x8b,0x41,0x14,0x03,0xc5,0x50,0xff,0x15};
+    for(UINT i=0;i<sizeof(protect_call);++i)if(image[0x5ba22+i]!=protect_call[i])return FALSE;
+    DWORD old,ignored;
+    if(!VirtualProtect(image+0x5ba24,1,PAGE_EXECUTE_READWRITE,&old))return FALSE;
+    image[0x5ba24]=PAGE_EXECUTE_READWRITE;
+    FlushInstructionCache(GetCurrentProcess(),image+0x5ba24,1);
+    VirtualProtect(image+0x5ba24,1,old,&ignored);return TRUE;
+}
 static BOOL wo_startup_install(BYTE *image,const WCHAR *settings){
     static const BYTE controls_call[]={0xe8,0xd9,0x52,0,0,0x6a,1};
     static const BYTE graphics_call[]={0xe8,0x57,0x11,0,0};
