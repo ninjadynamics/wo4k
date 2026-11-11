@@ -277,6 +277,13 @@ bool wo_tga_patch(uint8_t *tga, size_t len, const WoNativeImage *image, int64_t 
         for (int64_t col = 0; col < width; col++) {
             uint16_t ps = image->pixels[row * width + col];
             uint16_t c = (uint16_t)(((ps & 31u) << 10) | (ps & 0x83E0u) | ((ps >> 10) & 31u));
+            /* PlayStation 0x8000 is opaque black; only 0x0000 is see-through.
+             * The PC game drops the flag bit and keys every texel whose
+             * colour is zero, so its own art has holes where the PlayStation
+             * shows black. Store the darkest grey: opaque on PC as well. */
+            if (c == 0x8000u) {
+                c = 0x8421u;
+            }
             size_t at = offset + (size_t)(((y + row) * sheet_w + x + col) * 2);
             wo_put_le16(tga + at, c);
         }

@@ -154,13 +154,15 @@ static void test_tga(void) {
     WoTgaInfo info;
     CHECK_OK(wo_tga_info(b.data, b.len, &info, &error), &error);
     CHECK(info.width == 4 && info.height == 3 && info.pixel_offset == 20);
-    uint16_t px[4] = {0x001F, 0x7C00, 0x83E0, 0x0000}; /* red, blue, green+flag, black */
+    uint16_t px[4] = {0x001F, 0x7C00, 0x83E0, 0x8000}; /* red, blue, green+flag, opaque black */
     WoNativeImage image = {2, 2, px};
     CHECK_OK(wo_tga_patch(b.data, b.len, &image, 1, 1, 2, 2, &error), &error);
     /* PlayStation red (bits 0-4) becomes PC red (bits 10-14). */
     CHECK(wo_le16(b.data + 20 + (1 * 4 + 1) * 2) == 0x7C00);
     CHECK(wo_le16(b.data + 20 + (1 * 4 + 2) * 2) == 0x001F);
     CHECK(wo_le16(b.data + 20 + (2 * 4 + 1) * 2) == 0x83E0);
+    /* Opaque black stays opaque for the PC game, which keys colour zero. */
+    CHECK(wo_le16(b.data + 20 + (2 * 4 + 2) * 2) == 0x8421);
     WoImage bgra = {0};
     CHECK_OK(wo_tga_decode_bgra(b.data, b.len, &bgra, &error), &error);
     const uint8_t *red = bgra.pixels + (1 * 4 + 1) * 4;

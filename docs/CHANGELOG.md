@@ -11,6 +11,12 @@
   decided by the texture's transparency multiplied by a per-corner value
   the game itself ignores for solid surfaces; where that value was low, the
   panel vanished. Only the texture decides now.
+- Restore the PlayStation's opaque black. The PC game treats every pure
+  black pixel as see-through, and the original PC port lost the
+  PlayStation's marker for black that should stay solid, leaving small
+  holes in scenery and ship textures. With a PlayStation source installed,
+  those pixels are now solid again, with or without HD artwork. Play
+  rebuilds the texture sheets once on its next launch.
 
 ## 0.2.0-beta.9
 

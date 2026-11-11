@@ -299,6 +299,18 @@ static void test_native_sheets_match(void) {
     WoJson *receipt = NULL;
     CHECK_OK(wo_read_json("manifests/texture-selection.json", 32 << 20, &plan, &error), &error);
     CHECK_OK(wo_read_json(receipt_path, 16 << 20, &receipt, &error), &error);
+    if (wo_json_int(receipt, "revision", -1) != wo_json_int(plan, "revision", -2)) {
+        /* Built by an older selection; the next Play rebuilds the sheets. */
+        skip("the golden installation's sheets predate this texture selection");
+        wo_json_free(receipt);
+        wo_json_free(plan);
+        wo_free(original);
+        wo_free(ps1);
+        wo_free(sd);
+        wo_free(receipt_path);
+        wo_free(game);
+        return;
+    }
     WoSheetBuilder *builder = wo_sheet_builder_new(game, sd, ps1, &error);
     CHECK(builder != NULL);
     WoNativeCounts counts = {0, 0, 0};
