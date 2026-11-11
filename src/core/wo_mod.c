@@ -361,6 +361,9 @@ bool wo_config_load(const WoMod *mod, WoConfig *config, WoError *error) {
         } else if (ddraw_ini) {
             config->fullscreen = wo_settings_get_fullscreen(ddraw_ini);
         }
+        if (!WO_EXCLUSIVE_FULLSCREEN_OFFERED) {
+            config->fullscreen = WO_FULLSCREEN_BORDERLESS;
+        }
         if (!wo_soundtrack_parse(soundtrack, &config->soundtrack) ||
             !wo_sound_mode_valid(config->sound_mode) || !fullscreen_ok) {
             ok = wo_fail(error, WO_ERR_FORMAT, "Invalid saved Setup preferences.");
@@ -391,7 +394,10 @@ static WoJson *config_to_json(const WoMod *mod, const WoConfig *config, WoError 
               wo_json_put_bool(stored, "HdTextures", config->hd_textures) &&
               wo_json_put_bool(stored, "CleanAudio", config->clean_audio) &&
               wo_json_put_int(stored, "SoundMode", config->sound_mode) &&
-              wo_json_put_str(stored, "FullscreenMode", wo_fullscreen_name(config->fullscreen));
+              wo_json_put_str(stored, "FullscreenMode",
+                              wo_fullscreen_name(WO_EXCLUSIVE_FULLSCREEN_OFFERED
+                                                     ? config->fullscreen
+                                                     : WO_FULLSCREEN_BORDERLESS));
     wo_free(game);
     wo_free(pc);
     wo_free(psx);

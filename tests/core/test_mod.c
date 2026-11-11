@@ -37,7 +37,10 @@ static void test_defaults_without_state(void) {
     CHECK_OK(wo_config_load(&mod, &config, &error), &error);
     CHECK(wo_str_iends_with(config.game_source, "\\mod-defaults\\wobble"));
     CHECK(config.soundtrack == WO_SOUNDTRACK_NONE && !config.hd_textures);
-    CHECK(config.sound_mode == 5 && config.fullscreen == WO_FULLSCREEN_EXCLUSIVE);
+    /* Exclusive is switched off: a saved "exclusive" reads as borderless. */
+    CHECK(config.sound_mode == 5 &&
+          config.fullscreen == (WO_EXCLUSIVE_FULLSCREEN_OFFERED ? WO_FULLSCREEN_EXCLUSIVE
+                                                                 : WO_FULLSCREEN_BORDERLESS));
     wo_config_free(&config);
     wo_mod_free(&mod);
 }

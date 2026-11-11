@@ -17,6 +17,10 @@
   holes in scenery and ship textures. With a PlayStation source installed,
   those pixels are now solid again, with or without HD artwork. Play
   rebuilds the texture sheets once on its next launch.
+- Switch off Exclusive fullscreen and remove the option from Setup. It
+  showed black frames on variable refresh rate displays and cannot be
+  screenshotted. Installations set to Exclusive go back to Borderless on
+  the next launch.
 
 ## 0.2.0-beta.9
 

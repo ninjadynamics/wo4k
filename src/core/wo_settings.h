@@ -43,6 +43,11 @@ bool wo_ini_merge_defaults(WoIni *ini, const WoIni *defaults, bool sectioned, in
 
 /* --- Game settings ------------------------------------------------------------- */
 typedef enum WoFullscreen { WO_FULLSCREEN_BORDERLESS, WO_FULLSCREEN_EXCLUSIVE } WoFullscreen;
+/* Exclusive fullscreen is switched off, not removed: with variable refresh
+ * rate displays it showed black frames, and it cannot be screenshotted.
+ * While 0, Setup does not offer it and a saved "exclusive" is read as
+ * borderless, which the next launch writes back to the game's settings. */
+#define WO_EXCLUSIVE_FULLSCREEN_OFFERED 0
 typedef enum WoSoundtrack { WO_SOUNDTRACK_PC, WO_SOUNDTRACK_PSX, WO_SOUNDTRACK_NONE } WoSoundtrack;
 
 const char *wo_fullscreen_name(WoFullscreen mode); /* "borderless" / "exclusive" */

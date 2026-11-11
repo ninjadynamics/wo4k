@@ -636,8 +636,10 @@ static void apply_window_size(void) {
         return;
     }
     app.layout_sources = (int)sources;
-    float min_height = ui_px(sources ? 730 : 580);
-    float height = ui_px(sources ? 750 : 600);
+    /* The fullscreen row takes 42 units when it is offered. */
+    float row = WO_EXCLUSIVE_FULLSCREEN_OFFERED ? 0 : 42;
+    float min_height = ui_px((sources ? 730 : 580) - row);
+    float height = ui_px((sources ? 750 : 600) - row);
     int area_x;
     int area_y;
     int area_w;
@@ -772,11 +774,15 @@ static void draw_frame(void) {
         }
         wo_free(ini);
     }
-    y += combo_h + ui_px(10);
-    option_row(W_FULLSCREEN, "Fullscreen mode",
-               "Borderless fills the screen and allows easy app switching. Exclusive uses "
-               "exclusive fullscreen presentation. Saved for the next launch.",
-               fullscreen_items, NULL, 2, &app.fullscreen, left, y, content, combo_h, &changed);
+    if (WO_EXCLUSIVE_FULLSCREEN_OFFERED) {
+        y += combo_h + ui_px(10);
+        option_row(W_FULLSCREEN, "Fullscreen mode",
+                   "Borderless fills the screen and allows easy app switching. Exclusive uses "
+                   "exclusive fullscreen presentation. Saved for the next launch.",
+                   fullscreen_items, NULL, 2, &app.fullscreen, left, y, content, combo_h, &changed);
+    } else {
+        changed = false;
+    }
     if (changed) {
         save_preferences();
         char *ini = mod_file("wobble/DDrawCompat-Wipeout2097.ini");

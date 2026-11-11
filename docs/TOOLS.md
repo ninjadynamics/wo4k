@@ -17,10 +17,11 @@ Setting the environment variable `WO2097_VIDEO_PREPARE=0` before starting Play
 turns off preparing the intro player during the notice screen; the player is
 then started when the intro begins, as in earlier releases.
 
-In Exclusive fullscreen mode Play sets `WO2097_VIDEO_IN_GAME=1`: the movie
-player opens no window (`wo4k-video.exe --frames`) and hands each decoded frame
-to the game through shared memory, and the game presents it. Setting the
-variable to `1` before starting Play does the same in Borderless mode.
+Setting `WO2097_VIDEO_IN_GAME=1` before starting Play makes the game present
+the movies itself: the movie player opens no window (`wo4k-video.exe --frames`)
+and hands each decoded frame to the game through shared memory. Exclusive
+fullscreen needed this; that mode is currently switched off
+(`WO_EXCLUSIVE_FULLSCREEN_OFFERED` in `src/core/wo_settings.h`).
 
 ## Installing from the command line
 

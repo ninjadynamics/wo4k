@@ -69,8 +69,7 @@ unsupported binaries are rejected before an installation is committed.
 3. Select the PC game source once. Optionally add a PlayStation game source,
    then choose available PC/PlayStation music or **No music**.
 4. Choose **Audio output** (Mono, Stereo or Dolby Surround),
-   **Fullscreen mode** (Borderless or Exclusive), **Install HD artwork**
-   and **Improve audio quality** as desired,
+   **Install HD artwork** and **Improve audio quality** as desired,
    then click **Install**.
 5. Click **Play**, or run **Play.exe**. The original display-selection screen
    is bypassed; WO4K renders at your display's resolution and aspect ratio.
@@ -84,10 +83,8 @@ Closing and reopening Setup hides the source selectors again.
 
 Change **Audio output** in Setup anytime. It saves automatically for the next
 launch without reinstalling; Stereo is the default.
-**Fullscreen mode** also saves for the next launch without reinstalling.
-Borderless is the default and fills the display without a window border;
-Exclusive uses exclusive fullscreen presentation; the game then draws the
-intro and ending movies itself, as no other window can show over it.
+The game runs in borderless fullscreen: it fills the display without a window
+border, and switching to other programs and taking screenshots work.
 
 Change soundtracks on the fly in **Options → Audio** when both banks are
 installed. Your choice is saved. The PC bank contains nine songs; the optional
