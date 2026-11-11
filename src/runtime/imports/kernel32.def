@@ -44,6 +44,9 @@ GetCurrentThreadId@0
 GlobalMemoryStatusEx@4
 FlushFileBuffers@4
 CreateEventW@16
+CreateDirectoryW@8
+LoadLibraryW@4
+GetProcAddress@8
 SetEvent@4
 InitializeProcThreadAttributeList@16
 UpdateProcThreadAttribute@28

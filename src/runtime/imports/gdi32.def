@@ -1,0 +1,9 @@
+; Hand-made x86 import list for wohr.dll: the screenshot's copy of the screen.
+LIBRARY GDI32.dll
+EXPORTS
+CreateCompatibleDC@4
+CreateDIBSection@24
+SelectObject@8
+BitBlt@36
+DeleteObject@4
+DeleteDC@4

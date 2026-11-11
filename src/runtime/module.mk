@@ -24,7 +24,7 @@ X86_CFLAGS := $(X86_TARGET) -isystem $(X86_INCLUDE) -Os -fno-builtin \
 X86_UNITS := wohd render_patch simulation_patch
 X86_OBJECTS := $(patsubst %,$(X86_BUILD)/obj/%.o,$(X86_UNITS))
 X86_RES := $(X86_BUILD)/obj/wohr.res
-X86_IMPORTS := kernel32 winmm user32 ole32
+X86_IMPORTS := kernel32 winmm user32 ole32 gdi32
 X86_IMPORT_LIBS := $(patsubst %,$(X86_BUILD)/lib/%.lib,$(X86_IMPORTS))
 RUNTIME_DLL := runtime/wohr.dll
 RUNTIME_MAP := runtime/wohr.map
@@ -123,7 +123,8 @@ $(CRASH_FIXTURE): $(X86_BUILD)/tests/test_crash_diagnostics.o \
 # The renderer fixture keeps the fixed base its PowerShell build used.
 $(RENDER_FIXTURE): $(X86_BUILD)/tests/test_render_init.o \
 	$(X86_BUILD)/lib/kernel32.lib $(X86_TEST_LIB) \
-	$(X86_BUILD)/lib/user32.lib $(X86_BUILD)/lib/ole32.lib
+	$(X86_BUILD)/lib/user32.lib $(X86_BUILD)/lib/ole32.lib \
+	$(X86_BUILD)/lib/gdi32.lib
 	$(call MKDIR,$(@D))
 	$(LLD_LINK) $(X86_TEST_LDFLAGS) /base:0x10000000 /dynamicbase:no /out:$@ $^
 

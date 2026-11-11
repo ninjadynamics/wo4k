@@ -5,5 +5,3 @@ EXPORTS
 ExitProcess@4
 SetErrorMode@4
 RaiseException@16
-LoadLibraryW@4
-GetProcAddress@8

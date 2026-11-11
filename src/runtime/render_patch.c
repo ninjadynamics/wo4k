@@ -64,6 +64,7 @@ static void prepare_intro_movie(void);
 static void movie_frames_present(DWORD player);
 static void movie_frames_close(void);
 static void startup_present(void);
+static void screenshot_poll(void);
 static void initialize_controller(void);
 static void initialize_credits(void);
 static void initialize_race_ui(const WCHAR *settings);
@@ -125,6 +126,7 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 #include "audio_menu_patch.c"
 #include "png_art.c"
 #include "startup_art.c"
+#include "screenshot.c"
 #include "movie_frames.c"
 #include "dx_error.c"
 #include "ui_hd.c"

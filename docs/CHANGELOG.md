@@ -21,6 +21,10 @@
   showed black frames on variable refresh rate displays and cannot be
   screenshotted. Installations set to Exclusive go back to Borderless on
   the next launch.
+- Add Shift+PrintScreen: saves a full-resolution PNG in the mod's
+  `screenshots` folder. Its metadata records the track, ship, game mode
+  and track coordinates. It works where Windows' own PrintScreen comes
+  back black.
 
 ## 0.2.0-beta.9
 

@@ -174,6 +174,7 @@ static int __cdecl refresh_present(void) {
     if(race && !*(UINT *)(game+0x8f8dc))++pacing_empty;
     int result=old_refresh_present();QueryPerformanceCounter(&end);
     ui_hd_presented();
+    screenshot_poll();
     double ui_seconds=ui_last_time.QuadPart?(double)(end.QuadPart-ui_last_time.QuadPart)/refresh_frequency.QuadPart:0;
     ui_last_time=end;advance_ui_clock(ui_seconds);
     *(DWORD *)(game+0x664824)=ui_ticks*2;

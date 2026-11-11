@@ -196,8 +196,14 @@ Keyboard input remains available.
 | R1 + Square | Fire a rear-locked missile |
 | Backtick (`) | Toggle the bottom-center FPS counter |
 | F4 | Cycle exhaust trails: off / simple / full |
+| Shift + PrintScreen | Save a screenshot |
 
 Full trails are the default. FPS visibility and trail selection are remembered.
+
+Screenshots are saved as PNG files in the mod's `screenshots` folder, at
+display resolution. Each records where it was taken in its text metadata:
+the track, your ship, the game mode and the ship's and camera's coordinates
+on the track, which helps when reporting a visual problem.
 
 ## Updates and links
 

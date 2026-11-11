@@ -3,6 +3,7 @@
 backups/
 exports/
 logs/
+screenshots/
 dist/
 src/runtime/build/*
 !src/runtime/build/render_hooks.h

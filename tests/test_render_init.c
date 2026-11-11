@@ -65,6 +65,7 @@ static void fixture_write_code(DWORD *operand,DWORD value){
 #include "test_billboard_roll.c"
 #include "test_hd_retire.c"
 #include "test_dx_error.c"
+#include "test_screenshot.c"
 void wo_render_event(const char *name,DWORD value){
     const char *wanted="render_race_ui_clock";while(*name && *name==*wanted){++name;++wanted;}if(!*name && !*wanted)race_ui_event=value;
 }
@@ -420,6 +421,7 @@ void __stdcall test_entry(void){
         if(seconds<1 || seconds>25 || !ui_last_time.QuadPart)ExitProcess(40);
     }
     test_hd_region_assets();
+    test_screenshot(image);
     test_projected_shadow_motion(image);
     ExitProcess(0);
 }
