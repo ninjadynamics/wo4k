@@ -257,6 +257,61 @@ static void test_pc_only_build(void) {
     wo_json_free(plan);
 }
 
+/* A plan may correct single bytes of game data; operations made for the
+ * corrected layout apply only where the correction is in effect. */
+static void test_patches(void) {
+    const char *root = wo_test_dir("natives-patch");
+    if (!root) {
+        return;
+    }
+    WoError error = {0};
+    char before[WO_SHA256_HEX_SIZE];
+    char after[WO_SHA256_HEX_SIZE];
+    CHECK_OK(wo_sha256_mem("abc", 3, before, &error) && wo_sha256_mem("axc", 3, after, &error),
+             &error);
+    char *text = wo_format(
+        &error,
+        "{\"format\":1,\"revision\":3,\"patches\":[{\"id\":\"fix\",\"file\":\"DATA/FILE.BIN\","
+        "\"offset\":1,\"from\":98,\"to\":120,\"sha256\":\"%s\",\"patched_sha256\":\"%s\"}],"
+        "\"operations\":[{\"atlas\":\"Pics/Hi-res/SHEET.TGA\",\"x\":32,\"y\":8,\"width\":8,"
+        "\"height\":4,\"patch\":\"fix\",\"source\":{\"path\":\"COMMON/MINE.CMP\",\"frame\":0},"
+        "\"label\":\"moved\"}]}",
+        before, after);
+    WoJson *plan = parse(text);
+    for (int other = 0; other < 2; other++) {
+        char *game = wo_path_join(root, other ? "other" : "retail", &error);
+        build_game(game);
+        char *file = wo_path_join(game, "DATA/FILE.BIN", &error);
+        CHECK_OK(wo_write_file(file, other ? "abd" : "abc", 3, &error), &error);
+        WoNativeOptions options = {game, plan, NULL, NULL, NULL, false, false, NULL, false};
+        /* The second build finds the correction already made. */
+        for (int pass = 0; pass < 2; pass++) {
+            WoJson *receipt = NULL;
+            CHECK_OK(wo_natives_install(&options, &receipt, &error), &error);
+            CHECK(wo_json_int(receipt, "pc_regions", -1) == (other ? 0 : 1));
+            wo_json_free(receipt);
+            WoBuf bytes = {0};
+            CHECK_OK(wo_read_file(file, 16, &bytes, &error), &error);
+            CHECK(bytes.len == 3 && memcmp(bytes.data, other ? "abd" : "axc", 3) == 0);
+            wo_buf_free(&bytes);
+            bool healthy = false;
+            CHECK_OK(wo_natives_test(game, plan, false, &healthy, &error), &error);
+            CHECK(healthy);
+        }
+        /* Game data put back as it shipped is corrected by the next build. */
+        if (!other) {
+            bool healthy = true;
+            CHECK_OK(wo_write_file(file, "abc", 3, &error), &error);
+            CHECK_OK(wo_natives_test(game, plan, false, &healthy, &error), &error);
+            CHECK(!healthy);
+        }
+        wo_free(file);
+        wo_free(game);
+    }
+    wo_json_free(plan);
+    wo_free(text);
+}
+
 static void test_ps1_import(void) {
     const char *root = wo_test_dir("natives-ps1");
     if (!root) {
@@ -569,6 +624,7 @@ static void test_roads(void) {
 
 int main(void) {
     RUN(test_pc_only_build);
+    RUN(test_patches);
     RUN(test_ps1_import);
     RUN(test_roads);
     return wo_test_finish();

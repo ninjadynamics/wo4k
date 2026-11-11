@@ -29,7 +29,13 @@ retained pristine copy that is stays, and a sheet that is neither is installed
 as it is, without placements (the log says `native_sheet_unrecognised`).
 
 Packed TGA sheets are rebuilt without changing PC model references, UVs,
-track geometry or texture indices. Original sheets are retained under
+track geometry or texture indices. One exception corrects the PC release's
+data: the map's `patches` change a single byte of `TRACK17/TRACK.WAD`
+(verified by the file's SHA-256 before and after), where `scene.cmp` places
+the grass tile four texels over the wall tile beside it. The PlayStation
+release has them side by side, and placements marked with that patch lay
+the sheet out the same way. They are skipped where the file is not the
+retail one. Original sheets are retained under
 `wobble/textures/native-source/`. Refresh rebuilds from these pristine copies
 when the map revision changes. Repair retains both the pristine sheets and
 imported disc files; the disc is not required for subsequent launches.

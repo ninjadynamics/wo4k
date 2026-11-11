@@ -8927,7 +8927,7 @@
       {
         "native": "nrace06.tga",
         "page": 9,
-        "x": 60,
+        "x": 64,
         "y": 0,
         "width": 64,
         "height": 64
@@ -10278,10 +10278,10 @@
     ]
   },
   {
-    "file": "pc-nrace06-page09-region000.png",
+    "file": "track17-scene-cmp-22.png",
     "kind": "region",
     "required": false,
-    "source_width": 60,
+    "source_width": 64,
     "source_height": 64,
     "regions": [
       {
@@ -10289,7 +10289,7 @@
         "page": 9,
         "x": 0,
         "y": 0,
-        "width": 60,
+        "width": 64,
         "height": 64
       }
     ]

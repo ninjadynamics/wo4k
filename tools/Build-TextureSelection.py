@@ -83,6 +83,27 @@ def locate(needle, haystack):
     return found
 
 
+# The PC release's TRACK17 scene.cmp places the grass tile at VRAM x 911,
+# four texels over the 64-wide wall tile before it; the PlayStation release
+# has 912. The plan corrects that byte (a literal in the compressed stream)
+# and lays both tiles out as on the PlayStation, where the game then looks.
+GRASS_FIX = {'id': 'odessa-keys-grass', 'file': 'TRACK17/TRACK.WAD', 'offset': 286485, 'from': 0x8f, 'to': 0x90,
+             'sha256': 'a7581fe470abac7f65751ec2c70db3affb579585037c28f98748fb7e080ca886',
+             'patched_sha256': '9809dcacf7649fbb9580d47f4da08cf4deb174517c2ae2d878a115ded30dcd56'}
+
+
+def layout_corrections(operations):
+    def moved(op):
+        return Path(op['atlas']).stem.upper() == 'NRACE06' and op['y'] == 0 and 2304 <= op['x'] < 2432
+    kept = [op for op in operations if not moved(op)]
+    for atlas in dict.fromkeys(op['atlas'] for op in operations if Path(op['atlas']).stem.upper() == 'NRACE06'):
+        for frame, x in ((25, 2304), (26, 2368)):
+            kept.append(dict(atlas=atlas, x=x, y=0, width=64, height=64,
+                             source={'wad': GRASS_FIX['file'], 'entry': 'scene.cmp', 'frame': frame},
+                             label=f'TRACK17/scene.cmp/{frame}', patch=GRASS_FIX['id']))
+    return kept, [GRASS_FIX]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pc-root', type=Path, required=True)
@@ -221,9 +242,11 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # The installer applies a sheet's placements only to this exact sheet.
     used = list(dict.fromkeys(op['atlas'] for op in operations))
+    corrected, patches = layout_corrections(plan['operations'])
     plan = {**{k: v for k, v in plan.items() if k != 'operations'},
+            'patches': patches,
             'sheets': [{'file': name, 'sha256': native_sha[name]} for name in used],
-            'operations': plan['operations']}
+            'operations': corrected}
     args.output.write_text(json.dumps(plan, indent=2) + '\n', encoding='utf-8')
     reused = [op for op in operations if 'ps1' not in op['source'] and 'material' not in op['source']]
     proof = {'pc_region_sources_verified_byte_for_byte': len(reused),

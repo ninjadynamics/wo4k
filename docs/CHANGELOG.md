@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Remove the yellow-green lines on Odessa Keys' blue buildings (the clock
+  entrance). The PC release places that track's grass texture four pixels
+  over the wall texture beside it; the PlayStation release has them side by
+  side. WO4K now corrects that one byte of the track's data and lays the two
+  textures out as on the PlayStation.
+- Let an HD texture draw its own outline. An HD replacement without
+  transparency of its own was cut out with the low-resolution shape of the
+  original, which left blocky black slivers around lettering (the BRITVA
+  sign on Odessa Keys). The original shape now only decides what is solid
+  and what is see-through away from the edge; along the edge the HD picture
+  does.
 - Fix the game crashing the moment it starts on PCs where Windows enforces
   Data Execution Prevention for every program. The original game marks its
   own code as data during startup, which only older DEP defaults forgive;

@@ -9,7 +9,11 @@
  *                              with source.json describing the import
  *   textures/selection.json    receipt of the last build
  * Sheets are always rebuilt from the pristine copies, so a rebuild never
- * patches an already patched sheet. */
+ * patches an already patched sheet.
+ *
+ * The plan may also correct single bytes of game files ("patches": file,
+ * offset, from, to, and the file's SHA-256 before and after). Operations
+ * naming a patch are applied only where it is in effect. */
 #ifndef WO_NATIVES_H
 #define WO_NATIVES_H
 

@@ -86,19 +86,44 @@ static UINT hd_region_scale(const HdRegion *region,UINT w,UINT h) {
     UINT scale=1;while(scale<desired && scale<32)scale*=2;
     return scale;
 }
+/* An opaque RGB replacement has no cut-out of its own. Away from the native
+ * cut-out's outline it keeps the native colour key: keying by the
+ * replacement's own exact black punched holes wherever upscaling had crushed
+ * dark paint to black (Phenitia Park's tunnel panels: 28% keyed natively,
+ * 50% exact black in HD). Within one native texel of that outline the
+ * replacement draws the outline itself: its black is see-through and its
+ * paint is solid, so the edge has the replacement's shape and detail rather
+ * than native-sized blocks of it (the BRITVA sign showed black slivers of
+ * its HD background between the two shapes). An independent opaque upload
+ * ignores this alpha when keying is off. */
+static BYTE *hd_region_outline(const BYTE *base,UINT size,const HdRegion *region) {
+    UINT scale=size/256,left=region->x*scale,top=region->y*scale,rw=region->width,rh=region->height;
+    BYTE *outline=VirtualAlloc(0,rw*rh,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);
+    if(outline)for(UINT y=0;y<rh;++y)for(UINT x=0;x<rw;++x){
+        BYTE own=base[((top+y*scale)*size+left+x*scale)*4+3];
+        for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){
+            int ox=(int)x+dx,oy=(int)y+dy;
+            if(ox<0 || oy<0 || ox>=(int)rw || oy>=(int)rh)continue;
+            if(base[((top+(UINT)oy*scale)*size+left+(UINT)ox*scale)*4+3]!=own)outline[y*rw+x]=1;
+        }
+    }
+    return outline;
+}
 static void hd_region_paste(BYTE *base,UINT size,const HdRegion *region,const BYTE *image,UINT w,UINT h) {
     UINT scale=size/256,left=region->x*scale,top=region->y*scale,rw=region->width*scale,rh=region->height*scale;
+    BYTE *outline=region->alpha?0:hd_region_outline(base,size,region);
     for(UINT y=0;y<rh;++y)for(UINT x=0;x<rw;++x){
         BYTE *dst=base+((top+y)*size+left+x)*4,key=dst[3];
         copy(dst,image+((y*h/rh)*w+x*w/rw)*4,4);
-        /* An opaque RGB replacement keeps the native texture's colour key:
-         * the original keyed texels stay transparent, and nothing else does.
-         * Keying by the replacement's own exact black punched holes wherever
-         * upscaling had crushed dark paint to black (Phenitia Park's tunnel
-         * panels: 28% keyed natively, 50% exact black in HD). An independent
-         * opaque upload ignores this alpha when keying is off. */
-        if(!region->alpha)dst[3]=key;
+        if(region->alpha)continue;
+        if(outline && outline[(y/scale)*region->width+x/scale]){
+            BYTE paint=dst[0]>dst[1]?dst[0]:dst[1];if(dst[2]>paint)paint=dst[2];
+            if(key && paint<16)key=0;
+            else if(!key && paint>=64)key=255;
+        }
+        dst[3]=key;
     }
+    if(outline)VirtualFree(outline,0,MEM_RELEASE);
 }
 static BYTE *hd_compose_regions(const char *filename,UINT page,UINT pages,BYTE *base,UINT *size) {
     UINT wanted=base?*size:256,matched=0;WCHAR path[MAX_PATH];

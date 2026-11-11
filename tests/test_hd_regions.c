@@ -113,13 +113,25 @@ static void test_hd_region_assets(void){
         if(!page || size<256 || !hd_region_scale(r,w,h))ExitProcess(218);
         UINT scale=size/256,rw=r->width*scale,rh=r->height*scale;
         /* An opaque RGB region keeps the native page's colour key, not the
-         * replacement's own exact black. */
+         * replacement's own exact black, except within one native texel of
+         * the key's outline, which the replacement draws itself. */
         WCHAR wholePath[MAX_PATH];BOOL strip=FALSE;
         BYTE *native=hd_find(filename,r->page,wholePath,&strip)?0:hd_native_page(filename,r->page,pages,size);
         for(UINT y=0;y<rh;++y)for(UINT x=0;x<rw;++x){
             UINT at=((r->y*scale+y)*size+r->x*scale+x)*4;
             const BYTE *a=image+((y*h/rh)*w+x*w/rw)*4,*b=page+at;
             UINT alpha=r->alpha?a[3]:(native?native[at+3]:b[3]);
+            if(!r->alpha && native){
+                BOOL outline=FALSE;int nx=(int)(x/scale),ny=(int)(y/scale);
+                for(int dy=-1;dy<=1;++dy)for(int dx=-1;dx<=1;++dx){
+                    int ox=nx+dx,oy=ny+dy;
+                    if(ox<0 || oy<0 || ox>=(int)r->width || oy>=(int)r->height)continue;
+                    if(native[((r->y+(UINT)oy)*scale*size+(r->x+(UINT)ox)*scale)*4+3]!=native[((r->y+(UINT)ny)*scale*size+(r->x+(UINT)nx)*scale)*4+3])outline=TRUE;
+                }
+                BYTE paint=a[0]>a[1]?a[0]:a[1];if(a[2]>paint)paint=a[2];
+                if(outline && alpha && paint<16)alpha=0;
+                else if(outline && !alpha && paint>=64)alpha=255;
+            }
             if(a[0]!=b[0] || a[1]!=b[1] || a[2]!=b[2] || alpha!=b[3])ExitProcess(219);
         }
         if(native)VirtualFree(native,0,MEM_RELEASE);
@@ -127,15 +139,18 @@ static void test_hd_region_assets(void){
     }
     if(tested!=hd_region_count)ExitProcess(220);
     /* Black paint over an opaque native texel stays opaque; colour over a
-     * keyed texel stays transparent. A region with its own alpha keeps it. */
-    static BYTE keyed_page[256*256*4],paint[2*4];
-    static HdRegion painted;painted.x=10;painted.y=20;painted.width=2;painted.height=1;
+     * keyed texel stays transparent. Where the two meet, the replacement
+     * draws the outline: its black is see-through, its colour solid. A
+     * region with its own alpha keeps it. */
+    static BYTE keyed_page[256*256*4],paint[4*4];
+    static HdRegion painted;painted.x=10;painted.y=20;painted.width=4;painted.height=1;
     BYTE *under=keyed_page+(20*256+10)*4;
-    under[3]=255;under[7]=0;
-    paint[3]=255;paint[4]=200;paint[5]=100;paint[6]=50;paint[7]=255;
-    hd_region_paste(keyed_page,256,&painted,paint,2,1);
-    if(under[3]!=255 || under[0] || under[7] || under[4]!=200)ExitProcess(250);
+    under[3]=255;under[7]=255;under[11]=0;under[15]=0;
+    paint[3]=255;paint[7]=255;
+    for(UINT i=2;i<4;++i){paint[i*4]=200;paint[i*4+1]=100;paint[i*4+2]=50;paint[i*4+3]=255;}
+    hd_region_paste(keyed_page,256,&painted,paint,4,1);
+    if(under[3]!=255 || under[0] || under[7] || under[11]!=255 || under[8]!=200 || under[15] || under[12]!=200)ExitProcess(250);
     painted.alpha=1;paint[3]=0;under[3]=255;
-    hd_region_paste(keyed_page,256,&painted,paint,2,1);
+    hd_region_paste(keyed_page,256,&painted,paint,4,1);
     if(under[3] || under[7]!=255)ExitProcess(251);
 }

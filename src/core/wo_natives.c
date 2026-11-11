@@ -339,6 +339,8 @@ static bool json_numbers_equal(const WoJson *a, const WoJson *b) {
     return a->number == b->number;
 }
 
+static bool patches_pending(const char *game_root, const WoJson *plan);
+
 bool wo_natives_test(const char *game_root, const WoJson *plan, bool require_ps1, bool *healthy,
                      WoError *error) {
     return wo_natives_test_cached(game_root, plan, require_ps1, NULL, healthy, error);
@@ -384,7 +386,7 @@ bool wo_natives_test_cached(const char *game_root, const WoJson *plan, bool requ
                wo_str_ieq(hash, expected);
         wo_free(sheet);
     }
-    *healthy = ok && good;
+    *healthy = ok && good && !patches_pending(game_root, plan);
     wo_strlist_free(&atlases);
     wo_json_free(state);
     wo_free(sd);
@@ -453,6 +455,85 @@ static bool op_int(const WoJson *object, const char *key, int64_t *out, WoError 
     }
     *out = value->integer;
     return true;
+}
+
+/* --- Game data corrections -----------------------------------------------------------
+ * The plan's "patches" change single bytes of game files where the PC
+ * release's data is wrong and the PlayStation release has it right. Each
+ * names the file's SHA-256 before and after, so only the exact retail file
+ * is changed. An operation naming a patch belongs to the corrected layout
+ * and is applied only where that patch is in effect. */
+static bool file_is(const char *path, const char *expected);
+
+static const WoJson *plan_patch(const WoJson *plan, const char *id) {
+    const WoJson *patches = wo_json_get(plan, "patches");
+    for (size_t i = 0; i < wo_json_length(patches); i++) {
+        const WoJson *patch = wo_json_at(patches, i);
+        if (wo_str_eq(wo_json_str(patch, "id", ""), id)) {
+            return patch;
+        }
+    }
+    return NULL;
+}
+
+static bool patch_file_is(const char *game_root, const WoJson *patch, const char *key) {
+    char *path = patch ? wo_path_child(game_root, wo_json_str(patch, "file", ""), NULL) : NULL;
+    bool ok = path && file_is(path, wo_json_str(patch, key, ""));
+    wo_free(path);
+    return ok;
+}
+
+static bool apply_patch(const char *game_root, const WoJson *patch, WoError *error) {
+    const char *id = wo_json_str(patch, "id", "");
+    if (!patch_file_is(game_root, patch, "sha256")) {
+        if (!patch_file_is(game_root, patch, "patched_sha256")) {
+            wo_log_text("native_patch_unrecognised", id);
+        }
+        return true;
+    }
+    char *path = wo_path_child(game_root, wo_json_str(patch, "file", ""), error);
+    WoBuf data = {0};
+    int64_t offset = 0;
+    int64_t from = 0;
+    int64_t to = 0;
+    bool ok = path && op_int(patch, "offset", &offset, error) &&
+              op_int(patch, "from", &from, error) && op_int(patch, "to", &to, error) &&
+              wo_read_file(path, WO_TEXSRC_MAX_FILE_BYTES, &data, error);
+    if (ok && (offset < 0 || (uint64_t)offset >= data.len || data.data[offset] != (uint8_t)from)) {
+        ok = wo_fail(error, WO_ERR_FORMAT, "Game data correction does not fit: %s", id);
+    }
+    if (ok) {
+        char hash[WO_SHA256_HEX_SIZE];
+        data.data[offset] = (uint8_t)to;
+        ok = wo_sha256_mem(data.data, data.len, hash, error) &&
+             (wo_digest_eq(hash, wo_json_str(patch, "patched_sha256", "")) ||
+              wo_fail(error, WO_ERR_FORMAT, "Game data correction does not fit: %s", id)) &&
+             wo_write_file_atomic(path, data.data, data.len, error);
+    }
+    wo_buf_free(&data);
+    wo_free(path);
+    return ok;
+}
+
+static bool apply_patches(const char *game_root, const WoJson *plan, WoError *error) {
+    const WoJson *patches = wo_json_get(plan, "patches");
+    for (size_t i = 0; i < wo_json_length(patches); i++) {
+        if (!apply_patch(game_root, wo_json_at(patches, i), error)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* A correction the plan has for this game data is still to be made. */
+static bool patches_pending(const char *game_root, const WoJson *plan) {
+    const WoJson *patches = wo_json_get(plan, "patches");
+    for (size_t i = 0; i < wo_json_length(patches); i++) {
+        if (patch_file_is(game_root, wo_json_at(patches, i), "sha256")) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool decode_operation(WoSheetBuilder *builder, const WoJson *src, bool ps1,
@@ -524,6 +605,11 @@ bool wo_sheet_builder_apply(WoSheetBuilder *builder, const WoJson *plan, const c
         const WoJson *op = wo_json_at(operations, i);
         if (!wo_str_ieq(wo_json_str(op, "atlas", ""), atlas)) {
             continue;
+        }
+        const char *patch = wo_json_str(op, "patch", NULL);
+        if (patch &&
+            !patch_file_is(builder->game_root, plan_patch(plan, patch), "patched_sha256")) {
+            continue; /* made for corrected game data, which this is not */
         }
         if (!apply_operation(builder, op, sheet, len, counts, error)) {
             return false;
@@ -699,7 +785,8 @@ static bool build_all(const WoNativeOptions *options, const NativePaths *p, WoJs
     WoNativeCounts counts = {0, 0, 0};
     size_t sheets = 0;
     bool ok = files != NULL || wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
-    ok = ok && plan_atlases(options->plan, &atlases, error);
+    ok = ok && plan_atlases(options->plan, &atlases, error) &&
+         apply_patches(p->game, options->plan, error);
     if (ok) {
         builder = wo_sheet_builder_new(p->game, p->sd, p->ps1, error);
         ok = builder != NULL;

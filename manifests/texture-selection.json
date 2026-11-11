@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "revision": 4,
+  "revision": 5,
   "edition": "WipEout 2097 Europe SLES-00327",
   "policy": "Fixed project-time selection: PS1 unless native bytes are identical; keep PC-only assets and authored HD UI.",
   "archives": [
@@ -495,6 +495,17 @@
     {
       "file": "TRACK20/SKY.CMP",
       "selection": "pc_byte_identical"
+    }
+  ],
+  "patches": [
+    {
+      "id": "odessa-keys-grass",
+      "file": "TRACK17/TRACK.WAD",
+      "offset": 286485,
+      "from": 143,
+      "to": 144,
+      "sha256": "a7581fe470abac7f65751ec2c70db3affb579585037c28f98748fb7e080ca886",
+      "patched_sha256": "9809dcacf7649fbb9580d47f4da08cf4deb174517c2ae2d878a115ded30dcd56"
     }
   ],
   "sheets": [
@@ -14794,27 +14805,59 @@
     },
     {
       "atlas": "Pics/HI-RES/NRACE06.TGA",
-      "x": 2364,
+      "x": 2304,
       "y": 0,
       "width": 64,
       "height": 64,
       "source": {
-        "ps1": "TRACK17/SCENE.CMP",
-        "frame": 23
+        "wad": "TRACK17/TRACK.WAD",
+        "entry": "scene.cmp",
+        "frame": 25
       },
-      "label": "TRACK17/SCENE.CMP/23"
+      "label": "TRACK17/scene.cmp/25",
+      "patch": "odessa-keys-grass"
+    },
+    {
+      "atlas": "Pics/HI-RES/NRACE06.TGA",
+      "x": 2368,
+      "y": 0,
+      "width": 64,
+      "height": 64,
+      "source": {
+        "wad": "TRACK17/TRACK.WAD",
+        "entry": "scene.cmp",
+        "frame": 26
+      },
+      "label": "TRACK17/scene.cmp/26",
+      "patch": "odessa-keys-grass"
     },
     {
       "atlas": "Pics/LO-RES/NRACE06.TGA",
-      "x": 2364,
+      "x": 2304,
       "y": 0,
       "width": 64,
       "height": 64,
       "source": {
-        "ps1": "TRACK17/SCENE.CMP",
-        "frame": 23
+        "wad": "TRACK17/TRACK.WAD",
+        "entry": "scene.cmp",
+        "frame": 25
       },
-      "label": "TRACK17/SCENE.CMP/23"
+      "label": "TRACK17/scene.cmp/25",
+      "patch": "odessa-keys-grass"
+    },
+    {
+      "atlas": "Pics/LO-RES/NRACE06.TGA",
+      "x": 2368,
+      "y": 0,
+      "width": 64,
+      "height": 64,
+      "source": {
+        "wad": "TRACK17/TRACK.WAD",
+        "entry": "scene.cmp",
+        "frame": 26
+      },
+      "label": "TRACK17/scene.cmp/26",
+      "patch": "odessa-keys-grass"
     },
     {
       "atlas": "Pics/HI-RES/NRACE06.TGA",
