@@ -45,14 +45,16 @@ static void test_hd_world_packets(void){
     stream[n++]=11;stream[n++]=0;*(WORD *)(stream+n)=0;n+=2;
     TLVertex vertices[3]={{.color=0xff808080},{.color=0xff808080},{.color=0xff808080}};
     UINT bytes=ui_hd_rewrite(stream,n,rewritten,sizeof(rewritten),vertices,3);if(!bytes)ExitProcess(244);
-    UINT texture=0,key=1,alpha=0,ref=0,func=8;BOOL drawn=FALSE;
+    /* Not blended: the texture's alpha alone is tested (MODULATE, never
+     * MODULATEALPHA), whatever alpha the game's vertices happen to carry. */
+    UINT texture=0,key=1,alpha=0,ref=0,func=8,mode=2;BOOL drawn=FALSE;
     for(UINT at=0;at<bytes;){
         UINT op=rewritten[at],size=rewritten[at+1],items=*(WORD *)(rewritten+at+2);
         if(op==8)for(UINT i=0;i<items;++i){
             UINT s=*(DWORD *)(rewritten+at+4+i*8),v=*(DWORD *)(rewritten+at+8+i*8);
-            if(s==1)texture=v;if(s==41)key=v;if(s==15)alpha=v;if(s==24)ref=v;if(s==25)func=v;
+            if(s==1)texture=v;if(s==41)key=v;if(s==15)alpha=v;if(s==24)ref=v;if(s==25)func=v;if(s==21)mode=v;
         }
-        if(op==3){if(texture!=901 || key || !alpha || ref!=127 || func!=5)ExitProcess(245);drawn=TRUE;}
+        if(op==3){if(texture!=901 || key || !alpha || ref!=127 || func!=5 || mode!=2)ExitProcess(245);drawn=TRUE;}
         at+=4+size*items;
     }
     /* Native keyed draws that follow get V1 color keying back, alpha test off. */

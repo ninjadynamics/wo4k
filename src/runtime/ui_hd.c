@@ -325,8 +325,17 @@ static UINT ui_hd_rewrite(const BYTE *input,UINT length,BYTE *out,UINT capacity,
                 if(!texture)return 0;
                 /* Legacy MODULATE selects texture alpha when one exists.
                  * MODULATEALPHA preserves the diffuse opacity that RGB pages
-                 * supplied before this RGBA replacement was introduced. */
-                if(wanted[3]==2)wanted[3]=4;
+                 * supplied before this RGBA replacement was introduced, which
+                 * only blended draws show. Opaque draws stay on MODULATE, so
+                 * the key's alpha test sees the texture alone: the game never
+                 * looks at their vertex alpha, and where that is low (track
+                 * faces carry whatever their data holds) testing texture
+                 * times vertex alpha cut the panel out of the track. */
+                if(wanted[3]==2 && original[0])wanted[3]=4;
+                if(!original[0] && vertices)for(UINT j=0;j<count;++j)for(UINT k=0;k<3;++k){
+                    UINT index=((const WORD *)(input+offset+4+j*8))[k];
+                    if(index<vertex_count && vertices[index].color>>24<127){++hd_low_alpha_triangles;break;}
+                }
                 wanted[6]=0;
                 if(original[6]){wanted[7]=1;wanted[10]=127;wanted[11]=5;}
                 if(!ui_hd_emit(out,&written,capacity,effective,wanted))return 0;

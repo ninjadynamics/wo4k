@@ -39,6 +39,7 @@ static BOOL exhaust_active;
 static BOOL refresh_active,refresh_race,simulation_active;
 static DWORD refresh_frame;
 static DWORD present_serial; /* every presented frame, menus included */
+static DWORD hd_low_alpha_triangles; /* opaque HD world triangles whose vertex alpha would fail a key test */
 static const BYTE *refresh_last_matrix,*refresh_last_skeleton;
 static void refresh_ship_delta(int ship,float *delta);
 #define TRAIL_VERTEX_TAG 0x574f5452u

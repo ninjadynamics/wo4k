@@ -374,6 +374,7 @@ static int __cdecl __attribute__((noinline)) refresh_clock(int unused) {
         }
         wo_render_event("pacing_empty_frames",pacing_empty);
         wo_render_event("effect_rewrite_failures",effect_rewrite_failures);effect_rewrite_failures=0;
+        wo_render_event("hd_low_alpha_triangles",hd_low_alpha_triangles);hd_low_alpha_triangles=0;
         for(UINT i=0;i<PACING_BUCKETS;++i)pacing_buckets[i]=0;
         pacing_frames=pacing_empty=pacing_hitches_logged=0;
         stall_present_max_us=stall_frame_max_us=stall_frame_count=stall_present_count=0;

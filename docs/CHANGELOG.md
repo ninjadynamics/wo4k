@@ -6,6 +6,11 @@
   Data Execution Prevention for every program. The original game marks its
   own code as data during startup, which only older DEP defaults forgive;
   WO4K now keeps that code executable.
+- Stop solid track panels from being cut away with HD artwork on (reported
+  at Phenitia Park and Odessa Keys). Transparent pixels on HD textures were
+  decided by the texture's transparency multiplied by a per-corner value
+  the game itself ignores for solid surfaces; where that value was low, the
+  panel vanished. Only the texture decides now.
 
 ## 0.2.0-beta.9
 
