@@ -82,6 +82,7 @@ typedef struct App {
     bool repair_mode;
     bool installed_ready;
     bool game_verified;
+    bool game_not_retail;
     bool psx_verified;
     bool source_error;
     bool restoring;
@@ -256,6 +257,10 @@ static const char *source_message(void) {
                             "the original ZIP, disc or folder before reinstalling."
                           : "The Windows game source is missing. Choose the current location of your "
                             "PC game ZIP, disc or folder.";
+        } else if (app.game_not_retail) {
+            message = "This is not the retail PC disc: its texture sheets are an earlier revision "
+                      "(the small RIP download is one). Select the original PC disc image, or a "
+                      "ZIP of it.";
         } else {
             message = "The Windows source could not be verified. Select an original supported "
                       "WipEout 2097 / XL PC game ZIP, disc or folder.";
@@ -356,6 +361,7 @@ static void apply_probe(const JobEvent *event) {
         return;
     }
     app.game_verified = event->game_info.game;
+    app.game_not_retail = event->game_info.not_retail;
     bool pc_available = event->game_info.pc_music || mod_file_exists("wobble/music/pc/tracks.ini");
     app.psx_verified = psx_present && event->psx_info.psx;
     bool psx_audio = (app.psx_verified && event->psx_info.psx_music) ||

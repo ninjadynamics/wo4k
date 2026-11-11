@@ -376,6 +376,7 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
         native = wo_native_root(game_input, inputs, patches, error);
         ok = native != NULL;
     }
+    ok = ok && wo_require_retail_sheets(plan, native, error);
     if (ok) {
         wo_progress(progress, WO_STAGE_GAME_SOURCE, 12,
                     "Copying game data and applying the executable patch");

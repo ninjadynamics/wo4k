@@ -24,6 +24,13 @@ static bool load_manifest(const WoMod *mod, WoJson **manifest) {
     return ok;
 }
 
+static bool load_plan(const WoMod *mod, WoJson **plan) {
+    char *path = wo_mod_path(mod, "manifests/texture-selection.json", NULL);
+    bool ok = path && wo_read_json(path, 64u << 20, plan, NULL);
+    wo_free(path);
+    return ok;
+}
+
 static bool memory_supported(const WoJson *manifest, const void *data, size_t len) {
     char digest[WO_SHA256_HEX_SIZE];
     return wo_sha256_mem(data, len, digest, NULL) && wo_supported_executable(manifest, digest);
@@ -79,7 +86,8 @@ static void set_path(char **slot, const char *path) {
     }
 }
 
-static void probe_folder(const char *full, const WoJson *manifest, WoSourceInfo *info) {
+static void probe_folder(const char *full, const WoJson *manifest, const WoJson *plan,
+                         WoSourceInfo *info) {
     static const char *const names[] = {"Wipeout2.exe", "Wipeout2097.exe", "D3D.EXE",
                                         "Wipeout2_HighTest.exe"};
     for (size_t i = 0; i < WO_COUNT(names) && !info->game; i++) {
@@ -90,6 +98,10 @@ static void probe_folder(const char *full, const WoJson *manifest, WoSourceInfo 
             info->game = true;
         }
         wo_free(exe);
+    }
+    if (info->game && !wo_require_retail_sheets(plan, full, NULL)) {
+        info->game = false;
+        info->not_retail = true;
     }
     char *folder = NULL;
     if (wo_music_find_folder(full, WO_MUSIC_PC, &folder, NULL) && folder) {
@@ -106,7 +118,8 @@ static void probe_folder(const char *full, const WoJson *manifest, WoSourceInfo 
     wo_free(folder);
 }
 
-static void probe_zip(const char *full, const WoJson *manifest, WoSourceInfo *info) {
+static void probe_zip(const char *full, const WoJson *manifest, const WoJson *plan,
+                      WoSourceInfo *info) {
     WoZip *zip = NULL;
     if (!wo_zip_open(full, &zip, NULL)) {
         return;
@@ -123,6 +136,15 @@ static void probe_zip(const char *full, const WoJson *manifest, WoSourceInfo *in
             entry->size < PROBE_EXE_MAX && wo_zip_read(zip, i, PROBE_EXE_MAX, &data, NULL) &&
             memory_supported(manifest, data.data, data.len)) {
             info->game = true;
+        }
+        /* Loose game files: the retail disc's sheets, or an earlier revision. */
+        char sheet_digest[WO_SHA256_HEX_SIZE];
+        if (wo_str_iends_with(name, ".tga") && entry->size < PROBE_EXE_MAX &&
+            wo_sheet_not_retail(plan, entry->name, "") &&
+            wo_zip_read(zip, i, PROBE_EXE_MAX, &data, NULL) &&
+            wo_sha256_mem(data.data, data.len, sheet_digest, NULL) &&
+            wo_sheet_not_retail(plan, entry->name, sheet_digest)) {
+            info->not_retail = true;
         }
         if (wo_str_iends_with(name, ".cue") && entry->size < PROBE_DESCRIPTOR_MAX &&
             wo_zip_read(zip, i, PROBE_DESCRIPTOR_MAX, &data, NULL)) {
@@ -146,6 +168,9 @@ static void probe_zip(const char *full, const WoJson *manifest, WoSourceInfo *in
                 set_path(&info->pc_music_path, full);
             }
         }
+    }
+    if (info->not_retail) {
+        info->game = false;
     }
     wo_buf_free(&data);
     wo_zip_close(zip);
@@ -218,22 +243,25 @@ void wo_source_probe(const WoMod *mod, const char *path, WoSourceInfo *info) {
     }
     char *full = wo_path_full(path, NULL);
     WoJson *manifest = NULL;
-    if (!full || !load_manifest(mod, &manifest)) {
+    WoJson *plan = NULL;
+    if (!full || !load_manifest(mod, &manifest) || !load_plan(mod, &plan)) {
+        wo_json_free(manifest);
         wo_free(full);
         return;
     }
     if (wo_is_dir(full)) {
-        probe_folder(full, manifest, info);
+        probe_folder(full, manifest, plan, info);
     } else if (wo_is_file(full)) {
         const char *extension = wo_path_extension(full);
         if (wo_str_ieq(extension, ".zip")) {
-            probe_zip(full, manifest, info);
+            probe_zip(full, manifest, plan, info);
         } else if (wo_str_ieq(extension, ".mds") || wo_str_ieq(extension, ".mdf") ||
                    wo_str_ieq(extension, ".cue") || wo_str_ieq(extension, ".bin") ||
                    wo_str_ieq(extension, ".iso")) {
             probe_image(full, manifest, info);
         }
     }
+    wo_json_free(plan);
     wo_json_free(manifest);
     wo_free(full);
 }

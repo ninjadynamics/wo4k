@@ -72,6 +72,47 @@ static char *random_child(const char *work, const char *prefix, WoError *error) 
     return wo_path_child(work, name, error);
 }
 
+bool wo_sheet_not_retail(const WoJson *plan, const char *path, const char *sha256) {
+    const WoJson *sheets = wo_json_get(plan, "sheets");
+    size_t length = strlen(path);
+    for (size_t i = 0; i < wo_json_length(sheets); i++) {
+        const WoJson *sheet = wo_json_at(sheets, i);
+        const char *file = wo_json_str(sheet, "file", "");
+        size_t tail = strlen(file);
+        if (tail && tail <= length && wo_str_ieq(path + length - tail, file) &&
+            (tail == length || path[length - tail - 1] == '/' || path[length - tail - 1] == '\\')) {
+            return !wo_digest_eq(sha256, wo_json_str(sheet, "sha256", ""));
+        }
+    }
+    return false;
+}
+
+bool wo_require_retail_sheets(const WoJson *plan, const char *root, WoError *error) {
+    char *installed = wo_path_join(root, "textures/sd", error);
+    bool previous = installed && wo_is_dir(installed);
+    wo_free(installed);
+    if (previous) {
+        return true; /* a WO4K installation: its sheets are built ones */
+    }
+    const WoJson *sheets = wo_json_get(plan, "sheets");
+    for (size_t i = 0; i < wo_json_length(sheets); i++) {
+        const char *file = wo_json_str(wo_json_at(sheets, i), "file", "");
+        char *path = wo_path_join(root, file, error);
+        char digest[WO_SHA256_HEX_SIZE];
+        bool other = path && wo_is_file(path) && wo_sha256_file(path, digest, NULL) &&
+                     wo_sheet_not_retail(plan, file, digest);
+        wo_free(path);
+        if (other) {
+            return wo_fail(error, WO_ERR_UNSUPPORTED,
+                           "This Windows game source is not the retail disc: its texture sheets "
+                           "are an earlier revision, which shows wrong scenery (the small \"RIP\" "
+                           "download is one). Select the original PC disc instead: an ISO, "
+                           "MDS/MDF or CUE/BIN image, or a ZIP of one.");
+        }
+    }
+    return true;
+}
+
 char *wo_resolve_input(const char *source, const char *work, WoError *error) {
     char *full = wo_path_full(source, error);
     if (!full) {

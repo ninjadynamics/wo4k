@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "core/wo_fs.h"
+#include "core/wo_hash.h"
+#include "core/wo_json.h"
 #include "core/wo_mod.h"
 #include "core/wo_ops.h"
 #include "core/wo_sources.h"
@@ -68,6 +70,38 @@ static void test_resolve_input(void) {
     wo_free(missing);
 }
 
+/* Only the retail disc's texture sheets are installed from. */
+static void test_retail_sheets(void) {
+    const char *dir = wo_test_dir("sources-retail");
+    if (!dir) {
+        return;
+    }
+    WoError error = {0};
+    char hash[WO_SHA256_HEX_SIZE];
+    CHECK_OK(wo_sha256_mem("retail", 6, hash, &error), &error);
+    char *text = wo_format(&error, "{\"sheets\":[{\"file\":\"Pics/HI-RES/NRACE06.TGA\","
+                                   "\"sha256\":\"%s\"}]}", hash);
+    WoJson *plan = NULL;
+    CHECK_OK(wo_json_parse(text, strlen(text), &plan, &error), &error);
+    CHECK(!wo_sheet_not_retail(plan, "PICS/hi-res/nrace06.tga", hash));
+    CHECK(wo_sheet_not_retail(plan, "game/Pics/Hi-res/NRACE06.TGA", "00"));
+    CHECK(!wo_sheet_not_retail(plan, "xPics/Hi-res/NRACE06.TGA", "00")); /* another file */
+    CHECK(!wo_sheet_not_retail(plan, "Pics/Hi-res/NRACE01.TGA", "00"));  /* not pinned */
+    char *sheet = wo_path_join(dir, "Pics/Hi-res/NRACE06.TGA", &error);
+    CHECK_OK(wo_write_file(sheet, "retail", 6, &error), &error);
+    CHECK_OK(wo_require_retail_sheets(plan, dir, &error), &error);
+    CHECK_OK(wo_write_file(sheet, "earlier", 7, &error), &error);
+    CHECK_FAILS(wo_require_retail_sheets(plan, dir, &error), &error, WO_ERR_UNSUPPORTED);
+    /* A previous WO4K installation holds built sheets and is not judged. */
+    char *installed = wo_path_join(dir, "textures/sd/marker.txt", &error);
+    CHECK_OK(wo_write_file(installed, "x", 1, &error), &error);
+    CHECK_OK(wo_require_retail_sheets(plan, dir, &error), &error);
+    wo_free(installed);
+    wo_free(sheet);
+    wo_json_free(plan);
+    wo_free(text);
+}
+
 static void test_real_sources(void) {
     WoMod mod;
     WoError error = {0};
@@ -110,6 +144,7 @@ int main(void) {
     RUN(test_game_file_filter);
     RUN(test_stamps);
     RUN(test_resolve_input);
+    RUN(test_retail_sheets);
     RUN(test_real_sources);
     return wo_test_finish();
 }

@@ -28,6 +28,9 @@
   Since beta.9 a repair took those sheets over the correct ones it had
   kept. The installer now recognises the sheets the game's models expect,
   keeps its correct copies, and never mixes two arrangements.
+- Accept only the retail PC disc as the game source. The small "RIP"
+  download carries the earlier texture sheets described above and is now
+  refused by Setup, with a message saying why.
 - Add Shift+PrintScreen: saves a full-resolution PNG in the mod's
   `screenshots` folder. Its metadata records the track, ship, game mode
   and track coordinates. It works where Windows' own PrintScreen comes

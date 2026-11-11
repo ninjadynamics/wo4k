@@ -42,7 +42,9 @@ char *wo_user_message(WoStage stage, const WoError *error);
 
 /* --- Sources -------------------------------------------------------------------- */
 typedef struct WoSourceInfo {
-    bool game;         /* a supported Windows executable with game data */
+    bool game;         /* a supported Windows executable with retail game data */
+    bool not_retail;   /* a supported executable, but texture sheets of an earlier
+                          revision than the retail disc's (the "RIP" download) */
     bool pc_music;     /* PC CD audio or an extracted PC music folder */
     bool psx;          /* the European PS1 disc or an extracted PS1 music folder */
     bool psx_music;    /* PS1 CD audio or music folder */

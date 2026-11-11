@@ -41,6 +41,15 @@ bool wo_stamp_unavailable(const char *stamp);
  * patched output). */
 bool wo_supported_executable(const WoJson *manifest, const char *sha256);
 
+/* The texture selection map pins the retail disc's sheets, whose arrangement
+ * the game's models index. True when plan pins this sheet (a path ending in
+ * Pics/<resolution>/<name>, any case) and sha256 is another sheet: a source
+ * holding one is not the retail disc and is not installed from. */
+bool wo_sheet_not_retail(const WoJson *plan, const char *path, const char *sha256);
+/* WO_ERR_UNSUPPORTED when original game data under root (not a previous
+ * WO4K installation) holds a sheet that is not the retail one. */
+bool wo_require_retail_sheets(const WoJson *plan, const char *root, WoError *error);
+
 /* Folders searched by the background discovery: Desktop, Downloads,
  * Documents and the mod folder's parent. */
 bool wo_discovery_roots(const WoMod *mod, WoStrList *roots, WoError *error);

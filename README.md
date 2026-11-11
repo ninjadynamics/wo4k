@@ -51,9 +51,11 @@ supplies original artwork. A data-only ISO works for artwork without music;
 PS1 data cannot replace the Windows executable. There is no separate PC
 soundtrack field. See [native texture selection](docs/NATIVE-TEXTURES.md).
 
-Setup accepts game folders, ZIP archives and supported ISO, MDS/MDF or CUE/BIN
-images. Keep paired disc files together. Data-only ISOs and small PC downloads
-contain no CD audio; choose **No music**, or add a PlayStation soundtrack.
+Setup accepts the retail PC disc: an ISO, MDS/MDF or CUE/BIN image, a ZIP of
+one, or a folder holding the disc's files. Keep paired disc files together.
+The small "RIP" download is not accepted: its texture sheets are an earlier
+revision than the disc's, which shows wrong scenery on five tracks. Data-only
+ISOs contain no CD audio; choose **No music**, or add a PlayStation soundtrack.
 Supported executable checksums are listed in [manifests/patches.json](manifests/patches.json);
 unsupported binaries are rejected before an installation is committed.
 
@@ -168,7 +170,7 @@ Videos fit the screen without stretching. Skip with **Esc**,
 **Enter**, **Space**, or a controller button. The cursor stays hidden during
 videos and in-game, and movies have no tooltip. Music pauses during cutscenes.
 
-The small PC download works without movies; missing files or unavailable Windows
+A source without movies works; missing files or unavailable Windows
 media codecs do not block the game. Movie files are supplied by you and never
 included in the mod release. Run **Install / repair** with your PC disc/ZIP to
 add movies to an existing installation. No disc needs to stay mounted afterward.
