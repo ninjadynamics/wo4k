@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "revision": 3,
+  "revision": 4,
   "edition": "WipEout 2097 Europe SLES-00327",
   "policy": "Fixed project-time selection: PS1 unless native bytes are identical; keep PC-only assets and authored HD UI.",
   "archives": [
@@ -495,6 +495,128 @@
     {
       "file": "TRACK20/SKY.CMP",
       "selection": "pc_byte_identical"
+    }
+  ],
+  "sheets": [
+    {
+      "file": "Pics/HI-RES/NRACE01.TGA",
+      "sha256": "b4c42919b783c85f78f57460cb406bf907bc04090219f8b78e0a545e3a5ef852"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE01.TGA",
+      "sha256": "b4c42919b783c85f78f57460cb406bf907bc04090219f8b78e0a545e3a5ef852"
+    },
+    {
+      "file": "Pics/HI-RES/NRACE05.TGA",
+      "sha256": "a2dfb12284341c589c6acc7cdb5abd268ac981b0acd01c23c07d65a844ef00f4"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE05.TGA",
+      "sha256": "a2dfb12284341c589c6acc7cdb5abd268ac981b0acd01c23c07d65a844ef00f4"
+    },
+    {
+      "file": "Pics/HI-RES/NRACE07.TGA",
+      "sha256": "750de03fef67cf111dadf47d76e3dcc535c4d26e4dfb7ece54a4d1a0d26fcfc3"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE07.TGA",
+      "sha256": "750de03fef67cf111dadf47d76e3dcc535c4d26e4dfb7ece54a4d1a0d26fcfc3"
+    },
+    {
+      "file": "Pics/HI-RES/NRACE08.TGA",
+      "sha256": "c4152b5cb3910702bb564a2cf8b4adfe33ded98f2ccddc3a44c3b52fc959c1d2"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE08.TGA",
+      "sha256": "c4152b5cb3910702bb564a2cf8b4adfe33ded98f2ccddc3a44c3b52fc959c1d2"
+    },
+    {
+      "file": "Pics/HI-RES/NRACE02.TGA",
+      "sha256": "b023ea9daccdfb56dac272f204cbfd3441d509232544e052049a60356cc1a216"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE02.TGA",
+      "sha256": "b023ea9daccdfb56dac272f204cbfd3441d509232544e052049a60356cc1a216"
+    },
+    {
+      "file": "Pics/HI-RES/NRACE03.TGA",
+      "sha256": "9b86f0bc58bcc16955cf111aee5a8f0c7d911aff8d36d7e0ff409dbf18b093a8"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE03.TGA",
+      "sha256": "9b86f0bc58bcc16955cf111aee5a8f0c7d911aff8d36d7e0ff409dbf18b093a8"
+    },
+    {
+      "file": "Pics/HI-RES/NRACE06.TGA",
+      "sha256": "03fc18dd82819072ab87400052c2991f9419e912d06292c2d53cb7337d1f2544"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE06.TGA",
+      "sha256": "03fc18dd82819072ab87400052c2991f9419e912d06292c2d53cb7337d1f2544"
+    },
+    {
+      "file": "Pics/HI-RES/NRACE04.TGA",
+      "sha256": "94e673bdfc684bed38ca373e06d7f5606fac8732738cd3023617823933840e62"
+    },
+    {
+      "file": "Pics/LO-RES/NRACE04.TGA",
+      "sha256": "94e673bdfc684bed38ca373e06d7f5606fac8732738cd3023617823933840e62"
+    },
+    {
+      "file": "Pics/HI-RES/MENUHF.TGA",
+      "sha256": "2acd70336d6af8820dc0c0b5019196be7e08f0097552cfc8f05f2633fe347132"
+    },
+    {
+      "file": "Pics/HI-RES/SILLSHAD.TGA",
+      "sha256": "e6c0d65d667802ede6653ed3439e61ca45f203346fccdf78b3bc13b075d50443"
+    },
+    {
+      "file": "Pics/LO-RES/MENUHF.TGA",
+      "sha256": "2acd70336d6af8820dc0c0b5019196be7e08f0097552cfc8f05f2633fe347132"
+    },
+    {
+      "file": "Pics/LO-RES/SILLSHAD.TGA",
+      "sha256": "e6c0d65d667802ede6653ed3439e61ca45f203346fccdf78b3bc13b075d50443"
+    },
+    {
+      "file": "Pics/HI-RES/SILLYSHP.TGA",
+      "sha256": "ec7712bd6aa2d592004472cc8a03e96bbec02fea790e30ce8a88e9ae110286ed"
+    },
+    {
+      "file": "Pics/LO-RES/SILLYSHP.TGA",
+      "sha256": "ec7712bd6aa2d592004472cc8a03e96bbec02fea790e30ce8a88e9ae110286ed"
+    },
+    {
+      "file": "Pics/HI-RES/SKY05.TGA",
+      "sha256": "faf537cb09e9d7ed042468ae5520941ad5c875d949bd6cfd8588de5dc2d10787"
+    },
+    {
+      "file": "Pics/LO-RES/SKY05.TGA",
+      "sha256": "faf537cb09e9d7ed042468ae5520941ad5c875d949bd6cfd8588de5dc2d10787"
+    },
+    {
+      "file": "Pics/HI-RES/SKY07.TGA",
+      "sha256": "623a1aee1504f04249e0ff75af0bab8622e440d01c82b824d6b3e6ec397c2625"
+    },
+    {
+      "file": "Pics/LO-RES/SKY07.TGA",
+      "sha256": "623a1aee1504f04249e0ff75af0bab8622e440d01c82b824d6b3e6ec397c2625"
+    },
+    {
+      "file": "Pics/HI-RES/SKY08.TGA",
+      "sha256": "c89290ea003c1b5b6e02c76debac9c2d83ea2288107cff8037180798a2bc1493"
+    },
+    {
+      "file": "Pics/LO-RES/SKY08.TGA",
+      "sha256": "c89290ea003c1b5b6e02c76debac9c2d83ea2288107cff8037180798a2bc1493"
+    },
+    {
+      "file": "Pics/HI-RES/SKY04.TGA",
+      "sha256": "7b4281b06a0438e3cf9789bd9e9e43f3c433d221108d5bbaed5e44121a75a9f4"
+    },
+    {
+      "file": "Pics/LO-RES/SKY04.TGA",
+      "sha256": "7b4281b06a0438e3cf9789bd9e9e43f3c433d221108d5bbaed5e44121a75a9f4"
     }
   ],
   "operations": [

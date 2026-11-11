@@ -360,6 +360,62 @@ static void test_ps1_import(void) {
     CHECK(wo_digest_eq(before, after));
     wo_json_free(receipt);
     CHECK_OK(wo_write_file(pristine, original.data, original.len, &error), &error);
+
+    /* A plan names the exact sheet its placements were located in. A game
+     * folder with another sheet (an earlier layout) keeps the retained
+     * pristine copy; with no such copy the sheet is installed as it is,
+     * without placements. */
+    char pinned_hash[WO_SHA256_HEX_SIZE];
+    CHECK_OK(wo_sha256_mem(original.data, original.len, pinned_hash, &error), &error);
+    char *pinned_text = wo_format(&error, "{\"sheets\":[{\"file\":\"Pics/HI-RES/SHEET.TGA\","
+                                          "\"sha256\":\"%s\"}],%s",
+                                  pinned_hash, PLAN + 1);
+    WoJson *pinned = parse(pinned_text);
+    uint8_t *other = wo_alloc(original.len, &error);
+    CHECK(other != NULL);
+    if (other) {
+        memcpy(other, original.data, original.len);
+        other[original.len - 1] ^= 0x55; /* another layout: any other bytes */
+    }
+    char *older = wo_path_join(root, "older", &error);
+    char *older_sheet = wo_path_join(older, "textures/sd/Pics/Hi-res/SHEET.TGA", &error);
+    char *older_wad = wo_path_join(older, "TRACK01/TRACK.WAD", &error);
+    char *older_mine = wo_path_join(older, "textures/sd/COMMON/MINE.CMP", &error);
+    CHECK_OK(wo_write_file(older_sheet, other, original.len, &error) &&
+                 wo_copy_file(wad_from, older_wad, &error) &&
+                 wo_copy_file(mine_from, older_mine, &error),
+             &error);
+    WoNativeOptions with_cache = {older, pinned, NULL, NULL, game, false, true, NULL, true};
+    CHECK_OK(wo_natives_install(&with_cache, &receipt, &error), &error);
+    CHECK_OK(wo_sha256_file(older_sheet, after, &error), &error);
+    CHECK(wo_digest_eq(before, after));
+    wo_json_free(receipt);
+    char *alone = wo_path_join(root, "alone", &error);
+    char *alone_sheet = wo_path_join(alone, "textures/sd/Pics/Hi-res/SHEET.TGA", &error);
+    char *alone_wad = wo_path_join(alone, "TRACK01/TRACK.WAD", &error);
+    char *alone_mine = wo_path_join(alone, "textures/sd/COMMON/MINE.CMP", &error);
+    CHECK_OK(wo_write_file(alone_sheet, other, original.len, &error) &&
+                 wo_copy_file(wad_from, alone_wad, &error) &&
+                 wo_copy_file(mine_from, alone_mine, &error),
+             &error);
+    WoNativeOptions without_cache = {alone, pinned, NULL, NULL, NULL, false, false, NULL, true};
+    CHECK_OK(wo_natives_install(&without_cache, &receipt, &error), &error);
+    WoBuf untouched = {0};
+    CHECK_OK(wo_read_file(alone_sheet, 1 << 20, &untouched, &error), &error);
+    CHECK(other && untouched.len == original.len && memcmp(untouched.data, other, original.len) == 0);
+    wo_buf_free(&untouched);
+    wo_json_free(receipt);
+    wo_free(alone_mine);
+    wo_free(alone_wad);
+    wo_free(alone_sheet);
+    wo_free(alone);
+    wo_free(older_mine);
+    wo_free(older_wad);
+    wo_free(older_sheet);
+    wo_free(older);
+    wo_free(other);
+    wo_json_free(pinned);
+    wo_free(pinned_text);
     wo_buf_free(&original);
     wo_free(fresh_mine);
     wo_free(fresh_wad);

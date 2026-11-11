@@ -103,6 +103,7 @@ def main():
                 pc_files[key] = data
                 pc_sources[key] = {'wad': path.relative_to(args.pc_root).as_posix(), 'entry': name}
     native = {}
+    native_sha = {}  # the sheets the placements are located in, pinned in the plan
     for path in sorted((sd / 'Pics').rglob('*')):
         if path.suffix.lower() != '.tga':
             continue
@@ -113,6 +114,7 @@ def main():
         name = path.relative_to(sd).as_posix()
         pristine = args.pc_root / 'textures/native-source' / name
         native[name] = tga(pristine if pristine.is_file() else path)
+        native_sha[name] = sha((pristine if pristine.is_file() else path).read_bytes())
     pc_tim = {}
     pc_tim_bytes = {}
     pc_rgb = collections.defaultdict(list)
@@ -217,6 +219,11 @@ def main():
 
     plan = {'format': 1, 'revision': 1, 'edition': 'WipEout 2097 Europe SLES-00327', 'policy': 'Fixed project-time selection: PS1 unless native bytes are identical; keep PC-only assets and authored HD UI.', 'archives': [{k:v for k,v in s.items() if k in ['file','selection']} for s in selections], 'operations': operations}
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    # The installer applies a sheet's placements only to this exact sheet.
+    used = list(dict.fromkeys(op['atlas'] for op in operations))
+    plan = {**{k: v for k, v in plan.items() if k != 'operations'},
+            'sheets': [{'file': name, 'sha256': native_sha[name]} for name in used],
+            'operations': plan['operations']}
     args.output.write_text(json.dumps(plan, indent=2) + '\n', encoding='utf-8')
     reused = [op for op in operations if 'ps1' not in op['source'] and 'material' not in op['source']]
     proof = {'pc_region_sources_verified_byte_for_byte': len(reused),

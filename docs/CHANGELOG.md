@@ -21,6 +21,13 @@
   showed black frames on variable refresh rate displays and cannot be
   screenshotted. Installations set to Exclusive go back to Borderless on
   the next launch.
+- Fix wrong and missing scenery textures on Valparaiso, Phenitia Park,
+  Odessa Keys, Vostok Island and Spilskinanke when the game was installed
+  from a folder holding earlier, differently arranged texture sheets (for
+  example Odessa Keys' start building striped yellow with a hole in it).
+  Since beta.9 a repair took those sheets over the correct ones it had
+  kept. The installer now recognises the sheets the game's models expect,
+  keeps its correct copies, and never mixes two arrangements.
 - Add Shift+PrintScreen: saves a full-resolution PNG in the mod's
   `screenshots` folder. Its metadata records the track, ship, game mode
   and track coordinates. It works where Windows' own PrintScreen comes

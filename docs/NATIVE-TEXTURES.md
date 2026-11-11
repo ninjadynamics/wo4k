@@ -21,6 +21,13 @@ The installer does not compare versions, count colours, calculate quality
 scores or choose between assets at runtime. File/format/extent checks still
 reject malformed input; these are decoding checks, not version comparisons.
 
+The map names the exact sheet (by SHA-256) each placement was located in: the
+retail release's. A game folder can hold an earlier sheet with the same name
+and another arrangement of textures, which the game's models do not index. A
+sheet is taken as the pristine copy only when it is the named one; otherwise a
+retained pristine copy that is stays, and a sheet that is neither is installed
+as it is, without placements (the log says `native_sheet_unrecognised`).
+
 Packed TGA sheets are rebuilt without changing PC model references, UVs,
 track geometry or texture indices. Original sheets are retained under
 `wobble/textures/native-source/`. Refresh rebuilds from these pristine copies

@@ -564,10 +564,9 @@ static bool native_paths(const char *game_root, NativePaths *p, WoError *error) 
     return true;
 }
 
-static bool retain_caches(const char *retain_from, const char *game, bool sheets_pristine,
-                          WoError *error) {
+static bool retain_caches(const char *retain_from, const char *game, WoError *error) {
     static const char *const folders[] = {"textures/ps1-source", "textures/native-source"};
-    for (size_t i = 0; i < (sheets_pristine ? 1 : WO_COUNT(folders)); i++) {
+    for (size_t i = 0; i < WO_COUNT(folders); i++) {
         char *old = wo_path_join(retain_from, folders[i], error);
         char *now = old ? wo_path_child(game, folders[i], error) : NULL;
         bool ok = now && (!wo_is_dir(old) || wo_copy_tree(old, now, error));
@@ -580,8 +579,30 @@ static bool retain_caches(const char *retain_from, const char *game, bool sheets
     return true;
 }
 
+/* The SHA-256 of the sheet the plan's placements were located in, or NULL
+ * when the plan names none for it. The game's models index one layout of a
+ * sheet; some game folders carry an earlier sheet, laid out differently. */
+static const char *expected_sheet(const WoJson *plan, const char *atlas) {
+    const WoJson *sheets = wo_json_get(plan, "sheets");
+    for (size_t i = 0; i < wo_json_length(sheets); i++) {
+        const WoJson *sheet = wo_json_at(sheets, i);
+        if (wo_str_ieq(wo_json_str(sheet, "file", ""), atlas)) {
+            return wo_json_str(sheet, "sha256", NULL);
+        }
+    }
+    return NULL;
+}
+
+static bool file_is(const char *path, const char *expected) {
+    char hash[WO_SHA256_HEX_SIZE];
+    return wo_is_file(path) && wo_sha256_file(path, hash, NULL) && wo_digest_eq(hash, expected);
+}
+
 /* Rebuild one sheet from its pristine copy; *built is false when the game
- * folder has no such sheet. Freshly extracted sheets are the pristine copy. */
+ * folder has no such sheet. A freshly extracted sheet becomes the pristine
+ * copy when it is the sheet the plan was made for; otherwise a retained copy
+ * that is stays. A sheet that is neither is installed as the source has it,
+ * without placements made for another layout. */
 static bool build_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJson *plan,
                         const char *atlas, bool sheets_pristine, WoNativeCounts *counts,
                         WoJson *files, bool *built, WoError *error) {
@@ -596,11 +617,23 @@ static bool build_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJ
     if (wo_is_file(target)) {
         WoBuf bytes = {0};
         char hash[WO_SHA256_HEX_SIZE];
-        if (sheets_pristine || !wo_is_file(pristine)) {
+        const char *expected = expected_sheet(plan, atlas);
+        bool fresh = sheets_pristine && (!expected || file_is(target, expected));
+        bool retained = expected && file_is(pristine, expected);
+        if (fresh || (!retained && (sheets_pristine || !wo_is_file(pristine)))) {
             ok = wo_copy_file(target, pristine, error);
         }
-        ok = ok && wo_read_file(pristine, SHEET_MAX_BYTES, &bytes, error) &&
-             wo_sheet_builder_apply(builder, plan, atlas, bytes.data, bytes.len, counts, error) &&
+        ok = ok && wo_read_file(pristine, SHEET_MAX_BYTES, &bytes, error);
+        bool known = true;
+        if (ok && expected) {
+            ok = wo_sha256_mem(bytes.data, bytes.len, hash, error);
+            known = ok && wo_digest_eq(hash, expected);
+            if (ok && !known) {
+                wo_log_text("native_sheet_unrecognised", atlas);
+            }
+        }
+        ok = ok && (!known || wo_sheet_builder_apply(builder, plan, atlas, bytes.data, bytes.len,
+                                                     counts, error)) &&
              wo_write_file_atomic(target, bytes.data, bytes.len, error) &&
              wo_sha256_mem(bytes.data, bytes.len, hash, error);
         if (ok) {
@@ -718,7 +751,7 @@ bool wo_natives_install(const WoNativeOptions *options, WoJson **receipt, WoErro
         }
     }
     if (options->retain_from) {
-        ok = retain_caches(options->retain_from, p.game, options->sheets_pristine, error);
+        ok = retain_caches(options->retain_from, p.game, error);
     }
     if (ok && options->ps1_source) {
         bool imported = false;
