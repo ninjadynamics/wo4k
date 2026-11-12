@@ -273,8 +273,8 @@ static const char *source_message(void) {
                           : "The PlayStation source is missing. Choose its current location, or "
                             "clear the optional field.";
         } else {
-            message = "The PlayStation source could not be verified. Select the European WipEout "
-                      "2097 disc or a complete extracted soundtrack folder.";
+            message = "The PlayStation source could not be verified. Select an original WipEout "
+                      "2097 / XL disc or a complete extracted soundtrack folder.";
         }
     } else if (!psx || !psx[0]) {
         message = "Add the PlayStation version for original artwork and its soundtrack.";
@@ -736,13 +736,13 @@ static void draw_frame(void) {
         app.psx_drop_y = y + field_h + ui_px(6);
         y += field_h + ui_px(13);
         draw_label("PLAYSTATION GAME \xC2\xB7 OPTIONAL", left, y, content, C_CAPS, UI_FONT_CAPS,
-                   "Adds original PlayStation artwork from the European 2097 disc, plus its "
-                   "soundtrack when CD audio is included. A data-only image supplies artwork "
-                   "without music.");
+                   "Adds original PlayStation artwork from the WipEout 2097 / XL disc (Europe, "
+                   "USA or Japan), plus its soundtrack when CD audio is included. A data-only "
+                   "image supplies artwork without music.");
         y += ui_line_height(UI_FONT_CAPS) + ui_px(5);
         source_row(W_PSX_FIELD, W_PSX_BROWSE, W_PSX_MAGIC, &app.psx, left, y, content, field_h,
                    spin,
-                   "Optional European PlayStation disc for original artwork and any included CD "
+                   "Optional PlayStation disc for original artwork and any included CD "
                    "audio, or an extracted music folder.",
                    SCAN_PSX);
         y += field_h + ui_px(14);

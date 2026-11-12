@@ -69,8 +69,9 @@ char *wo_user_message(WoStage stage, const WoError *error) {
         return copy("The original Windows game source could not be found or verified. Choose the "
                     "PC game ZIP, disc or folder and run Install / repair.");
     case WO_STAGE_PS1_SOURCE:
-        return copy("The PlayStation artwork source could not be read. Choose the European "
-                    "WipEout 2097 disc, or clear the optional PlayStation source.");
+        return copy("The PlayStation artwork source could not be read. Choose an original "
+                    "WipEout 2097 / XL PlayStation disc, or clear the optional PlayStation "
+                    "source.");
     case WO_STAGE_SOUNDTRACK:
         return copy("The selected soundtrack is missing or incomplete. Restore its disc or music "
                     "folder, or choose No music in Setup.");

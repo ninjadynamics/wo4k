@@ -7,6 +7,7 @@
 #include "core/wo_hash.h"
 #include "core/wo_iso.h"
 #include "core/wo_music.h"
+#include "core/wo_natives.h"
 #include "core/wo_ops.h"
 #include "core/wo_sources.h"
 #include "core/wo_zip.h"
@@ -68,16 +69,6 @@ static size_t count_audio_tracks(const char *text) {
         }
     }
     return count;
-}
-
-static bool contains_icase(const char *text, size_t len, const char *needle) {
-    size_t needle_len = strlen(needle);
-    for (size_t i = 0; i + needle_len <= len; i++) {
-        if (wo_str_istarts_with(text + i, needle)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 static void set_path(char **slot, const char *path) {
@@ -220,8 +211,7 @@ static void probe_image(const char *full, const WoJson *manifest, WoSourceInfo *
                     bytes = NULL;
                     if (wo_str_ieq(entry->path, "SYSTEM.CNF") && entry->length < PROBE_SYSTEM_CNF_MAX &&
                         wo_iso_read_entry(&iso, entry, PROBE_SYSTEM_CNF_MAX, &bytes, NULL) &&
-                        (contains_icase((const char *)bytes, entry->length, "SLES_003.27") ||
-                         contains_icase((const char *)bytes, entry->length, "SLES-003.27"))) {
+                        wo_ps1_serial_in(bytes, entry->length)) {
                         info->psx = true;
                         info->psx_data = true;
                         set_path(&info->psx_path, full);

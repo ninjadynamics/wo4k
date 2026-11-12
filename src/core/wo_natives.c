@@ -24,19 +24,23 @@ void wo_ps1_disc_free(WoPs1Disc *disc) {
     }
 }
 
-/* --- Finding the European disc ------------------------------------------------- */
+/* --- Finding the PlayStation disc ----------------------------------------------- */
 
-static bool contains_serial(const uint8_t *text, size_t len) {
-    static const char prefix[] = "SLES";
-    static const char suffix[] = "003.27";
-    for (size_t i = 0; i + 11 <= len; i++) {
-        bool same = true;
-        for (size_t j = 0; j < 4 && same; j++) {
-            same = wo_ascii_lower((char)text[i + j]) == wo_ascii_lower(prefix[j]);
-        }
-        if (same && (text[i + 4] == '_' || text[i + 4] == '-') &&
-            memcmp(text + i + 5, suffix, 6) == 0) {
-            return true;
+bool wo_ps1_serial_in(const void *system_cnf, size_t len) {
+    /* Europe, USA and Japan/Asia. Every texture and track file is
+     * byte-identical on the three discs (285 files compared). */
+    static const char *const serials[] = {"SLES" "003.27", "SCUS" "943.51", "SIPS" "600.10"};
+    const uint8_t *text = system_cnf;
+    for (size_t s = 0; s < WO_COUNT(serials); s++) {
+        for (size_t i = 0; i + 11 <= len; i++) {
+            bool same = true;
+            for (size_t j = 0; j < 4 && same; j++) {
+                same = wo_ascii_lower((char)text[i + j]) == wo_ascii_lower(serials[s][j]);
+            }
+            if (same && (text[i + 4] == '_' || text[i + 4] == '-') &&
+                memcmp(text + i + 5, serials[s] + 4, 6) == 0) {
+                return true;
+            }
         }
     }
     return false;
@@ -63,7 +67,7 @@ static bool is_ps1_texture_disc(const char *image, uint64_t offset) {
         const WoIsoEntry *cnf = find_file(&iso, "SYSTEM.CNF");
         uint8_t *text = NULL;
         if (cnf && wo_iso_read_entry(&iso, cnf, SYSTEM_CNF_MAX_BYTES, &text, NULL)) {
-            match = contains_serial(text, cnf->length) &&
+            match = wo_ps1_serial_in(text, cnf->length) &&
                     wo_iso_find(&iso, "WIPEOUT2/TEXTURES/EXPLODE.CMP") != NULL;
             wo_free(text);
         }
@@ -289,8 +293,9 @@ bool wo_ps1_import_textures(const char *source, const char *destination, const W
         ok = music_only(full, &only, error);
         if (ok && !only) {
             ok = wo_fail(error, WO_ERR_NOT_FOUND,
-                         "No supported PlayStation texture data found. Use the European WipEout "
-                         "2097 disc (SLES-00327); an extracted music folder supplies music only.");
+                         "No supported PlayStation texture data found. Use an original "
+                         "WipEout 2097 / XL PlayStation disc (Europe, USA or Japan); an "
+                         "extracted music folder supplies music only.");
         }
     }
     size_t count = 0;

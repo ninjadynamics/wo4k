@@ -46,7 +46,7 @@ typedef struct WoSourceInfo {
     bool not_retail;   /* a supported executable, but texture sheets of an earlier
                           revision than the retail disc's (the "RIP" download) */
     bool pc_music;     /* PC CD audio or an extracted PC music folder */
-    bool psx;          /* the European PS1 disc or an extracted PS1 music folder */
+    bool psx;          /* a supported PS1 disc or an extracted PS1 music folder */
     bool psx_music;    /* PS1 CD audio or music folder */
     bool psx_data;     /* PS1 data track (artwork) */
     char *pc_music_path;  /* where PC music was found (folder or image), or NULL */

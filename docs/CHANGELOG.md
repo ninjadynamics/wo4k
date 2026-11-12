@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accept the USA and Japan PlayStation discs for original artwork, not only
+  the European one. Their texture and track files are identical.
 - Remove the yellow-green lines on Odessa Keys' blue buildings (the clock
   entrance). The PC release places that track's grass texture four pixels
   over the wall texture beside it; the PlayStation release has them side by

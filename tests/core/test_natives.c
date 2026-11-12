@@ -325,6 +325,12 @@ static void test_ps1_import(void) {
     build_game(game);
     build_ps1_iso(disc, "SLES_003.27");
     build_ps1_iso(decoy, "SCUS_944.07");
+    /* The three releases of the game, and nothing else. */
+    CHECK(wo_ps1_serial_in("BOOT = cdrom:\\SCUS_943.51;1", 28));
+    CHECK(wo_ps1_serial_in("BOOT = cdrom:\\sips_600.10;1", 28));
+    CHECK(wo_ps1_serial_in("SLES-003.27", 11));
+    CHECK(!wo_ps1_serial_in("BOOT = cdrom:\\SCUS_944.07;1", 28));
+    CHECK(!wo_ps1_serial_in("SLES_003.2", 10));
 
     WoPs1Disc found_disc;
     bool found = false;

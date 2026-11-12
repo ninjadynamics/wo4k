@@ -31,7 +31,7 @@ Git. Ready-to-use ZIP packages and their SHA-256 checksums belong in
   Menus, HUD and blended materials retain their original colors/transparency.
 - HD fonts, HUD, notice and title artwork, with original SD assets retained.
 - Restore full-colour road materials from original tiles already in the PC
-  data. An optional European PS1 disc adds original texture/sprite sources;
+  data. An optional PS1 disc adds original texture/sprite sources;
   selection follows a fixed, project-audited map with byte-identical PC reuse.
 - SDL3 gamepad support, including DualSense over USB or Bluetooth.
 - PC music plus an optional PlayStation soundtrack, switchable during play.
@@ -46,8 +46,8 @@ required. Supply one PC ZIP/disc image, or the small **11 MB PC version**.
 Setup extracts any PC music included with that source automatically.
 
 Music is optional. The small version can run with sound effects only, or with
-an optional PlayStation soundtrack. The European PS1 disc (SLES-00327) also
-supplies original artwork. A data-only ISO works for artwork without music;
+an optional PlayStation soundtrack. The PS1 disc (Europe SLES-00327, USA
+SCUS-94351 or Japan SIPS-60010) also supplies original artwork. A data-only ISO works for artwork without music;
 PS1 data cannot replace the Windows executable. There is no separate PC
 soundtrack field. See [native texture selection](docs/NATIVE-TEXTURES.md).
 

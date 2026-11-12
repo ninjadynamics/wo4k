@@ -1,6 +1,7 @@
 /* Native texture restoration driven by manifests/texture-selection.json:
- * PC regions recovered from the game's own files and, when the European
- * PlayStation disc (SLES-00327) is supplied, regions from its textures.
+ * PC regions recovered from the game's own files and, when a PlayStation
+ * disc (Europe SLES-00327, USA SCUS-94351 or Japan SIPS-60010; their
+ * textures are identical) is supplied, regions from its textures.
  *
  * Layout below the game folder:
  *   textures/sd/...            the packed RGB555 sheets the game loads
@@ -30,7 +31,11 @@ typedef struct WoPs1Disc {
 
 void wo_ps1_disc_free(WoPs1Disc *disc);
 
-/* Find the European disc in source (a folder searched recursively, CUE and
+/* True when a disc's SYSTEM.CNF names one of the supported PlayStation
+ * releases. */
+bool wo_ps1_serial_in(const void *system_cnf, size_t len);
+
+/* Find the PlayStation disc in source (a folder searched recursively, CUE and
  * MDS descriptors first, or a single .cue/.mds/.mdf/.bin/.iso file).
  * *found is false when there is none; images that cannot be read are
  * skipped, but a damaged CUE/MDS descriptor is an error. */
