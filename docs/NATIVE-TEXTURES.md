@@ -183,3 +183,14 @@ Existing UI artwork takes its
 usual path. World rendering retains native depth, RGB blending and fades, with
 separate keyed/opaque uploads so black cutouts do not make opaque surfaces
 transparent. Missing optional region artwork falls back to the native sheet.
+
+One scenery picture is not a still: Valparaiso's waterfall
+(`track13-scene-cmp-16.png` among the exports). The game moves twelve of its
+sixteen colours along at every simulation step, and after each turn the
+runtime repaints the picture's place on its page from the track archive's own
+texels and the game's palette (`src/runtime/palette_cycle.c`). It finds the
+picture as the one the model named `wfall` is drawn with, which holds for the
+PlayStation's archive and the PC's. The page keeps whatever size its other
+replacements give it, with each texel of the waterfall enlarged to match. A
+replacement PNG for the waterfall is painted over, so do not author one, and
+anything that rewrites the sheets (debanding) has no effect on it.

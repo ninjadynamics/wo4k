@@ -53,6 +53,15 @@
   PlayStation's model gives every pylon the same name, so the trains stood
   still. Where the ends are not named, WO4K now measures the line between
   the two pylons furthest apart.
+- Let Valparaiso's waterfall fall. On the PlayStation the game moves twelve
+  of the waterfall picture's sixteen colours along by one place at every
+  step, so that bands of white water run down it. The PC game kept that
+  routine but nothing of it shows: the two calls that read the palette and
+  write it back do nothing there, and the water stood still. WO4K now takes
+  the picture and its palette from the track's archive and repaints it
+  whenever the game has turned the colours, with the PlayStation's scenery
+  and with the PC's own. An HD replacement for that one picture
+  (`track13-scene-cmp-16.png`) is not shown.
 - Fix the game crashing the moment it starts on PCs where Windows enforces
   Data Execution Prevention for every program. The original game marks its
   own code as data during startup, which only older DEP defaults forgive;

@@ -12,6 +12,7 @@ static UiHdPage ui_hd_logo;
 static UiNativeLoadFn old_ui_native_load;
 static WCHAR ui_hd_directory[MAX_PATH];
 #include "ui_hd_assets.c"
+#include "palette_cycle.c"
 static DWORD ui_hd_original_key=TRUE,ui_hd_original_test,ui_hd_original_ref,ui_hd_original_func=8,ui_hd_original_address=1;
 /* The game's V1 device rejects Device2 QI (E_INVALIDARG, with and without
  * DDrawCompat), so these are its inherited defaults. The native game never
@@ -87,6 +88,7 @@ static void ui_hd_retire(IUnknown *object) {
 static void ui_hd_presented(void) {
     for(UINT i=0;i<ui_hd_retired_count;++i)ui_hd_retired[i]->lpVtbl->Release(ui_hd_retired[i]);
     ui_hd_retired_count=0;
+    palette_cycle_present();
 }
 static void ui_hd_release(UiHdPage *page) {
     ui_hd_retire((IUnknown *)page->texture);
@@ -153,10 +155,11 @@ static BYTE *ui_hd_join_logo(const BYTE *atlas,UINT size,UINT *width,UINT *heigh
     }
     return joined;
 }
-static BOOL ui_hd_load(const char *filename,UINT index,UINT pages,UiHdPage *page,UiHdPage *opaque) {
+static BOOL ui_hd_load(const char *filename,UINT index,UINT pages,BOOL cycled,UiHdPage *page,UiHdPage *opaque) {
     BOOL logo=index==0 && startup_name(filename,"xllogo.tga");
     if(logo)ui_hd_release(&ui_hd_logo);
     UINT width=0;BYTE *pixels=hd_asset_pixels(filename,index,pages,&width);
+    if(cycled)pixels=palette_cycle_page(filename,index,pages,pixels,&width);
     if(!pixels)return FALSE;
     if(startup_name(filename,"testmenu.tga"))ui_hd_measure_frame(pixels,width,index,&page->frame_art);
     BOOL ok=ui_hd_upload(pixels,width,width,page);
@@ -184,10 +187,10 @@ static void ui_hd_commit_page(UINT slot,const UiHdPage *fresh) {
 static void __cdecl ui_native_load(int unused,const char *filename,SHORT first,SHORT count) {
     old_ui_native_load(unused,filename,first,count);
     if(first<0 || count<1 || (UINT)first+(UINT)count>UI_HD_PAGE_COUNT)return;
-    UINT loaded=0;
+    UINT loaded=0;int cycled=palette_cycle_claim(filename,(UINT)first,(UINT)count);
     for(UINT i=0;i<(UINT)count;++i){
         UiHdPage fresh={0},opaque={0};
-        if(ui_hd_load(filename,i,(UINT)count,&fresh,&opaque)){
+        if(ui_hd_load(filename,i,(UINT)count,(int)i==cycled,&fresh,&opaque)){
             ++loaded;wo_render_event("ui_hd_loaded_slot",(UINT)first+i);wo_render_event("ui_hd_loaded_width",fresh.width);
         }
         ui_hd_commit_page((UINT)first+i,&fresh);
@@ -465,4 +468,5 @@ static void initialize_ui_hd(const WCHAR *root) {
     ui_hd_deferred_release=TRUE;
     old_ui_native_load=(UiNativeLoadFn)hook(RVA_ui_native_load,entry_ui_native_load,sizeof(entry_ui_native_load),ui_native_load);
     wo_render_event("ui_hd_loader_hook",old_ui_native_load!=0);
+    if(old_ui_native_load)initialize_palette_cycle();
 }
