@@ -30,6 +30,14 @@
   was drawn like a trail: added to whatever lay beneath it. The marks are
   now removed as soon as the frame is drawn, and those of explosion sprites
   no longer pass to the trackside sprite that takes their place.
+- Show "DANGER / CRITICAL SHIELD FAILURE" steadily at any frame rate. The
+  game only showed it on frames that ran a simulation step, so above 30
+  frames a second the words flickered with the frame rate. They now follow
+  the failure countdown itself, in step with the warning sound.
+- Controller: Start is Enter in menus (as Cross is) and Select is Esc. The
+  Start press that leaves the title screen no longer carries on into the
+  main menu, and Start held after pausing a race no longer picks the pause
+  menu's first entry.
 - Fix the game crashing the moment it starts on PCs where Windows enforces
   Data Execution Prevention for every program. The original game marks its
   own code as data during startup, which only older DEP defaults forgive;

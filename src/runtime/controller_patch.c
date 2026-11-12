@@ -6,6 +6,8 @@ static DWORD controller_buttons,controller_menu,controller_repeat;
 static WORD controller_previous_pad;
 static LONG controller_left,controller_right;
 static WORD controller_keyboard;
+static WORD controller_start_mask;
+static BOOL controller_start_on_title;
 static void (__cdecl *old_controller_brake)(BYTE *);
 /* While its helper runs, SDL owns the joystick backend even when waiting or
  * unfocused; otherwise legacy WinMM can inject duplicate buttons or bypass
@@ -89,7 +91,17 @@ static void apply_controller_state(const ControllerWire *sample,BOOL present) {
         if(b&(1u<<13))menu|=0x80;if(b&(1u<<14))menu|=0x20;
         BOOL racing=refresh_race && *(DWORD *)(game+0x8c98c) && !*(DWORD *)(game+0x89cb0);
         if((b&4) && !racing)menu|=0x1000;
-        if(b&(1u<<6))menu|=(WORD)title_start_mask(title_input_active()); // Options / Start
+        if(b&(1u<<4))menu|=0x1000;        // Create / Select: Esc
+        /* Options / Start is Enter on the title screen and in menus, and Esc
+         * (the pause menu) in a race. What a press means is settled when the
+         * button goes down: held on into the next screen it must not turn
+         * into that screen's key, and the press that leaves the title screen
+         * ends with it. */
+        if(!(b&(1u<<6)))controller_start_mask=0;
+        else if(!(controller_buttons&(1u<<6))) {
+            controller_start_mask=(WORD)title_start_mask(racing);controller_start_on_title=title_input_active();
+        }
+        if(!controller_start_on_title || title_input_active())menu|=controller_start_mask;
         controller_left=state.left>1600?(state.left-1600)*256/(32767-1600):0;
         controller_right=state.right>1600?(state.right-1600)*256/(32767-1600):0;
         WORD edges=menu&~controller_menu;DWORD now=GetTickCount();
@@ -108,6 +120,7 @@ static void apply_controller_state(const ControllerWire *sample,BOOL present) {
         controller_buttons=b;
     } else {
         controller_left=controller_right=0;controller_buttons=0;controller_previous_pad=0;
+        controller_start_mask=0;
         if(was_active)*(WORD *)(game+0x65f7ce)=(controller_keyboard&0x20)?255:((controller_keyboard&0x80)?0:128);
     }
     controller_menu=menu;*(WORD *)(game+0x665108)|=pad;

@@ -38,6 +38,17 @@ static void finish_race_ui_effects(void) {
         static BOOL reported_bonus;
         if(bonus!=reported_bonus){wo_render_event("render_time_bonus_active",bonus);reported_bonus=bonus;}
         *(DWORD *)(game+0x8c17c)=bonus && race_flash_visible(ui_ticks);
+        /* The shield warning has the same fault: cleared on every render,
+         * set only in a simulation step, from the failure countdown before
+         * that step moves it. On the frames between steps the words went
+         * out, so they flickered at the frame rate. Show them on every frame
+         * from the countdown as the last step saw it: it runs on the
+         * simulation's clock, and the warning sound with it. */
+        const BYTE *ships=*(const BYTE **)(game+0x518030);int own=*(SHORT *)(game+0x664820);
+        if(ships && own>=0 && own<15 && !*(DWORD *)(game+0x89cb0)) {
+            int countdown=*(int *)(game+0x5192e0+own*4)+1;
+            *(DWORD *)(game+0x8c174)=countdown>15 && (countdown&7)<4 && !(ships[own*240+0xac]&4);
+        }
     }
 }
 static void initialize_race_ui(const WCHAR *settings) {

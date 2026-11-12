@@ -137,12 +137,32 @@ void __stdcall test_entry(void){
     if(title_prompt((const char *)(image+0x8c868))[6]!='S')ExitProcess(24);
     controller_active=FALSE;
     if(title_prompt((const char *)(image+0x8c868))!=(const char *)(image+0x8c868))ExitProcess(25);
-    ControllerWire title_pad={0};title_pad.buttons=1u<<6;
+    ControllerWire title_pad={0},idle_pad={0},select_pad={0};title_pad.buttons=1u<<6;select_pad.buttons=1u<<4;
     *(WORD *)(image+0x65f7cc)=0;apply_controller_state(&title_pad,TRUE);
     if(!(*(WORD *)(image+0x65f7cc)&0x4000))ExitProcess(26);
-    apply_controller_state(0,FALSE);title_active=FALSE;
+    /* Still held when the title screen has gone, that Start is spent: the
+     * main menu must not take it for a key of its own. Pressed again it is
+     * Enter, like Cross; Select is Esc. */
+    title_active=FALSE;
+    *(WORD *)(image+0x65f7cc)=0;*(WORD *)(image+0x65f680)=0;apply_controller_state(&title_pad,TRUE);
+    if(*(WORD *)(image+0x65f7cc) || *(WORD *)(image+0x65f680))ExitProcess(27);
+    apply_controller_state(&idle_pad,TRUE);
     *(WORD *)(image+0x65f7cc)=0;apply_controller_state(&title_pad,TRUE);
-    if(!(*(WORD *)(image+0x65f7cc)&0x1000) || (*(WORD *)(image+0x65f7cc)&0x4000))ExitProcess(27);
+    if(*(WORD *)(image+0x65f7cc)!=0x4000)ExitProcess(32);
+    apply_controller_state(&idle_pad,TRUE);
+    *(WORD *)(image+0x65f7cc)=0;apply_controller_state(&select_pad,TRUE);
+    if(*(WORD *)(image+0x65f7cc)!=0x1000)ExitProcess(43);
+    apply_controller_state(&idle_pad,TRUE);
+    /* In a race Start is Esc, which opens the pause menu; held on into that
+     * menu it stays Esc and does not accept the menu's first entry. */
+    BOOL start_race=refresh_race;DWORD start_view=*(DWORD *)(image+0x8c98c);
+    refresh_race=TRUE;*(DWORD *)(image+0x8c98c)=1;
+    *(WORD *)(image+0x65f7cc)=0;apply_controller_state(&title_pad,TRUE);
+    if(*(WORD *)(image+0x65f7cc)!=0x1000)ExitProcess(44);
+    *(DWORD *)(image+0x89cb0)=1;*(WORD *)(image+0x65f7cc)=0;apply_controller_state(&title_pad,TRUE);
+    if(*(WORD *)(image+0x65f7cc))ExitProcess(48);
+    *(DWORD *)(image+0x89cb0)=0;refresh_race=start_race;*(DWORD *)(image+0x8c98c)=start_view;
+    *(WORD *)(image+0x65f7cc)=0;*(WORD *)(image+0x65f680)=0;*(WORD *)(image+0x65f5b0)=0;
     apply_controller_state(0,FALSE);
     BYTE config[48];for(UINT i=0;i<sizeof(config);++i)config[i]=0;
     *(BYTE **)(image+0x517958)=config;config[0x19]=1;race_trail_detail=2;
@@ -164,6 +184,23 @@ void __stdcall test_entry(void){
     *(int *)(image+0x87640)=0;
     ((void (__cdecl *)(void *))(image+RVA_ship_effects))(0);
     if(*(DWORD *)(image+0x8c17c) || !native_effect_calls)ExitProcess(15);
+    /* The shield warning shows from the failure countdown on every frame,
+     * not only on the frames that ran a simulation step. */
+    static BYTE warning_ships[15*240];
+    *(BYTE **)(image+0x518030)=warning_ships;
+    for(int countdown=100;countdown>=0;--countdown){
+        *(int *)(image+0x5192e0)=countdown;*(DWORD *)(image+0x8c174)=0; /* native per-render clear */
+        ((void (__cdecl *)(void *))(image+RVA_ship_effects))(0);
+        BOOL wanted=countdown+1>15 && ((countdown+1)&7)<4;
+        if((*(DWORD *)(image+0x8c174)!=0)!=wanted)ExitProcess(41);
+    }
+    *(int *)(image+0x5192e0)=97;warning_ships[0xac]=4;*(DWORD *)(image+0x8c174)=0;
+    ((void (__cdecl *)(void *))(image+RVA_ship_effects))(0);
+    if(*(DWORD *)(image+0x8c174))ExitProcess(42);
+    warning_ships[0xac]=0;*(DWORD *)(image+0x89cb0)=1;
+    ((void (__cdecl *)(void *))(image+RVA_ship_effects))(0);
+    if(*(DWORD *)(image+0x8c174))ExitProcess(42);
+    *(DWORD *)(image+0x89cb0)=0;*(int *)(image+0x5192e0)=0;*(BYTE **)(image+0x518030)=0;
     if(!GetEnvironmentVariableW(L"WO_TEST_SETTINGS",race_ui_settings,MAX_PATH))ExitProcess(16);
     test_startup_launch(image,race_ui_settings);
     old_detail_keys=fixture_detail_keys;refresh_show_fps=TRUE;
