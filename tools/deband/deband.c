@@ -21,6 +21,7 @@
  *  -d VAL    Dither amplitude in 8-bit levels, 0..4 (default 0.8)
  *  -b VAL    Band step limit, 0..0.5 (default 0.16; 0 turns band ramps off)
  *  -w N      Band ramp reach in pixels, 1..128 (default 12)
+ *  -k VAL    Keep details, 0..1 (default 1; 0 ramps light/dark details too)
  *  -z        Trim only: losslessly recompress PNGs in place, no debanding
  *  -h        Help
  *
@@ -86,7 +87,7 @@ typedef struct {
     volatile long next;
     volatile long ok, failed, skipped;
     volatile long long saved; /* -z: bytes saved */
-    float threshold, dither, band;
+    float threshold, dither, band, keep;
     int radius, simple, overwrite, trim, reach;
     float *noise;
     float trig_cos[256], trig_sin[256];
@@ -585,7 +586,8 @@ static int img_write(const char *path, const uint8_t *rgba, int w, int h, int ki
  * one side and a darker one on another. An area that is lighter, or darker,
  * than everything around it is a detail (a rivet, a seam, a stripe's shade,
  * the peak of a highlight) and keeps its colour; ramping it towards its
- * surroundings would only wash it out.
+ * surroundings would only wash it out. `keep` scales that: 1 leaves details
+ * alone, 0 ramps them like any band (smoother, softer).
  *
  * Returns a new RGBA buffer. Alpha, and every byte of a fully transparent
  * pixel, are copied unchanged; transparent pixels take no part. */
@@ -643,7 +645,7 @@ static void band_distances(const uint8_t *src, const int32_t *label, int w, int 
     }
 }
 
-static uint8_t *band_ramps(const uint8_t *src, int w, int h, float band, int reach) {
+static uint8_t *band_ramps(const uint8_t *src, int w, int h, float band, int reach, float keep) {
     size_t pixels = (size_t)w * h;
     int limit = (int)floorf(band * 255.0f + 0.5f);
     uint8_t *out = (uint8_t *)malloc(pixels * 4u);
@@ -685,14 +687,16 @@ static uint8_t *band_ramps(const uint8_t *src, int w, int h, float band, int rea
         band_distances(src, label, w, h, channel, 1, limit, up, gap_up, stepped);
         band_distances(src, label, w, h, channel, -1, limit, down, gap_down, stepped);
         for (size_t i = 0; i < pixels; i++) {
-            if (label[i] < 0 || stepped[label[i]] != 3) continue;
+            if (label[i] < 0) continue;
+            float strength = stepped[label[i]] == 3 ? 1.0f : 1.0f - keep;
+            if (strength <= 0.0f) continue;
             int has_up = up[i] < BAND_FAR, has_down = down[i] < BAND_FAR;
             if (!has_up && !has_down) continue;
             float width = has_up && has_down ? up[i] + down[i] : (float)reach;
             if (width > (float)reach) width = (float)reach;
             float value = (float)src[i * 4u + channel];
-            if (has_up && up[i] < width) value += 0.5f * gap_up[i] * (1.0f - up[i] / width);
-            if (has_down && down[i] < width) value -= 0.5f * gap_down[i] * (1.0f - down[i] / width);
+            if (has_up && up[i] < width) value += strength * 0.5f * gap_up[i] * (1.0f - up[i] / width);
+            if (has_down && down[i] < width) value -= strength * 0.5f * gap_down[i] * (1.0f - down[i] / width);
             out[i * 4u + channel] = quantize(value);
         }
     }
@@ -1088,7 +1092,7 @@ static void process_job(Context *ctx, size_t index) {
     if (ctx->band > 0) {
         int bw = 0, bh = 0;
         uint8_t *decoded = img_read(j, &bw, &bh);
-        if (decoded && bw == w && bh == h) base = band_ramps(decoded, w, h, ctx->band, ctx->reach);
+        if (decoded && bw == w && bh == h) base = band_ramps(decoded, w, h, ctx->band, ctx->reach, ctx->keep);
         free(decoded);
         if (!base) { fprintf(stderr, "ERROR: decode/band ramps failed: %s\n", j->src); free(temp); goto failed; }
     }
@@ -1356,6 +1360,7 @@ static void usage(const char *exe) {
            "  -d F      Dither strength 0..4 levels (default: 0.8)\n"
            "  -b F      Band step limit 0..0.5 (default: 0.160; 0 = no band ramps)\n"
            "  -w N      Band ramp reach 1..128 pixels (default: 12)\n"
+           "  -k F      Keep details 0..1 (default: 1.00; 0 = ramp light/dark details too)\n"
            "  -z        Trim only: losslessly recompress PNGs in place (no debanding)\n"
            "  -h        Show help\n\n"
            "Without -x, produces PNGs and refuses to overwrite existing files.\n"
@@ -1373,7 +1378,7 @@ int main(int argc, char **argv) {
     Context ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.threshold = 0.020f; ctx.radius = 24; ctx.dither = 0.8f;
-    ctx.band = 0.160f; ctx.reach = 12;
+    ctx.band = 0.160f; ctx.reach = 12; ctx.keep = 1.0f;
     const char *input = NULL, *output = ".";
     int explicit_output = 0, jobs = 0;
     for (int i = 1; i < argc; i++) {
@@ -1388,6 +1393,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "-d") && i + 1 < argc) ctx.dither = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "-b") && i + 1 < argc) ctx.band = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "-w") && i + 1 < argc) ctx.reach = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "-k") && i + 1 < argc) ctx.keep = (float)atof(argv[++i]);
         else if (argv[i][0] == '-') { fprintf(stderr, "ERROR: unrecognized argument: %s\n", argv[i]); return 2; }
         else if (!input) input = argv[i];
         else { fprintf(stderr, "ERROR: too many input paths\n"); return 2; }
@@ -1398,7 +1404,8 @@ int main(int argc, char **argv) {
     if (ctx.overwrite && explicit_output) { fprintf(stderr, "ERROR: -x and -o cannot be combined\n"); return 2; }
     if (ctx.radius < 1 || ctx.radius > 128 || ctx.threshold < 0.00003f ||
         ctx.threshold > 0.5f || ctx.dither < 0 || ctx.dither > 4 || jobs > 128 || jobs < 0 ||
-        ctx.band < 0 || ctx.band > 0.5f || ctx.reach < 1 || ctx.reach > 128) {
+        ctx.band < 0 || ctx.band > 0.5f || ctx.reach < 1 || ctx.reach > 128 ||
+        ctx.keep < 0 || ctx.keep > 1) {
         fprintf(stderr, "ERROR: parameter outside accepted range\n"); return 2;
     }
     STATBUF st;
@@ -1469,9 +1476,9 @@ int main(int argc, char **argv) {
         printf("Lossless PNG trim | images: %zu | workers: %d\n", ctx.count, threads);
     else
         printf("Backend: %s | images: %zu | workers: %d | threshold: %.4f | radius: %d | dither: %.2f | "
-               "band: %.3f | reach: %d\n",
+               "band: %.3f | reach: %d | keep: %.2f\n",
                ctx.simple ? "native C" : "FFmpeg", ctx.count, threads,
-               ctx.threshold, ctx.radius, ctx.dither, ctx.band, ctx.reach);
+               ctx.threshold, ctx.radius, ctx.dither, ctx.band, ctx.reach, ctx.keep);
     fflush(stdout);
 #ifdef _WIN32
     HANDLE *handles = (HANDLE *)calloc((size_t)threads, sizeof(HANDLE));

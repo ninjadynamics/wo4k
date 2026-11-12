@@ -3,8 +3,10 @@
 Maintainer tool; changes no game files. Reads a PlayStation disc (a ZIP holding
 the data track, or the .bin itself), writes one PNG per TIM frame to --output
 (see-through texels transparent, the opaque black of the disc data kept), then
-runs tools/deband/deband.exe into --debanded and builds the left/right
-comparison page from tools/texture-picker in --page.
+runs tools/deband/deband.exe twice into --debanded (v1: smoother, details
+ramped too; v2: details kept) and builds the comparison page from
+tools/texture-picker in --page, where each texture keeps the original, v1
+or v2 and the choices export as JSON.
 
 Scenery frames that meet edge to edge in the game are debanded together: the
 track models say which frame borders touch, each frame is processed with a
@@ -30,6 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from texture_formats import u16, u32, unpack_cmp  # noqa: E402
 
 MARGIN = 16  # texels of neighbour context; more than deband's band reach
+# deband options per level: v1 is close to plain band ramps, v2 protects details
+LEVELS = {'v1': ['-k', '0.25'], 'v2': ['-k', '1']}
 TRACKS = {'TRACK01': "Talon’s Reach", 'TRACK08': 'Sagarmatha', 'TRACK13': 'Valparaiso',
           'TRACK20': 'Phenitia Park', 'TRACK02': 'Gare d’Europa', 'TRACK17': 'Odessa Keys',
           'TRACK06': 'Vostok Island', 'TRACK07': 'Spilskinanke'}
@@ -257,47 +261,42 @@ def build_page(root, items, output, debanded, page):
         else:
             group = 'Effects & sprites' if top == 'TEXTURES' else 'Shared textures'
             title = Path(item['source']).stem.replace('_', ' ').title()
-        before, after = Image.open(output / item['file']), Image.open(debanded / item['file'])
-        entries.append({'id': f"{item['source']}#{item['frame']:04d}", 'source': item['source'], 'frame': item['frame'],
-                        'group': group, 'title': title, 'width': item['width'], 'height': item['height'],
-                        'defaultVersion': 'ps1', 'provenance': '',
-                        'pixelsIdentical': before.mode == after.mode and before.tobytes() == after.tobytes(),
-                        'ps1': Path('..', '..', *output.relative_to(root).parts, item['file']).as_posix(),
-                        'pc': Path('..', '..', *debanded.relative_to(root).parts, item['file']).as_posix()})
+        before = Image.open(output / item['file'])
+        entry = {'id': f"{item['source']}#{item['frame']:04d}", 'file': item['file'], 'source': item['source'],
+                 'frame': item['frame'], 'group': group, 'title': title, 'width': item['width'],
+                 'height': item['height'], 'defaultVersion': 'v1', 'identical': {},
+                 'original': Path('..', '..', *output.relative_to(root).parts, item['file']).as_posix()}
+        for level in LEVELS:
+            after = Image.open(debanded / level / item['file'])
+            entry['identical'][level] = before.mode == after.mode and before.tobytes() == after.tobytes()
+            entry[level] = Path('..', '..', *debanded.relative_to(root).parts, level, item['file']).as_posix()
+        entries.append(entry)
     entries.sort(key=lambda e: (order[e['group']], e['source'], e['frame']))
-    catalog = {'format': 'wo4k.texture-catalog', 'version': 1, 'catalogRevision': 'deband-1', 'textures': entries}
+    catalog = {'format': 'wo4k.texture-catalog', 'version': 1, 'catalogRevision': 'deband-2', 'textures': entries}
     data = json.dumps(catalog, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
 
-    def patched(name, pairs):
-        text = (root / 'tools/texture-picker' / name).read_text(encoding='utf-8')
-        for old, new in pairs:
-            assert old in text, old
-            text = text.replace(old, new)
-        (page / name).write_text(text, encoding='utf-8')
-
-    patched('index.html', [
-        ('WO4K · Texture choices', 'WO4K · Deband comparison'), ('PC × PLAYSTATION', 'PLAYSTATION × DEBAND'),
-        ('<strong>PS1 on the left, PC on the right.</strong>',
-         '<strong>Original PS1 on the left, debanded on the right.</strong>'),
-        ('Road comparisons include the richer PS1 colours recovered from PC data. Other previews show original '
-         'texture pixels; in-game blending is not simulated.',
-         'Every texture frame on the PlayStation disc against its debanded version. In-game blending is not simulated.'),
-        ('<b class="ps1-dot"></b>PS1 <b class="pc-dot"></b>PC',
-         '<b class="ps1-dot"></b>Original <b class="pc-dot"></b>Debanded'),
-        ('<!-- CATALOG -->', '<script type="application/json" id="catalog">' + data + '</script>')])
-    patched('app.js', [
-        ("ps1Label.textContent = 'PS1'", "ps1Label.textContent = 'Original'"),
-        ("pcLabel.textContent = 'PC'", "pcLabel.textContent = 'Debanded'"),
-        ("new Option('PS1', 'ps1'), new Option('PC', 'pc')", "new Option('Original', 'ps1'), new Option('Debanded', 'pc')"),
-        ("note.textContent = item.defaultVersion === 'pc' ? 'Byte-identical originals · PC reused' : "
-         "item.group === 'Roads' ? 'PS1 colours · recovered from PC tile data' : item.pixelsIdentical ? "
-         "'Same RGB pixels · native data differs · PS1 preferred' : 'PS1 original · native data differs';",
-         "note.textContent = item.pixelsIdentical ? 'Deband left this texture unchanged' : 'Deband changed this texture';"),
-        ("`${ps1} PS1 · ${textures.length - ps1} PC · ${changed} changed`",
-         "`${ps1} original · ${textures.length - ps1} debanded · ${changed} changed`"),
-        ("[ps1, 'PS1 selected'], [textures.length - ps1, 'PC selected']",
-         "[ps1, 'original kept'], [textures.length - ps1, 'debanded kept']")])
-    shutil.copyfile(root / 'tools/texture-picker/style.css', page / 'style.css')
+    text = (root / 'tools/texture-picker/index.html').read_text(encoding='utf-8')
+    for old, new in [
+            ('WO4K · Texture choices', 'WO4K · Deband comparison'), ('PC × PLAYSTATION', 'PLAYSTATION × DEBAND'),
+            ('<strong>PS1 on the left, PC on the right.</strong> Choose the version you want to keep',
+             '<strong>Original PS1 on the left, debanded on the right.</strong> Keep the original, deband v1 '
+             '(smoother) or deband v2 (keeps details) for each texture'),
+            ('Road comparisons include the richer PS1 colours recovered from PC data. Other previews show original '
+             'texture pixels; in-game blending is not simulated.',
+             'Every texture frame on the PlayStation disc. The right side shows the version you keep; with the '
+             'original kept it shows the debanded version last chosen. In-game blending is not simulated.'),
+            ('<b class="ps1-dot"></b>PS1 <b class="pc-dot"></b>PC',
+             '<b class="ps1-dot"></b>Original <b class="pc-dot"></b>Debanded'),
+            ('<!-- CATALOG -->', '<script type="application/json" id="catalog">' + data + '</script>'),
+            ('<script src="app.js"></script>', '<script src="deband.js"></script>')]:
+        assert old in text, old
+        text = text.replace(old, new)
+    (page / 'index.html').write_text(text, encoding='utf-8')
+    for name in ('deband.js', 'style.css'):
+        shutil.copyfile(root / 'tools/texture-picker' / name, page / name)
+    stale = page / 'app.js'
+    if stale.exists():
+        stale.unlink()
 
 
 def main():
@@ -307,7 +306,8 @@ def main():
     parser.add_argument('--output', type=Path, default=root / 'assets/sd')
     parser.add_argument('--debanded', type=Path, default=root / 'assets/sd-debanded')
     parser.add_argument('--page', type=Path, default=root / 'exports/ps1-deband-comparison')
-    parser.add_argument('--deband', nargs=argparse.REMAINDER, default=[], help='options passed on to deband.exe')
+    parser.add_argument('--deband', nargs=argparse.REMAINDER, default=[],
+                        help='further options passed on to deband.exe for both levels')
     args = parser.parse_args()
     output, debanded = args.output.resolve(), args.debanded.resolve()
     for folder in (output, debanded):
@@ -353,17 +353,19 @@ def main():
     (output / 'index.json').write_text(json.dumps(items, indent=1), encoding='utf-8')
 
     exe = root / 'tools/deband/deband.exe'
-    for source in (plain, joined):
-        if any(source.iterdir()):
-            subprocess.run([str(exe), *args.deband, '-o', str(source.with_name(source.name + '-out')), str(source)],
-                           check=True)
-    debanded.mkdir(parents=True, exist_ok=True)
-    for item in items:
-        if item['joined']:
-            image = Image.open(joined.with_name('joined-out') / item['file'])
-            image.crop((MARGIN, MARGIN, MARGIN + item['width'], MARGIN + item['height'])).save(debanded / item['file'])
-        else:
-            shutil.copyfile(plain.with_name('plain-out') / item['file'], debanded / item['file'])
+    for level, options in LEVELS.items():
+        for source in (plain, joined):
+            if any(source.iterdir()):
+                subprocess.run([str(exe), *options, *args.deband, '-o', str(work / f'{source.name}-{level}'),
+                                str(source)], check=True)
+        (debanded / level).mkdir(parents=True, exist_ok=True)
+        for item in items:
+            target = debanded / level / item['file']
+            if item['joined']:
+                image = Image.open(work / f'joined-{level}' / item['file'])
+                image.crop((MARGIN, MARGIN, MARGIN + item['width'], MARGIN + item['height'])).save(target)
+            else:
+                shutil.copyfile(work / f'plain-{level}' / item['file'], target)
     shutil.rmtree(work, ignore_errors=True)
     build_page(root, items, output, debanded, args.page.resolve())
     print(json.dumps({'frames': len(items), 'debanded_with_neighbours': margins, 'page': str(args.page / 'index.html')}))

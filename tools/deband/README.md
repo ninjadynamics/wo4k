@@ -14,7 +14,8 @@ A C99 command-line utility that accepts one image or recursively processes a dir
   band one pixel wide is already one sample of the gradient and is unchanged.
   Only a step of a staircase counts as a band (a lighter neighbour on one
   side, a darker one on another); an area lighter or darker than everything
-  around it is a detail and keeps its colour.
+  around it is a detail and keeps its colour. `-k` scales that protection:
+  1 leaves details alone, 0 ramps them like any band (smoother but softer).
 - **Transparency safety:** All alpha values remain unchanged. Pixels with alpha = 0
   retain all four original RGBA bytes, including the hidden RGB channels, and
   are never dithered. Native mode also ignores zero-alpha neighbors when debanding
@@ -41,6 +42,7 @@ Usage: deband [options] FILE_OR_DIRECTORY
   -d F      Dither intensity 0..4 levels (default: 0.8)
   -b F      Band step limit 0..0.5 (default: 0.160; 0 = no band ramps)
   -w N      Band ramp reach 1..128 pixels (default: 12)
+  -k F      Keep details 0..1 (default: 1.00; 0 = ramp light/dark details too)
   -z        Trim only: losslessly recompress PNGs in place (no debanding)
   -h        Show help
 ```
