@@ -21,6 +21,7 @@ static void test_startup_launch(BYTE *image,const WCHAR *settings){
     if(!wo_startup_grow_arena(image) || *(DWORD *)(image+0x2eb97)!=WO_ARENA_BYTES+0x10000 ||
        *(DWORD *)(image+0x2ebb9)!=WO_ARENA_BYTES || *(DWORD *)(image+0x29ba0)!=WO_ARENA_BYTES ||
        *(DWORD *)(image+0x2bf96)!=WO_ARENA_BYTES || *(DWORD *)(image+0x3324a)!=WO_ARENA_BYTES ||
+       *(DWORD *)(image+0x2eb7a)!=WO_POOL_BYTES ||
        wo_startup_grow_arena(image))ExitProcess(126);
     BYTE original=image[0x5bef4];image[0x5bef4]=0;
     if(wo_startup_install(image,settings) || image[0x5bb38]!=1)ExitProcess(113);
