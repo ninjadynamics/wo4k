@@ -5,6 +5,7 @@
 
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
+#include "core/wo_natives.h"
 #include "core/wo_png.h"
 #include "core/wo_tree.h"
 
@@ -331,7 +332,8 @@ static bool infer_kind(const char *relative, const Natives *natives, const char 
 }
 
 static bool add_regions(const WoJson *entry, const char *relative, bool transparent,
-                        const Natives *natives, WoHdRegionIndex *index, WoError *error) {
+                        const Natives *natives, WoScenery *scenery, WoHdRegionIndex *index,
+                        WoError *error) {
     const WoJson *regions = wo_json_get(entry, "regions");
     if (!is_region_png_name(wo_json_str(entry, "file", "")) ||
         !wo_json_is(regions, WO_JSON_ARRAY) || regions->count == 0) {
@@ -384,11 +386,27 @@ static bool add_regions(const WoJson *entry, const char *relative, bool transpar
         if (!valid) {
             return wo_fail(error, WO_ERR_FORMAT, "HD region placement is invalid: %s", relative);
         }
+        if (wo_scenery_covers(scenery, native_name, page, x, y, sw, sh)) {
+            continue; /* located in the PC layout; found again by its picture below */
+        }
         if (!wo_hd_regions_add(index, relative, native_name, page, x, y, sw, sh, alpha, error)) {
             return false;
         }
     }
-    return true;
+    WoSceneryPlace *places = NULL;
+    size_t count = 0;
+    if (!wo_scenery_places(scenery, relative, &places, &count, error)) {
+        return false;
+    }
+    bool ok = true;
+    for (size_t i = 0; ok && i < count; i++) {
+        if (places[i].width == (uint32_t)sw && places[i].height == (uint32_t)sh) {
+            ok = wo_hd_regions_add(index, relative, places[i].native, places[i].page, places[i].x,
+                                   places[i].y, sw, sh, alpha, error);
+        }
+    }
+    wo_free(places);
+    return ok;
 }
 
 static WoJson *file_record(const char *relative, const char *kind, uint32_t width,
@@ -459,8 +477,8 @@ static bool png_facts(WoHashCache *cache, const char *path, bool need_transparen
 }
 
 static bool check_input(const WoJson *catalog, const Input *input, const Natives *natives,
-                        WoHashCache *cache, WoHdRegionIndex *index, WoJson *files,
-                        WoError *error) {
+                        WoScenery *scenery, WoHashCache *cache, WoHdRegionIndex *index,
+                        WoJson *files, WoError *error) {
     const WoJson *entry = catalog_entry(catalog, input->relative);
     const char *kind = NULL;
     if (entry) {
@@ -480,7 +498,8 @@ static bool check_input(const WoJson *catalog, const Input *input, const Natives
     }
     bool ok = true;
     if (region) {
-        ok = add_regions(entry, input->relative, facts.transparent, natives, index, error);
+        ok = add_regions(entry, input->relative, facts.transparent, natives, scenery, index,
+                         error);
     }
     WoJson *record = ok ? file_record(input->relative, kind, facts.width, facts.height) : NULL;
     if (ok && !(record && wo_json_push(files, record))) {
@@ -529,10 +548,14 @@ static bool prepare(const WoHdOptions *options, Inputs *inputs, WoHdRegionIndex 
     if (ok && inputs->count > 1) {
         qsort(inputs->items, inputs->count, sizeof(Input), compare_inputs);
     }
+    WoScenery *scenery = NULL;
+    ok = ok && (!options->plan ||
+                wo_scenery_open(options->game_root, options->plan, &scenery, error));
     for (size_t i = 0; ok && i < inputs->count; i++) {
-        ok = check_input(options->catalog, &inputs->items[i], &natives, options->cache, index,
-                         result->files, error);
+        ok = check_input(options->catalog, &inputs->items[i], &natives, scenery, options->cache,
+                         index, result->files, error);
     }
+    wo_scenery_close(scenery);
     natives_free(&natives);
     if (ok) {
         result->checked = inputs->count;

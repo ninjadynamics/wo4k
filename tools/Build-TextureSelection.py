@@ -243,7 +243,14 @@ def main():
     # The installer applies a sheet's placements only to this exact sheet.
     used = list(dict.fromkeys(op['atlas'] for op in operations))
     corrected, patches = layout_corrections(plan['operations'])
+    # With the PlayStation disc imported its track archives replace the PC
+    # ones, and these sheets are laid out as the archive's TIM headers say.
+    # Not Talon's Reach: its model is the same on both, and the PlayStation
+    # layout puts its smoke texture where the PC game keeps its own effects.
+    scenery = [{'track': track, 'atlases': [name for name in used if Path(name).stem.upper() == f'NRACE{number:02d}']}
+               for number, track in enumerate(race_order, 1) if track != 'TRACK01']
     plan = {**{k: v for k, v in plan.items() if k != 'operations'},
+            'scenery': scenery,
             'patches': patches,
             'sheets': [{'file': name, 'sha256': native_sha[name]} for name in used],
             'operations': corrected}

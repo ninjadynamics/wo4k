@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "revision": 5,
+  "revision": 6,
   "edition": "WipEout 2097 Europe SLES-00327",
   "policy": "Fixed project-time selection: PS1 unless native bytes are identical; keep PC-only assets and authored HD UI.",
   "archives": [
@@ -495,6 +495,57 @@
     {
       "file": "TRACK20/SKY.CMP",
       "selection": "pc_byte_identical"
+    }
+  ],
+  "scenery": [
+    {
+      "track": "TRACK08",
+      "atlases": [
+        "Pics/HI-RES/NRACE02.TGA",
+        "Pics/LO-RES/NRACE02.TGA"
+      ]
+    },
+    {
+      "track": "TRACK13",
+      "atlases": [
+        "Pics/HI-RES/NRACE03.TGA",
+        "Pics/LO-RES/NRACE03.TGA"
+      ]
+    },
+    {
+      "track": "TRACK20",
+      "atlases": [
+        "Pics/HI-RES/NRACE04.TGA",
+        "Pics/LO-RES/NRACE04.TGA"
+      ]
+    },
+    {
+      "track": "TRACK02",
+      "atlases": [
+        "Pics/HI-RES/NRACE05.TGA",
+        "Pics/LO-RES/NRACE05.TGA"
+      ]
+    },
+    {
+      "track": "TRACK17",
+      "atlases": [
+        "Pics/HI-RES/NRACE06.TGA",
+        "Pics/LO-RES/NRACE06.TGA"
+      ]
+    },
+    {
+      "track": "TRACK06",
+      "atlases": [
+        "Pics/HI-RES/NRACE07.TGA",
+        "Pics/LO-RES/NRACE07.TGA"
+      ]
+    },
+    {
+      "track": "TRACK07",
+      "atlases": [
+        "Pics/HI-RES/NRACE08.TGA",
+        "Pics/LO-RES/NRACE08.TGA"
+      ]
     }
   ],
   "patches": [

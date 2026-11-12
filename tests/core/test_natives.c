@@ -312,6 +312,91 @@ static void test_patches(void) {
     wo_free(text);
 }
 
+/* With a PlayStation track archive imported it replaces the PC one, and the
+ * track's sheet takes the archive's scenery where its headers place it. */
+static void scene_wad(WoBuf *wad, uint16_t base, uint16_t x_words, uint16_t y) {
+    WoBuf frame = {0};
+    WoBuf cmp = {0};
+    tb_tim16(&frame, 4, 2, base);
+    frame.data[12] = (uint8_t)(x_words & 255u);
+    frame.data[13] = (uint8_t)(x_words >> 8);
+    frame.data[14] = (uint8_t)(y & 255u);
+    frame.data[15] = (uint8_t)(y >> 8);
+    tb_cmp(&cmp, &frame, 1);
+    static const char *const names[] = {"scene.cmp"};
+    tb_wad(wad, names, &cmp, 1);
+    wo_buf_free(&frame);
+    wo_buf_free(&cmp);
+}
+
+static void test_scenery(void) {
+    const char *game = wo_test_dir("natives-scenery");
+    if (!game) {
+        return;
+    }
+    build_game(game);
+    WoError error = {0};
+    WoBuf pc = {0};
+    WoBuf ps1 = {0};
+    scene_wad(&pc, 300, 320 + 8, 4);    /* PC: frame at (8, 4) */
+    scene_wad(&ps1, 700, 320 + 20, 10); /* PlayStation: frame at (20, 10) */
+    write_buf(game, "TRACK09/TRACK.WAD", &pc);
+    WoJson *plan = parse(
+        "{\"format\":1,\"revision\":3,\"scenery\":[{\"track\":\"TRACK09\","
+        "\"atlases\":[\"Pics/Hi-res/SHEET.TGA\"]}],"
+        "\"operations\":[{\"atlas\":\"Pics/Hi-res/SHEET.TGA\",\"x\":8,\"y\":4,\"width\":4,"
+        "\"height\":2,\"source\":{\"wad\":\"TRACK09/TRACK.WAD\",\"entry\":\"scene.cmp\",\"frame\":0},"
+        "\"label\":\"pc scenery\"}]}");
+    char *sheet = wo_path_join(game, "textures/sd/Pics/Hi-res/SHEET.TGA", &error);
+    char *wad = wo_path_join(game, "TRACK09/TRACK.WAD", &error);
+    char *kept = wo_path_join(game, "textures/native-source/TRACK09/TRACK.WAD", &error);
+    WoNativeOptions options = {game, plan, NULL, NULL, NULL, false, false, NULL, false};
+    WoJson *receipt = NULL;
+    WoBuf bytes = {0};
+
+    /* Without the disc the PC archive and its layout stay. */
+    CHECK_OK(wo_natives_install(&options, &receipt, &error), &error);
+    wo_json_free(receipt);
+    CHECK_OK(wo_read_file(sheet, 1 << 20, &bytes, &error), &error);
+    CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 8) * 2) == to_pc(300));
+    CHECK(wo_le16(bytes.data + 18 + (10 * 64 + 20) * 2) == 0x1234);
+    wo_buf_free(&bytes);
+    CHECK(!wo_exists(kept));
+
+    /* The imported archive takes its place; the sheet follows its headers. */
+    write_buf(game, "textures/ps1-source/TRACK09/TRACK.WAD", &ps1);
+    bool healthy = true;
+    CHECK_OK(wo_natives_test(game, plan, false, &healthy, &error), &error);
+    CHECK(!healthy);
+    for (int pass = 0; pass < 2; pass++) {
+        CHECK_OK(wo_natives_install(&options, &receipt, &error), &error);
+        CHECK(wo_json_int(receipt, "ps1_regions", -1) == 1);
+        wo_json_free(receipt);
+        CHECK_OK(wo_read_file(sheet, 1 << 20, &bytes, &error), &error);
+        CHECK(wo_le16(bytes.data + 18 + (10 * 64 + 20) * 2) == to_pc(700));
+        CHECK(wo_le16(bytes.data + 18 + (11 * 64 + 23) * 2) == to_pc(700 + 7));
+        CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 8) * 2) == 0); /* PC frame cleared */
+        wo_buf_free(&bytes);
+        WoBuf now = {0};
+        WoBuf old = {0};
+        CHECK_OK(wo_read_file(wad, 1 << 20, &now, &error) &&
+                     wo_read_file(kept, 1 << 20, &old, &error),
+                 &error);
+        CHECK(now.len == ps1.len && memcmp(now.data, ps1.data, ps1.len) == 0);
+        CHECK(old.len == pc.len && memcmp(old.data, pc.data, pc.len) == 0);
+        wo_buf_free(&now);
+        wo_buf_free(&old);
+        CHECK_OK(wo_natives_test(game, plan, false, &healthy, &error), &error);
+        CHECK(healthy);
+    }
+    wo_free(kept);
+    wo_free(wad);
+    wo_free(sheet);
+    wo_json_free(plan);
+    wo_buf_free(&pc);
+    wo_buf_free(&ps1);
+}
+
 static void test_ps1_import(void) {
     const char *root = wo_test_dir("natives-ps1");
     if (!root) {
@@ -631,6 +716,7 @@ static void test_roads(void) {
 int main(void) {
     RUN(test_pc_only_build);
     RUN(test_patches);
+    RUN(test_scenery);
     RUN(test_ps1_import);
     RUN(test_roads);
     return wo_test_finish();

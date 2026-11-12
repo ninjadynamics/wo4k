@@ -28,7 +28,19 @@ sheet is taken as the pristine copy only when it is the named one; otherwise a
 retained pristine copy that is stays, and a sheet that is neither is installed
 as it is, without placements (the log says `native_sheet_unrecognised`).
 
-Packed TGA sheets are rebuilt without changing PC model references, UVs,
+With a PlayStation disc imported, the plan's `scenery` tracks take the
+disc's `TRACK.WAD` in place of the PC one (kept under
+`textures/native-source/`): the format is the same, the PlayStation scenery
+models are the later build, and the PC game places scenery textures where the
+archive's own TIM headers say. Their sheets are then laid out as PlayStation
+video memory (sheet page 0 is VRAM x 320), and HD region placements on those
+sheets are found again by picture rather than by PC coordinates. Talon's
+Reach is left out: its model is identical, and the PlayStation layout puts
+its smoke texture where the PC game keeps effects of its own, which crashes.
+The runtime enlarges the game's 1.8 MB race arena, which Gare d'Europa's
+PlayStation model overflows.
+
+Otherwise packed TGA sheets are rebuilt without changing PC model references, UVs,
 track geometry or texture indices. One exception corrects the PC release's
 data: the map's `patches` change a single byte of `TRACK17/TRACK.WAD`
 (verified by the file's SHA-256 before and after), where `scene.cmp` places

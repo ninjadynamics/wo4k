@@ -482,7 +482,7 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
     if (ok && config->hd_textures) {
         set_stage(progress, WO_STAGE_HD_ART);
         char *canonical = wo_mod_path(mod, "assets/hd", error);
-        WoHdOptions options = {catalog, canonical, canonical, stage, NULL};
+        WoHdOptions options = {catalog, canonical, canonical, stage, NULL, plan};
         WoHdResult result = {0};
         ok = canonical && wo_hd_install(&options, &result, error);
         wo_hd_result_free(&result);

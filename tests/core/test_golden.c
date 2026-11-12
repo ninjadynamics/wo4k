@@ -260,7 +260,7 @@ static void test_hd_regions_match(void) {
         skip("no wobble/textures/hd-regions.bin");
     } else {
         CHECK_OK(wo_read_json("manifests/hd-textures.json", 16 << 20, &catalog, &error), &error);
-        WoHdOptions options = {catalog, "assets/hd", "assets/hd", game, NULL};
+        WoHdOptions options = {catalog, "assets/hd", "assets/hd", game, NULL, NULL};
         WoHdRegionIndex index;
         WoHdResult result;
         CHECK_OK(wo_hd_build_index(&options, &index, &result, &error), &error);

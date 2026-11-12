@@ -48,6 +48,11 @@ bool wo_image_has_transparency(const WoImage *image);
 /* Decode a 4-, 8- or 16-bit TIM into PlayStation colours (the installer's
  * decoder). 24-bit and mixed images are rejected as unsupported. */
 bool wo_tim_decode(const uint8_t *data, size_t len, WoNativeImage *out, WoError *error);
+/* Where a TIM is loaded in PlayStation video memory: x in 16-bit words from
+ * the left edge, y in lines from the top, and how many of the image's
+ * texels one word holds (4, 2 or 1). */
+bool wo_tim_origin(const uint8_t *data, size_t len, uint32_t *x_words, uint32_t *y,
+                   uint32_t *texels_per_word, WoError *error);
 /* Decode any TIM (4/8/16/24-bit) to BGRA for PNG export. Colour 0 is fully
  * transparent, as in the maintainer exporter. */
 bool wo_tim_decode_bgra(const uint8_t *data, size_t len, WoImage *out, WoError *error);

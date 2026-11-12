@@ -22,6 +22,9 @@ typedef struct WoHdOptions {
     const char *source_dir;    /* optional extra artwork folder (may equal canonical_dir) */
     const char *game_root;
     WoHashCache *cache;        /* optional: skips decoding PNGs whose bytes were seen */
+    /* Optional parsed manifests/texture-selection.json: with PlayStation
+     * scenery in effect, region placements on the relaid sheets follow it. */
+    const WoJson *plan;
 } WoHdOptions;
 
 typedef struct WoHdResult {

@@ -1,5 +1,6 @@
 #include "core/wo_natives.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "core/wo_disc.h"
@@ -161,8 +162,8 @@ bool wo_ps1_find_disc(const char *source, WoPs1Disc *out, bool *found, WoError *
 
 /* --- Importing its textures ----------------------------------------------------- */
 
-/* "WIPEOUT2/<COMMON|TEXTURES|TRACKnn>/<name>.<CMP|TIM|TTF|TEX>" -> the part
- * after "WIPEOUT2/", or NULL. */
+/* "WIPEOUT2/<COMMON|TEXTURES|TRACKnn>/<name>.<CMP|TIM|TTF|TEX>" or
+ * "WIPEOUT2/TRACKnn/TRACK.WAD" -> the part after "WIPEOUT2/", or NULL. */
 static const char *ps1_texture_relative(const char *path) {
     if (!wo_str_istarts_with(path, "WIPEOUT2/")) {
         return NULL;
@@ -182,6 +183,9 @@ static const char *ps1_texture_relative(const char *path) {
     }
     const char *rest = relative + dir + 1;
     size_t n = strlen(rest);
+    if (dir == 7 && wo_str_ieq(rest, "TRACK.WAD")) {
+        return relative; /* the track's models and scenery textures */
+    }
     static const char *const extensions[] = {".CMP", ".TIM", ".TTF", ".TEX"};
     for (size_t i = 0; n >= 5 && i < WO_COUNT(extensions); i++) {
         if (wo_str_iends_with(rest, extensions[i])) {
@@ -345,6 +349,7 @@ static bool json_numbers_equal(const WoJson *a, const WoJson *b) {
 }
 
 static bool patches_pending(const char *game_root, const WoJson *plan);
+static bool scenery_pending(const char *game_root, const WoJson *plan);
 
 bool wo_natives_test(const char *game_root, const WoJson *plan, bool require_ps1, bool *healthy,
                      WoError *error) {
@@ -391,7 +396,8 @@ bool wo_natives_test_cached(const char *game_root, const WoJson *plan, bool requ
                wo_str_ieq(hash, expected);
         wo_free(sheet);
     }
-    *healthy = ok && good && !patches_pending(game_root, plan);
+    *healthy = ok && good && !patches_pending(game_root, plan) &&
+               !scenery_pending(game_root, plan);
     wo_strlist_free(&atlases);
     wo_json_free(state);
     wo_free(sd);
@@ -462,14 +468,185 @@ static bool op_int(const WoJson *object, const char *key, int64_t *out, WoError 
     return true;
 }
 
+/* --- PlayStation scenery -------------------------------------------------------------
+ * The PC release's scenery is an earlier build: seven of its eight track
+ * models are smaller than the PlayStation's, and its texture layout has
+ * mistakes. The track archive (TRACK.WAD) has the same format on both, and
+ * the PC game places scenery textures where the archive's own TIM headers
+ * say, so with the PlayStation disc imported its archives replace the PC
+ * ones and each track's sheet is laid out as PlayStation video memory:
+ * sheet page 0 is VRAM x 320, one sheet texel per texel of the frame.
+ * The plan's "scenery" lists each track with its sheets. The PC archive is
+ * kept under textures/native-source so its frames can be cleared from the
+ * sheet. */
+#define SCENERY_VRAM_X 320
+
+static bool file_is(const char *path, const char *expected);
+
+static const WoJson *plan_scenery(const WoJson *plan, const char *atlas) {
+    const WoJson *scenery = wo_json_get(plan, "scenery");
+    for (size_t i = 0; i < wo_json_length(scenery); i++) {
+        const WoJson *entry = wo_json_at(scenery, i);
+        const WoJson *atlases = wo_json_get(entry, "atlases");
+        for (size_t j = 0; j < wo_json_length(atlases); j++) {
+            if (wo_str_ieq(wo_json_as_str(wo_json_at(atlases, j), ""), atlas)) {
+                return entry;
+            }
+        }
+    }
+    return NULL;
+}
+
+/* The three archives of a track: the one the game loads, the imported
+ * PlayStation one and the retained PC one. */
+typedef struct SceneryWads {
+    char *game;
+    char *ps1;
+    char *pc;
+} SceneryWads;
+
+static void scenery_wads_free(SceneryWads *wads) {
+    wo_free(wads->game);
+    wo_free(wads->ps1);
+    wo_free(wads->pc);
+    memset(wads, 0, sizeof(*wads));
+}
+
+static bool scenery_wads(const char *game_root, const WoJson *entry, SceneryWads *wads,
+                         WoError *error) {
+    memset(wads, 0, sizeof(*wads));
+    const char *track = wo_json_str(entry, "track", "");
+    char *relative = wo_format(error, "%s/TRACK.WAD", track);
+    char *ps1 = relative ? wo_format(error, "textures/ps1-source/%s", relative) : NULL;
+    char *pc = ps1 ? wo_format(error, "textures/native-source/%s", relative) : NULL;
+    if (pc) {
+        wads->game = wo_path_child(game_root, relative, error);
+        wads->ps1 = wads->game ? wo_path_child(game_root, ps1, error) : NULL;
+        wads->pc = wads->ps1 ? wo_path_child(game_root, pc, error) : NULL;
+    }
+    wo_free(pc);
+    wo_free(ps1);
+    wo_free(relative);
+    if (!wads->pc) {
+        scenery_wads_free(wads);
+        return false;
+    }
+    return true;
+}
+
+static bool same_file_bytes(const char *a, const char *b) {
+    char hash[WO_SHA256_HEX_SIZE];
+    return wo_is_file(a) && wo_sha256_file(a, hash, NULL) && file_is(b, hash);
+}
+
+/* Put each imported PlayStation archive in place, keeping the PC one. */
+static bool install_scenery(const char *game_root, const WoJson *plan, WoError *error) {
+    const WoJson *scenery = wo_json_get(plan, "scenery");
+    for (size_t i = 0; i < wo_json_length(scenery); i++) {
+        SceneryWads wads;
+        if (!scenery_wads(game_root, wo_json_at(scenery, i), &wads, error)) {
+            return false;
+        }
+        bool ok = true;
+        if (wo_is_file(wads.ps1) && wo_is_file(wads.game) &&
+            !same_file_bytes(wads.ps1, wads.game)) {
+            ok = (wo_is_file(wads.pc) || wo_copy_file(wads.game, wads.pc, error)) &&
+                 wo_copy_file(wads.ps1, wads.game, error);
+        }
+        scenery_wads_free(&wads);
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* An imported PlayStation archive is not yet the one the game loads. */
+static bool scenery_pending(const char *game_root, const WoJson *plan) {
+    const WoJson *scenery = wo_json_get(plan, "scenery");
+    bool pending = false;
+    for (size_t i = 0; !pending && i < wo_json_length(scenery); i++) {
+        SceneryWads wads;
+        if (scenery_wads(game_root, wo_json_at(scenery, i), &wads, NULL)) {
+            pending = wo_is_file(wads.ps1) && !same_file_bytes(wads.ps1, wads.game);
+            scenery_wads_free(&wads);
+        }
+    }
+    return pending;
+}
+
+static bool load_scene_frames(const char *wad_path, WoCmp *frames, WoError *error) {
+    memset(frames, 0, sizeof(*frames));
+    WoBuf bytes = {0};
+    WoWad wad = {0};
+    bool ok = wo_read_file(wad_path, WO_TEXSRC_MAX_FILE_BYTES, &bytes, error) &&
+              wo_wad_parse(bytes.data, bytes.len, &wad, error);
+    const WoWadEntry *entry = ok ? wo_wad_find(&wad, "scene.cmp") : NULL;
+    if (ok && !entry) {
+        ok = wo_fail(error, WO_ERR_FORMAT, "The track archive has no scenery textures: %s",
+                     wad_path);
+    }
+    ok = ok && wo_cmp_decode(bytes.data + entry->offset, entry->size, frames, error);
+    wo_wad_free(&wad);
+    wo_buf_free(&bytes);
+    return ok;
+}
+
+/* Lay the sheet's scenery out as the PlayStation archive has it: clear the
+ * PC archive's frames, then paste the PlayStation frames where their headers
+ * place them. */
+static bool apply_scenery(const SceneryWads *wads, uint8_t *sheet, size_t len,
+                          WoNativeCounts *counts, WoError *error) {
+    WoTgaInfo info;
+    if (!wo_tga_info(sheet, len, &info, error)) {
+        return false;
+    }
+    bool ok = true;
+    for (int pass = wo_is_file(wads->pc) ? 0 : 1; ok && pass < 2; pass++) {
+        const char *source = pass ? wads->game : wads->pc;
+        WoCmp frames;
+        ok = load_scene_frames(source, &frames, error);
+        for (size_t i = 0; ok && i < frames.count; i++) {
+            if (!frames.sizes[i]) {
+                continue;
+            }
+            const uint8_t *tim = frames.data + frames.offsets[i];
+            WoNativeImage image;
+            uint32_t x = 0;
+            uint32_t y = 0;
+            uint32_t per_word = 1;
+            ok = wo_tim_origin(tim, frames.sizes[i], &x, &y, &per_word, error) &&
+                 wo_tim_decode(tim, frames.sizes[i], &image, error);
+            if (!ok) {
+                break;
+            }
+            int64_t left = ((int64_t)x - SCENERY_VRAM_X) * per_word;
+            if (left < 0 || left + image.width > info.width || y + image.height > info.height) {
+                ok = wo_fail(error, WO_ERR_FORMAT, "Scenery texture %zu lies outside the sheet: %s",
+                             i, source);
+            } else if (pass) {
+                ok = wo_tga_patch(sheet, len, &image, left, y, image.width, image.height, error);
+                counts->ps1_regions++;
+            } else {
+                for (uint32_t row = 0; row < image.height; row++) {
+                    memset(sheet + info.pixel_offset +
+                               ((size_t)(y + row) * info.width + (size_t)left) * 2u,
+                           0, (size_t)image.width * 2u);
+                }
+            }
+            wo_native_image_free(&image);
+        }
+        wo_cmp_free(&frames);
+    }
+    return ok;
+}
+
 /* --- Game data corrections -----------------------------------------------------------
  * The plan's "patches" change single bytes of game files where the PC
  * release's data is wrong and the PlayStation release has it right. Each
  * names the file's SHA-256 before and after, so only the exact retail file
  * is changed. An operation naming a patch belongs to the corrected layout
  * and is applied only where that patch is in effect. */
-static bool file_is(const char *path, const char *expected);
-
 static const WoJson *plan_patch(const WoJson *plan, const char *id) {
     const WoJson *patches = wo_json_get(plan, "patches");
     for (size_t i = 0; i < wo_json_length(patches); i++) {
@@ -492,7 +669,7 @@ static bool apply_patch(const char *game_root, const WoJson *patch, WoError *err
     const char *id = wo_json_str(patch, "id", "");
     if (!patch_file_is(game_root, patch, "sha256")) {
         if (!patch_file_is(game_root, patch, "patched_sha256")) {
-            wo_log_text("native_patch_unrecognised", id);
+            wo_log_text("native_patch_not_applicable", id); /* e.g. a PlayStation archive */
         }
         return true;
     }
@@ -724,8 +901,17 @@ static bool build_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJ
             }
         }
         ok = ok && (!known || wo_sheet_builder_apply(builder, plan, atlas, bytes.data, bytes.len,
-                                                     counts, error)) &&
-             wo_write_file_atomic(target, bytes.data, bytes.len, error) &&
+                                                     counts, error));
+        const WoJson *scenery = ok && known ? plan_scenery(plan, atlas) : NULL;
+        if (scenery) {
+            SceneryWads wads;
+            ok = scenery_wads(p->game, scenery, &wads, error);
+            if (ok && same_file_bytes(wads.ps1, wads.game)) {
+                ok = apply_scenery(&wads, bytes.data, bytes.len, counts, error);
+            }
+            scenery_wads_free(&wads);
+        }
+        ok = ok && wo_write_file_atomic(target, bytes.data, bytes.len, error) &&
              wo_sha256_mem(bytes.data, bytes.len, hash, error);
         if (ok) {
             WoJson *record = wo_json_new_object();
@@ -791,6 +977,7 @@ static bool build_all(const WoNativeOptions *options, const NativePaths *p, WoJs
     size_t sheets = 0;
     bool ok = files != NULL || wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
     ok = ok && plan_atlases(options->plan, &atlases, error) &&
+         install_scenery(p->game, options->plan, error) &&
          apply_patches(p->game, options->plan, error);
     if (ok) {
         builder = wo_sheet_builder_new(p->game, p->sd, p->ps1, error);
@@ -868,3 +1055,277 @@ bool wo_natives_install(const WoNativeOptions *options, WoJson **receipt, WoErro
     native_paths_free(&p);
     return ok;
 }
+
+/* --- Where scenery pictures sit ------------------------------------------------------- */
+
+typedef struct SceneryFrame {
+    WoSceneryPlace place;
+    char hash[WO_SHA256_HEX_SIZE];
+} SceneryFrame;
+
+typedef struct SceneryRect {
+    char native[32];
+    int64_t left;
+    int64_t top;
+    int64_t right;
+    int64_t bottom;
+} SceneryRect;
+
+struct WoScenery {
+    WoSheetBuilder *builder;
+    SceneryFrame *frames;
+    size_t count;
+    size_t cap;
+    SceneryRect *rects;
+    size_t rect_count;
+    size_t rect_cap;
+};
+
+static bool picture_hash(const WoNativeImage *image, char hash[WO_SHA256_HEX_SIZE]) {
+    return wo_sha256_mem(image->pixels, (size_t)image->width * image->height * sizeof(uint16_t),
+                         hash, NULL);
+}
+
+static bool scenery_note(WoScenery *scenery, const char *native, const uint8_t *tim, size_t len,
+                         bool placed, WoError *error) {
+    WoNativeImage image;
+    uint32_t x = 0;
+    uint32_t y = 0;
+    uint32_t per_word = 1;
+    if (!wo_tim_origin(tim, len, &x, &y, &per_word, error) ||
+        !wo_tim_decode(tim, len, &image, error)) {
+        return false;
+    }
+    int64_t left = ((int64_t)x - SCENERY_VRAM_X) * per_word;
+    bool ok = true;
+    if (scenery->rect_count == scenery->rect_cap) {
+        size_t cap = scenery->rect_cap ? scenery->rect_cap * 2 : 128;
+        SceneryRect *grown = wo_realloc_array(scenery->rects, cap, sizeof(*grown), error);
+        ok = grown != NULL;
+        if (ok) {
+            scenery->rects = grown;
+            scenery->rect_cap = cap;
+        }
+    }
+    if (ok) {
+        SceneryRect *rect = &scenery->rects[scenery->rect_count++];
+        wo_copy_str(rect->native, sizeof(rect->native), native);
+        rect->left = left;
+        rect->top = y;
+        rect->right = left + image.width;
+        rect->bottom = (int64_t)y + image.height;
+    }
+    /* A frame is a place when it lies within one 256-texel page. */
+    if (ok && placed && left >= 0 && left / 256 == (left + image.width - 1) / 256 &&
+        y + image.height <= 256) {
+        if (scenery->count == scenery->cap) {
+            size_t cap = scenery->cap ? scenery->cap * 2 : 128;
+            SceneryFrame *grown = wo_realloc_array(scenery->frames, cap, sizeof(*grown), error);
+            ok = grown != NULL;
+            if (ok) {
+                scenery->frames = grown;
+                scenery->cap = cap;
+            }
+        }
+        if (ok) {
+            SceneryFrame *frame = &scenery->frames[scenery->count];
+            memset(frame, 0, sizeof(*frame));
+            wo_copy_str(frame->place.native, sizeof(frame->place.native), native);
+            frame->place.page = (uint32_t)(left / 256);
+            frame->place.x = (uint32_t)(left % 256);
+            frame->place.y = y;
+            frame->place.width = image.width;
+            frame->place.height = image.height;
+            if (picture_hash(&image, frame->hash)) {
+                scenery->count++;
+            }
+        }
+    }
+    wo_native_image_free(&image);
+    return ok;
+}
+
+void wo_scenery_close(WoScenery *scenery) {
+    if (scenery) {
+        wo_sheet_builder_free(scenery->builder);
+        wo_free(scenery->frames);
+        wo_free(scenery->rects);
+        wo_free(scenery);
+    }
+}
+
+bool wo_scenery_open(const char *game_root, const WoJson *plan, WoScenery **out, WoError *error) {
+    *out = NULL;
+    NativePaths p;
+    if (!native_paths(game_root, &p, error)) {
+        return false;
+    }
+    WoScenery *scenery = wo_alloc(sizeof(*scenery), error);
+    bool ok = scenery != NULL;
+    if (ok) {
+        memset(scenery, 0, sizeof(*scenery));
+    }
+    const WoJson *entries = wo_json_get(plan, "scenery");
+    for (size_t i = 0; ok && i < wo_json_length(entries); i++) {
+        const WoJson *entry = wo_json_at(entries, i);
+        const char *atlas = wo_json_as_str(wo_json_at(wo_json_get(entry, "atlases"), 0), "");
+        const char *name = atlas;
+        for (const char *c = atlas; *c; c++) {
+            if (*c == '/' || *c == '\\') {
+                name = c + 1;
+            }
+        }
+        char native[32];
+        wo_copy_str(native, sizeof(native), name);
+        for (char *c = native; *c; c++) {
+            *c = wo_ascii_lower(*c);
+        }
+        SceneryWads wads;
+        ok = scenery_wads(p.game, entry, &wads, error);
+        if (ok && same_file_bytes(wads.ps1, wads.game)) {
+            for (int pass = wo_is_file(wads.pc) ? 0 : 1; ok && pass < 2; pass++) {
+                WoCmp frames;
+                ok = load_scene_frames(pass ? wads.game : wads.pc, &frames, error);
+                for (size_t f = 0; ok && f < frames.count; f++) {
+                    if (frames.sizes[f]) {
+                        ok = scenery_note(scenery, native, frames.data + frames.offsets[f],
+                                          frames.sizes[f], pass == 1, error);
+                    }
+                }
+                wo_cmp_free(&frames);
+            }
+        }
+        scenery_wads_free(&wads);
+    }
+    if (ok && scenery->count) {
+        scenery->builder = wo_sheet_builder_new(p.game, p.sd, p.ps1, error);
+        ok = scenery->builder != NULL;
+    }
+    if (ok && scenery->count) {
+        *out = scenery;
+    } else {
+        wo_scenery_close(scenery);
+    }
+    native_paths_free(&p);
+    return ok;
+}
+
+bool wo_scenery_covers(const WoScenery *scenery, const char *native, int64_t page, int64_t x,
+                       int64_t y, int64_t width, int64_t height) {
+    int64_t left = page * 256 + x;
+    for (size_t i = 0; scenery && i < scenery->rect_count; i++) {
+        const SceneryRect *rect = &scenery->rects[i];
+        if (wo_str_ieq(rect->native, native) && left < rect->right && rect->left < left + width &&
+            y < rect->bottom && rect->top < y + height) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* "track17-scene-cmp-8.png" -> TRACK17, SCENE, CMP, 8. */
+static bool catalogue_source(const char *png, char *dir, size_t dir_size, char *file,
+                             size_t file_size, int64_t *frame) {
+    char name[128];
+    size_t len = strlen(png);
+    if (len < 5 || len >= sizeof(name) || !wo_str_iends_with(png, ".png")) {
+        return false;
+    }
+    memcpy(name, png, len - 4);
+    name[len - 4] = 0;
+    char *parts[8];
+    size_t count = 0;
+    for (char *c = name, *start = name;; c++) {
+        if (*c == '-' || !*c) {
+            bool last = !*c;
+            *c = 0;
+            if (count == WO_COUNT(parts) || !*start) {
+                return false;
+            }
+            parts[count++] = start;
+            start = c + 1;
+            if (last) {
+                break;
+            }
+        }
+    }
+    if (count != 4 || !(wo_str_ieq(parts[2], "cmp") || wo_str_ieq(parts[2], "tim"))) {
+        return false;
+    }
+    *frame = 0;
+    for (const char *c = parts[3]; *c; c++) {
+        if (*c < '0' || *c > '9' || *frame > 100000) {
+            return false;
+        }
+        *frame = *frame * 10 + (*c - '0');
+    }
+    char joined[96];
+    if (snprintf(joined, sizeof(joined), "%s.%s", parts[1], parts[2]) >= (int)sizeof(joined)) {
+        return false;
+    }
+    wo_copy_str(dir, dir_size, parts[0]);
+    wo_copy_str(file, file_size, joined);
+    for (char *c = dir; *c; c++) {
+        *c = (char)((*c >= 'a' && *c <= 'z') ? *c - 32 : *c);
+    }
+    for (char *c = file; *c; c++) {
+        *c = (char)((*c >= 'a' && *c <= 'z') ? *c - 32 : *c);
+    }
+    return true;
+}
+
+bool wo_scenery_places(WoScenery *scenery, const char *png, WoSceneryPlace **places,
+                       size_t *count, WoError *error) {
+    *places = NULL;
+    *count = 0;
+    char dir[32];
+    char file[96];
+    int64_t frame = 0;
+    if (!scenery || !catalogue_source(png, dir, sizeof(dir), file, sizeof(file), &frame)) {
+        return true;
+    }
+    WoNativeImage image;
+    bool decoded = false;
+    if (wo_str_istarts_with(dir, "TRACK") && wo_str_ieq(file, "SCENE.CMP")) {
+        char *wad = wo_format(error, "textures/ps1-source/%s/TRACK.WAD", dir);
+        if (!wad) {
+            return false;
+        }
+        decoded = wo_texsrc_frame(scenery->builder->sources, "", wad, "scene.cmp", false, frame,
+                                  &image, NULL);
+        wo_free(wad);
+    } else {
+        char *relative = wo_format(error, "%s/%s", dir, file);
+        char *imported = relative ? wo_path_child(scenery->builder->ps1_root, relative, error) : NULL;
+        if (!imported) {
+            wo_free(relative);
+            return false;
+        }
+        decoded = wo_texsrc_frame(scenery->builder->sources, relative, "", "", wo_is_file(imported),
+                                  frame, &image, NULL);
+        wo_free(imported);
+        wo_free(relative);
+    }
+    if (!decoded) {
+        return true;
+    }
+    char hash[WO_SHA256_HEX_SIZE];
+    bool ok = true;
+    if (picture_hash(&image, hash)) {
+        WoSceneryPlace *found = wo_alloc_array(scenery->count, sizeof(*found), error);
+        ok = found != NULL;
+        for (size_t i = 0; ok && i < scenery->count; i++) {
+            const SceneryFrame *candidate = &scenery->frames[i];
+            if (candidate->place.width == image.width && candidate->place.height == image.height &&
+                wo_digest_eq(candidate->hash, hash)) {
+                found[(*count)++] = candidate->place;
+            }
+        }
+        if (ok) {
+            *places = found;
+        }
+    }
+    wo_native_image_free(&image);
+    return ok;
+}
+

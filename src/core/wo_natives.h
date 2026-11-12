@@ -12,6 +12,12 @@
  * Sheets are always rebuilt from the pristine copies, so a rebuild never
  * patches an already patched sheet.
  *
+ * With the PlayStation disc imported, each track's archive (TRACK.WAD)
+ * is replaced by the PlayStation one, whose scenery models are the later
+ * build, and the plan's "scenery" sheets are laid out as that archive's
+ * texture headers place them. The PC archive is retained under
+ * textures/native-source.
+ *
  * The plan may also correct single bytes of game files ("patches": file,
  * offset, from, to, and the file's SHA-256 before and after). Operations
  * naming a patch are applied only where it is in effect. */
@@ -92,6 +98,36 @@ typedef struct WoNativeOptions {
      * pristine copy, so a damaged copy is never carried into a repair. */
     bool sheets_pristine;
 } WoNativeOptions;
+
+/* --- Where scenery pictures sit ---------------------------------------------------
+ * The HD catalogue places replacement PNGs by sheet rectangle, located in
+ * the PC layout. With PlayStation scenery in effect those sheets are laid
+ * out differently, so a catalogue placement there is found again by its
+ * picture: a PNG is named after its source ("track17-scene-cmp-8.png",
+ * "common-rescu-cmp-0.png"), and every PlayStation scenery frame with
+ * exactly that picture is a place for it. */
+typedef struct WoSceneryPlace {
+    char native[32]; /* sheet file name, lower case: "nrace06.tga" */
+    uint32_t page;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+} WoSceneryPlace;
+
+typedef struct WoScenery WoScenery;
+
+/* *out is NULL, without an error, when no PlayStation scenery is in effect. */
+bool wo_scenery_open(const char *game_root, const WoJson *plan, WoScenery **out, WoError *error);
+void wo_scenery_close(WoScenery *scenery);
+/* True when the rectangle on a relaid sheet held scenery in either layout,
+ * so a placement located in the PC layout no longer holds there. */
+bool wo_scenery_covers(const WoScenery *scenery, const char *native, int64_t page, int64_t x,
+                       int64_t y, int64_t width, int64_t height);
+/* The places of the picture a catalogue PNG is named after (free with
+ * wo_free). None when the name has no decodable source. */
+bool wo_scenery_places(WoScenery *scenery, const char *png, WoSceneryPlace **places,
+                       size_t *count, WoError *error);
 
 /* Build every sheet in the plan and write textures/selection.json. Each
  * sheet is built in memory and then replaces the old one atomically.

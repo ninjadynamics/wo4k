@@ -58,6 +58,28 @@ static BOOL wo_startup_keep_code_executable(BYTE *image){
     FlushInstructionCache(GetCurrentProcess(),image+0x5ba24,1);
     VirtualProtect(image+0x5ba24,1,old,&ignored);return TRUE;
 }
+/* The game keeps a race's models and effects in one fixed arena of 1.8 MB,
+ * sized for the PC release's scenery. The PlayStation scenery is larger (Gare
+ * d'Europa's model by 31 KB), the arena ran out while the race was set up, and
+ * the game then wrote through the null pointer it got. Reserve 8 MB instead:
+ * the block is allocated once and its size is passed again at each of the
+ * four places that empty it. The allocator skips free blocks of 0x800000
+ * bytes or more, so the arena stays just below that. */
+#define WO_ARENA_BYTES 0x7e0000u
+static BOOL wo_startup_grow_arena(BYTE *image){
+    static const DWORD reserve=0x2eb97,resets[]={0x2ebb9,0x29ba0,0x2bf96,0x3324a};
+    if(image[reserve-1]!=0x68 || *(DWORD *)(image+reserve)!=0x1ce800)return FALSE;
+    for(UINT i=0;i<sizeof(resets)/sizeof(resets[0]);++i)
+        if(image[resets[i]-1]!=0x68 || *(DWORD *)(image+resets[i])!=0x1c2000)return FALSE;
+    for(UINT i=0;i<=sizeof(resets)/sizeof(resets[0]);++i){
+        BYTE *at=image+(i?resets[i-1]:reserve);DWORD old,ignored;
+        if(!VirtualProtect(at,4,PAGE_EXECUTE_READWRITE,&old))return FALSE;
+        *(DWORD *)at=i?WO_ARENA_BYTES:WO_ARENA_BYTES+0x10000;
+        FlushInstructionCache(GetCurrentProcess(),at,4);
+        VirtualProtect(at,4,old,&ignored);
+    }
+    return TRUE;
+}
 static BOOL wo_startup_install(BYTE *image,const WCHAR *settings){
     static const BYTE controls_call[]={0xe8,0xd9,0x52,0,0,0x6a,1};
     static const BYTE graphics_call[]={0xe8,0x57,0x11,0,0};

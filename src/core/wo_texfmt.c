@@ -33,6 +33,34 @@ bool wo_image_has_transparency(const WoImage *image) {
 
 /* --- TIM -------------------------------------------------------------------- */
 
+bool wo_tim_origin(const uint8_t *data, size_t len, uint32_t *x_words, uint32_t *y,
+                   uint32_t *texels_per_word, WoError *error) {
+    uint32_t magic = 0;
+    uint32_t flags = 0;
+    if (!wo_read_le32(data, len, 0, &magic) || !wo_read_le32(data, len, 4, &flags) ||
+        magic != TIM_MAGIC || (flags & 7u) > 2) {
+        return wo_fail(error, WO_ERR_FORMAT, "Invalid TIM header.");
+    }
+    size_t at = 8;
+    if (flags & TIM_HAS_CLUT) {
+        uint32_t size = 0;
+        if (!wo_read_le32(data, len, at, &size) || size < 12 || size > len - at) {
+            return wo_fail(error, WO_ERR_FORMAT, "Invalid TIM palette extent.");
+        }
+        at += size;
+    }
+    uint16_t words = 0;
+    uint16_t line = 0;
+    if (!wo_read_le16(data, len, at + 4, &words) || !wo_read_le16(data, len, at + 6, &line)) {
+        return wo_fail(error, WO_ERR_FORMAT, "The TIM image is truncated.");
+    }
+    static const uint32_t per_word[3] = {4, 2, 1};
+    *x_words = words;
+    *y = line;
+    *texels_per_word = per_word[flags & 7u];
+    return true;
+}
+
 bool wo_tim_decode(const uint8_t *data, size_t len, WoNativeImage *out, WoError *error) {
     memset(out, 0, sizeof(*out));
     uint32_t magic = 0;

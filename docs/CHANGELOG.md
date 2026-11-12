@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Use the PlayStation's scenery. The PC release shipped an earlier build of
+  the trackside models and textures; with a PlayStation disc selected, seven
+  tracks now load the PlayStation's track archives, with their sheets laid
+  out the PlayStation way and HD textures following. Talon's Reach, whose
+  model is the same on both, keeps the PC archive. The game's memory arena
+  is enlarged from 1.8 MB to 8 MB, which the larger models need.
 - Accept the USA and Japan PlayStation discs for original artwork, not only
   the European one. Their texture and track files are identical.
 - Remove the yellow-green lines on Odessa Keys' blue buildings (the clock

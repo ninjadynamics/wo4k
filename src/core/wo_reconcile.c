@@ -784,8 +784,11 @@ static bool refresh_assets(const WoMod *mod, WoProgress *progress, WoHashCache *
     if (ok && wo_json_bool(receipt, "hd_textures", false)) {
         set_stage(progress, WO_STAGE_HD_ART);
         char *canonical = wo_mod_path(mod, "assets/hd", error);
-        WoHdOptions options = {catalog, canonical, canonical, mod->game, cache};
-        ok = canonical && wo_hd_install(&options, &art, error);
+        WoJson *plan = NULL;
+        ok = wo_load_manifest(mod, "manifests/texture-selection.json", &plan, error);
+        WoHdOptions options = {catalog, canonical, canonical, mod->game, cache, plan};
+        ok = ok && canonical && wo_hd_install(&options, &art, error);
+        wo_json_free(plan);
         wo_free(canonical);
         wo_laps_mark(laps, "art_ms");
     }

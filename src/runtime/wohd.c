@@ -111,6 +111,7 @@ static void prepare_game_folder(void) {
     if(image[0x5b8b1]!=0xec || image[0x5b8b2]!=0x48 || image[0x5b8b3]!=0x53) return;
     SetCurrentDirectoryW(root);
     logevent("startup_code_kept_executable",wo_startup_keep_code_executable(image));
+    logevent("startup_arena_grown",wo_startup_grow_arena(image));
     wo_paths_initialize(image);
     WCHAR settings[MAX_PATH];copyw(settings,root);copyw(settings+lenw(settings),L"Wipeout2097.ini");
     wo_startup_install(image,settings);

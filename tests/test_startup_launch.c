@@ -17,6 +17,11 @@ static void test_startup_launch(BYTE *image,const WCHAR *settings){
      * second pass finds nothing left to change. */
     if(image[0x5ba24]!=PAGE_READWRITE || !wo_startup_keep_code_executable(image) ||
        image[0x5ba24]!=PAGE_EXECUTE_READWRITE || wo_startup_keep_code_executable(image))ExitProcess(125);
+    /* The arena is reserved larger and emptied at that size, once. */
+    if(!wo_startup_grow_arena(image) || *(DWORD *)(image+0x2eb97)!=WO_ARENA_BYTES+0x10000 ||
+       *(DWORD *)(image+0x2ebb9)!=WO_ARENA_BYTES || *(DWORD *)(image+0x29ba0)!=WO_ARENA_BYTES ||
+       *(DWORD *)(image+0x2bf96)!=WO_ARENA_BYTES || *(DWORD *)(image+0x3324a)!=WO_ARENA_BYTES ||
+       wo_startup_grow_arena(image))ExitProcess(126);
     BYTE original=image[0x5bef4];image[0x5bef4]=0;
     if(wo_startup_install(image,settings) || image[0x5bb38]!=1)ExitProcess(113);
     image[0x5bef4]=original;
