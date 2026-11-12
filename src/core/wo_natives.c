@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/wo_boards.h"
 #include "core/wo_disc.h"
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
@@ -536,12 +537,33 @@ static bool scenery_wads(const char *game_root, const WoJson *entry, SceneryWads
     return true;
 }
 
-static bool same_file_bytes(const char *a, const char *b) {
-    char hash[WO_SHA256_HEX_SIZE];
-    return wo_is_file(a) && wo_sha256_file(a, hash, NULL) && file_is(b, hash);
+/* The archive the game should load for a track: the imported PlayStation
+ * one, with the trackside boards the PC's scenery also has taken from the
+ * retained PC archive (wo_boards.h). */
+static bool scenery_wanted(const SceneryWads *wads, WoBuf *out, WoError *error) {
+    WoBuf ps1 = {0};
+    WoBuf pc = {0};
+    bool ok = wo_read_file(wads->ps1, WO_TEXSRC_MAX_FILE_BYTES, &ps1, error) &&
+              (!wo_is_file(wads->pc) ||
+               wo_read_file(wads->pc, WO_TEXSRC_MAX_FILE_BYTES, &pc, error)) &&
+              wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, out, NULL, error);
+    wo_buf_free(&pc);
+    wo_buf_free(&ps1);
+    return ok;
 }
 
-/* Put each imported PlayStation archive in place, keeping the PC one. */
+/* That archive is the one in the game folder. */
+static bool scenery_in_place(const SceneryWads *wads) {
+    WoBuf wanted = {0};
+    char hash[WO_SHA256_HEX_SIZE];
+    bool same = wo_is_file(wads->ps1) && wo_is_file(wads->game) &&
+                scenery_wanted(wads, &wanted, NULL) &&
+                wo_sha256_mem(wanted.data, wanted.len, hash, NULL) && file_is(wads->game, hash);
+    wo_buf_free(&wanted);
+    return same;
+}
+
+/* Put each track's archive in place, keeping the PC one. */
 static bool install_scenery(const char *game_root, const WoJson *plan, WoError *error) {
     const WoJson *scenery = wo_json_get(plan, "scenery");
     for (size_t i = 0; i < wo_json_length(scenery); i++) {
@@ -550,10 +572,12 @@ static bool install_scenery(const char *game_root, const WoJson *plan, WoError *
             return false;
         }
         bool ok = true;
-        if (wo_is_file(wads.ps1) && wo_is_file(wads.game) &&
-            !same_file_bytes(wads.ps1, wads.game)) {
+        if (wo_is_file(wads.ps1) && wo_is_file(wads.game) && !scenery_in_place(&wads)) {
+            WoBuf wanted = {0};
             ok = (wo_is_file(wads.pc) || wo_copy_file(wads.game, wads.pc, error)) &&
-                 wo_copy_file(wads.ps1, wads.game, error);
+                 scenery_wanted(&wads, &wanted, error) &&
+                 wo_write_file_atomic(wads.game, wanted.data, wanted.len, error);
+            wo_buf_free(&wanted);
         }
         scenery_wads_free(&wads);
         if (!ok) {
@@ -563,14 +587,14 @@ static bool install_scenery(const char *game_root, const WoJson *plan, WoError *
     return true;
 }
 
-/* An imported PlayStation archive is not yet the one the game loads. */
+/* An imported PlayStation archive is not yet what the game loads. */
 static bool scenery_pending(const char *game_root, const WoJson *plan) {
     const WoJson *scenery = wo_json_get(plan, "scenery");
     bool pending = false;
     for (size_t i = 0; !pending && i < wo_json_length(scenery); i++) {
         SceneryWads wads;
         if (scenery_wads(game_root, wo_json_at(scenery, i), &wads, NULL)) {
-            pending = wo_is_file(wads.ps1) && !same_file_bytes(wads.ps1, wads.game);
+            pending = wo_is_file(wads.ps1) && !scenery_in_place(&wads);
             scenery_wads_free(&wads);
         }
     }
@@ -594,10 +618,9 @@ static bool load_scene_frames(const char *wad_path, WoCmp *frames, WoError *erro
     return ok;
 }
 
-/* Lay the sheet's scenery out as the PlayStation archive has it: paste its
- * frames where their headers place them. Art the PC release painted into
- * its sheets for its own models (Sagarmatha's "FEED ME" hoarding) is not
- * carried over: the PlayStation models do not show it. */
+/* Lay the sheet's scenery out as the archive in place has it: paste its
+ * frames where their headers place them. A picture kept from the PC's
+ * boards (Sagarmatha's "FEED ME") is one of those frames. */
 static bool apply_scenery(const SceneryWads *wads, uint8_t *sheet, size_t len,
                           WoNativeCounts *counts, WoError *error) {
     WoTgaInfo info;
@@ -904,7 +927,7 @@ static bool build_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJ
         if (scenery) {
             SceneryWads wads;
             ok = scenery_wads(p->game, scenery, &wads, error);
-            if (ok && same_file_bytes(wads.ps1, wads.game)) {
+            if (ok && scenery_in_place(&wads)) {
                 ok = apply_scenery(&wads, bytes.data, bytes.len, counts, error);
             }
             scenery_wads_free(&wads);
@@ -1180,7 +1203,7 @@ bool wo_scenery_open(const char *game_root, const WoJson *plan, WoScenery **out,
         }
         SceneryWads wads;
         ok = scenery_wads(p.game, entry, &wads, error);
-        if (ok && same_file_bytes(wads.ps1, wads.game)) {
+        if (ok && scenery_in_place(&wads)) {
             WoCmp frames;
             ok = load_scene_frames(wads.game, &frames, error);
             for (size_t f = 0; ok && f < frames.count; f++) {

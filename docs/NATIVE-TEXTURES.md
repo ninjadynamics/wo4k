@@ -40,6 +40,23 @@ its smoke texture where the PC game keeps effects of its own, which crashes.
 The runtime enlarges the game's 1.8 MB race arena, which Gare d'Europa's
 PlayStation model overflows.
 
+The archive put in place is not always the disc's byte for byte. The
+PlayStation scenery has large trackside boards (objects named `redb...`)
+that its game covers with Red Bull advertising while it runs; in the
+archive each is four panels on a tiny placeholder texture, and the PC game
+has no code for them outside Talon's Reach. The PC scenery replaced some of
+them with a single panel showing a picture of its own (Sagarmatha's four
+"FEED ME" boards, two on Spilskinanke, one each on Odessa Keys and Vostok
+Island) and dropped the rest. Where the PC archive has a board at the same
+place as a PlayStation one, the installed archive takes the PC's board
+(`wo_boards.c`): its model record, renumbered for the PlayStation textures.
+A picture those textures do not include takes over the placeholder and is
+placed where a PC scenery texture used to be and no PlayStation one is; the
+texture file is then stored uncompressed, which the game reads as well.
+Vostok Island's board has no such room and stays as the disc has it, as do
+the boards the PC scenery never had (one on Gare d'Europa and Odessa Keys,
+five on Valparaiso, six on Phenitia Park): dark panels.
+
 Otherwise packed TGA sheets are rebuilt without changing PC model references, UVs,
 track geometry or texture indices. One exception corrects the PC release's
 data: the map's `patches` change a single byte of `TRACK17/TRACK.WAD`

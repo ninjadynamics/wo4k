@@ -226,6 +226,30 @@ static void cmp_header(BitWriter *w, const uint32_t *sizes, size_t count) {
     }
 }
 
+/* What wo_cmp_encode writes, wo_cmp_decode reads back; an empty entry too. */
+static void test_cmp_encode(void) {
+    WoError error = {0};
+    WoCmp cmp = {0};
+    WoBuf out = {0};
+    uint8_t all[256];
+    for (int i = 0; i < 256; i++) {
+        all[i] = (uint8_t)i;
+    }
+    const uint8_t *entries[] = {(const uint8_t *)"abc", all, all, (const uint8_t *)"z"};
+    size_t sizes[] = {3, 0, 256, 1};
+    CHECK_OK(wo_cmp_encode(entries, sizes, 4, &out, &error), &error);
+    /* The directory, nine bits a byte, the fourteen bits that end it. */
+    CHECK(out.len == 4 + 16 + (260 * 9 + 14 + 7) / 8);
+    CHECK_OK(wo_cmp_decode(out.data, out.len, &cmp, &error), &error);
+    CHECK(cmp.count == 4 && cmp.total == 260 && cmp.sizes[1] == 0);
+    CHECK(memcmp(cmp.data, "abc", 3) == 0 && memcmp(cmp.data + 3, all, 256) == 0 &&
+          cmp.data[259] == 'z');
+    wo_cmp_free(&cmp);
+    wo_buf_free(&out);
+    CHECK_FAILS(wo_cmp_encode(entries, sizes, 0, &out, &error), &error, WO_ERR_LIMIT);
+    wo_buf_free(&out);
+}
+
 static void test_cmp(void) {
     WoError error = {0};
     WoCmp cmp = {0};
@@ -376,6 +400,7 @@ int main(void) {
     RUN(test_tim_rejects);
     RUN(test_tga);
     RUN(test_cmp);
+    RUN(test_cmp_encode);
     RUN(test_wad);
     return wo_test_finish();
 }

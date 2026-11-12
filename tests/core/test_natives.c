@@ -4,6 +4,7 @@
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
 #include "core/wo_natives.h"
+#include "core/wo_boards.h"
 #include "core/wo_texsrc.h"
 #include "iso_builder.h"
 #include "tex_builder.h"
@@ -400,6 +401,183 @@ static void test_scenery(void) {
     wo_buf_free(&ps1);
 }
 
+/* --- Trackside boards ---------------------------------------------------------- */
+
+static void put_be16(WoBuf *b, unsigned v) {
+    uint8_t bytes[2] = {(uint8_t)(v >> 8), (uint8_t)v};
+    wo_buf_append(b, bytes, 2, NULL);
+}
+
+/* A scenery object: four vertices and `panels` textured quads (kind 8). */
+static void scene_object(WoBuf *b, const char *name, int32_t x, unsigned panels, unsigned texture) {
+    uint8_t header[144] = {0};
+    memcpy(header, name, strlen(name));
+    header[17] = 4;               /* vertices */
+    header[33] = (uint8_t)panels; /* primitives */
+    header[84] = (uint8_t)((uint32_t)x >> 24);
+    header[85] = (uint8_t)((uint32_t)x >> 16);
+    header[86] = (uint8_t)((uint32_t)x >> 8);
+    header[87] = (uint8_t)x;
+    wo_buf_append(b, header, sizeof(header), NULL);
+    for (int i = 0; i < 4 * 8; i++) {
+        wo_buf_append_byte(b, (uint8_t)i, NULL);
+    }
+    for (unsigned i = 0; i < panels; i++) {
+        put_be16(b, 8);
+        put_be16(b, 1);
+        for (unsigned corner = 0; corner < 4; corner++) {
+            put_be16(b, corner);
+        }
+        put_be16(b, texture);
+        for (unsigned k = 0; k < 4 + 8 + 18; k++) {
+            wo_buf_append_byte(b, (uint8_t)(0x40 + k + panels), NULL);
+        }
+    }
+}
+
+static void scene_frame(WoBuf *frame, uint16_t base, uint16_t x_words, uint16_t y) {
+    tb_tim16(frame, 4, 2, base);
+    wo_put_le16(frame->data + 12, x_words);
+    wo_put_le16(frame->data + 14, y);
+}
+
+/* An archive of a wall and two boards; frames[i] is {base, x, y}. */
+static void board_wad(WoBuf *wad, unsigned panels, const unsigned *textures,
+                      const uint16_t frames[3][3]) {
+    WoBuf contents[2] = {{0}, {0}};
+    WoBuf tims[3] = {{0}, {0}, {0}};
+    scene_object(&contents[0], "wall", 1000, 1, 0);
+    scene_object(&contents[0], "redb", 2000, panels, textures[0]);
+    scene_object(&contents[0], "redb_1", 3000, panels, textures[1]);
+    for (int i = 0; i < 3; i++) {
+        scene_frame(&tims[i], frames[i][0], (uint16_t)(320 + frames[i][1]), frames[i][2]);
+    }
+    tb_cmp(&contents[1], tims, 3);
+    static const char *const names[] = {"scene.prm", "scene.cmp"};
+    tb_wad(wad, names, contents, 2);
+    for (int i = 0; i < 3; i++) {
+        wo_buf_free(&tims[i]);
+    }
+    wo_buf_free(&contents[0]);
+    wo_buf_free(&contents[1]);
+}
+
+/* The PlayStation's boards are four panels on a placeholder texture; where
+ * the PC's scenery has a board at the same place, the archive put in the
+ * game folder has the PC's board, with its picture. */
+static void test_boards(void) {
+    const char *game = wo_test_dir("natives-boards");
+    if (!game) {
+        return;
+    }
+    build_game(game);
+    WoError error = {0};
+    WoBuf pc = {0};
+    WoBuf ps1 = {0};
+    /* PlayStation: wall at (20,10), a picture the PC's first board shows at
+     * (40,4), the boards' placeholder at (60,20). */
+    static const unsigned ps1_textures[] = {2, 2};
+    static const uint16_t ps1_frames[3][3] = {{700, 20, 10}, {300, 40, 4}, {900, 60, 20}};
+    /* PC: wall at (8,4); the first board's picture, which the PlayStation
+     * has; the second board's own picture, where the PlayStation's wall is. */
+    static const unsigned pc_textures[] = {1, 2};
+    static const uint16_t pc_frames[3][3] = {{100, 8, 4}, {300, 30, 0}, {500, 20, 10}};
+    board_wad(&ps1, 4, ps1_textures, ps1_frames);
+    board_wad(&pc, 1, pc_textures, pc_frames);
+
+    /* On its own, or beside a PC archive without those boards, the
+     * PlayStation's archive is what the game gets. */
+    WoBuf made = {0};
+    size_t kept = 9;
+    CHECK_OK(wo_boards_keep(ps1.data, ps1.len, NULL, 0, &made, &kept, &error), &error);
+    CHECK(kept == 0 && made.len == ps1.len && memcmp(made.data, ps1.data, ps1.len) == 0);
+    CHECK_OK(wo_boards_keep(ps1.data, ps1.len, ps1.data, 20, &made, &kept, &error), &error);
+    CHECK(kept == 0 && made.len == ps1.len);
+
+    write_buf(game, "TRACK09/TRACK.WAD", &pc);
+    write_buf(game, "textures/ps1-source/TRACK09/TRACK.WAD", &ps1);
+    WoJson *plan = parse("{\"format\":1,\"revision\":3,\"scenery\":[{\"track\":\"TRACK09\","
+                         "\"atlases\":[\"Pics/Hi-res/SHEET.TGA\"]}],"
+                         "\"operations\":[{\"atlas\":\"Pics/Hi-res/SHEET.TGA\",\"x\":8,\"y\":4,"
+                         "\"width\":4,\"height\":2,\"source\":{\"wad\":\"TRACK09/TRACK.WAD\","
+                         "\"entry\":\"scene.cmp\",\"frame\":0},\"label\":\"pc scenery\"}]}");
+    char *sheet = wo_path_join(game, "textures/sd/Pics/Hi-res/SHEET.TGA", &error);
+    char *wad = wo_path_join(game, "TRACK09/TRACK.WAD", &error);
+    WoNativeOptions options = {game, plan, NULL, NULL, NULL, false, false, NULL, false};
+    for (int pass = 0; pass < 2; pass++) {
+        WoJson *receipt = NULL;
+        WoBuf bytes = {0};
+        bool healthy = false;
+        CHECK_OK(wo_natives_install(&options, &receipt, &error), &error);
+        wo_json_free(receipt);
+        CHECK_OK(wo_natives_test(game, plan, false, &healthy, &error), &error);
+        CHECK(healthy);
+        /* The sheet: the PlayStation's wall and first picture where its
+         * archive has them, and the PC board's own picture where the PC's
+         * wall used to be, its own place being the PlayStation wall's. */
+        CHECK_OK(wo_read_file(sheet, 1 << 20, &bytes, &error), &error);
+        CHECK(wo_le16(bytes.data + 18 + (10 * 64 + 20) * 2) == to_pc(700));
+        CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 40) * 2) == to_pc(300));
+        CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 8) * 2) == to_pc(500));
+        CHECK(wo_le16(bytes.data + 18 + (5 * 64 + 11) * 2) == to_pc(500 + 7));
+        CHECK(wo_le16(bytes.data + 18 + (20 * 64 + 60) * 2) == 0x1234); /* no placeholder */
+        wo_buf_free(&bytes);
+
+        /* The archive: the PlayStation's wall, then the PC's two boards,
+         * one panel each, numbered for the textures beside them. */
+        WoWad parsed = {0};
+        WoCmp frames = {0};
+        CHECK_OK(wo_read_file(wad, 1 << 20, &bytes, &error) &&
+                     wo_wad_parse(bytes.data, bytes.len, &parsed, &error),
+                 &error);
+        const WoWadEntry *models = wo_wad_find(&parsed, "scene.prm");
+        const WoWadEntry *textures = wo_wad_find(&parsed, "scene.cmp");
+        size_t wall = 144 + 32 + 44;
+        size_t board = 144 + 32 + 44;
+        CHECK(models && textures && models->size == wall + 2 * board);
+        const uint8_t *prm = bytes.data + models->offset;
+        CHECK(memcmp(prm + wall, "redb", 5) == 0 && prm[wall + 33] == 1);
+        CHECK(prm[wall + 144 + 32 + 12] == 0 && prm[wall + 144 + 32 + 13] == 1);
+        CHECK(memcmp(prm + wall + board, "redb_1", 7) == 0);
+        CHECK(prm[wall + board + 144 + 32 + 13] == 2);
+        /* The rest of the PC's panel came along untouched. */
+        CHECK(prm[wall + 144 + 32 + 14] == 0x40 + 0 + 1);
+        CHECK_OK(wo_cmp_decode(bytes.data + textures->offset, textures->size, &frames, &error),
+                 &error);
+        CHECK(frames.count == 3);
+        uint32_t x = 0;
+        uint32_t y = 0;
+        uint32_t per_word = 0;
+        CHECK_OK(wo_tim_origin(frames.data + frames.offsets[2], frames.sizes[2], &x, &y, &per_word,
+                               &error),
+                 &error);
+        CHECK(x == 320 + 8 && y == 4);
+        CHECK(wo_le16(frames.data + frames.offsets[2] + 20) == 500);
+        CHECK(wo_le16(frames.data + frames.offsets[0] + 20) == 700);
+        wo_cmp_free(&frames);
+        wo_wad_free(&parsed);
+        wo_buf_free(&bytes);
+    }
+
+    /* A model file with a primitive this code does not know is left alone. */
+    WoWad parsed = {0};
+    CHECK_OK(wo_wad_parse(ps1.data, ps1.len, &parsed, &error), &error);
+    const WoWadEntry *models = wo_wad_find(&parsed, "scene.prm");
+    CHECK(models != NULL);
+    if (models) {
+        ps1.data[models->offset + 144 + 32 + 1] = 9;
+        CHECK_OK(wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, &made, &kept, &error), &error);
+        CHECK(kept == 0 && made.len == ps1.len && memcmp(made.data, ps1.data, ps1.len) == 0);
+    }
+    wo_wad_free(&parsed);
+    wo_buf_free(&made);
+    wo_free(wad);
+    wo_free(sheet);
+    wo_json_free(plan);
+    wo_buf_free(&pc);
+    wo_buf_free(&ps1);
+}
+
 static void test_ps1_import(void) {
     const char *root = wo_test_dir("natives-ps1");
     if (!root) {
@@ -720,6 +898,7 @@ int main(void) {
     RUN(test_pc_only_build);
     RUN(test_patches);
     RUN(test_scenery);
+    RUN(test_boards);
     RUN(test_ps1_import);
     RUN(test_roads);
     return wo_test_finish();

@@ -38,6 +38,12 @@
   Start press that leaves the title screen no longer carries on into the
   main menu, and Start held after pausing a race no longer picks the pause
   menu's first entry.
+- Keep the PC's trackside boards with the PlayStation's scenery:
+  Sagarmatha's four "FEED ME" boards, two on Spilskinanke and one on Odessa
+  Keys. The PlayStation's models have boards there that its game covers
+  with advertising while it runs, which the PC game cannot do, so they
+  stood as dark panels. Play puts the PC's boards back on its next launch.
+  Boards the PC never had, and the one on Vostok Island, are still dark.
 - Run Gare d'Europa's trains with the PlayStation's scenery. The game finds
   the train line by the names of the pylons at its two ends, and the
   PlayStation's model gives every pylon the same name, so the trains stood

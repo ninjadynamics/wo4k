@@ -16,7 +16,8 @@
  * is replaced by the PlayStation one, whose scenery models are the later
  * build, and the plan's "scenery" sheets are laid out as that archive's
  * texture headers place them. The PC archive is retained under
- * textures/native-source.
+ * textures/native-source; the trackside boards its scenery has are kept
+ * in the archive put in place (wo_boards.h).
  *
  * The plan may also correct single bytes of game files ("patches": file,
  * offset, from, to, and the file's SHA-256 before and after). Operations

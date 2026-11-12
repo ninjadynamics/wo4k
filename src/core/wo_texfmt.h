@@ -53,6 +53,8 @@ bool wo_tim_decode(const uint8_t *data, size_t len, WoNativeImage *out, WoError 
  * texels one word holds (4, 2 or 1). */
 bool wo_tim_origin(const uint8_t *data, size_t len, uint32_t *x_words, uint32_t *y,
                    uint32_t *texels_per_word, WoError *error);
+/* Give a TIM another place in video memory. */
+bool wo_tim_move(uint8_t *data, size_t len, uint32_t x_words, uint32_t y, WoError *error);
 /* Decode any TIM (4/8/16/24-bit) to BGRA for PNG export. Colour 0 is fully
  * transparent, as in the maintainer exporter. */
 bool wo_tim_decode_bgra(const uint8_t *data, size_t len, WoImage *out, WoError *error);
@@ -94,6 +96,10 @@ typedef struct WoCmp {
 
 /* Decode a CMP archive. Empty entries are allowed (the loader skips them). */
 bool wo_cmp_decode(const uint8_t *data, size_t len, WoCmp *out, WoError *error);
+/* Write entries as a CMP archive the game and wo_cmp_decode read back. The
+ * entries are stored without compression (nine bits to the byte). */
+bool wo_cmp_encode(const uint8_t *const *entries, const size_t *sizes, size_t count, WoBuf *out,
+                   WoError *error);
 void wo_cmp_free(WoCmp *cmp);
 
 /* --- WAD ----------------------------------------------------------------------- */
@@ -101,6 +107,7 @@ typedef struct WoWadEntry {
     char name[WO_WAD_NAME_MAX]; /* ASCII; bytes >= 0x80 read as '?' */
     size_t offset;              /* into the WAD's bytes */
     size_t size;
+    size_t record;              /* where the directory holds the size, twice */
 } WoWadEntry;
 
 typedef struct WoWad {

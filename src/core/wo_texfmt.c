@@ -61,6 +61,25 @@ bool wo_tim_origin(const uint8_t *data, size_t len, uint32_t *x_words, uint32_t 
     return true;
 }
 
+bool wo_tim_move(uint8_t *data, size_t len, uint32_t x_words, uint32_t y, WoError *error) {
+    uint32_t old_x = 0;
+    uint32_t old_y = 0;
+    uint32_t per_word = 0;
+    if (!wo_tim_origin(data, len, &old_x, &old_y, &per_word, error)) {
+        return false;
+    }
+    if (x_words > UINT16_MAX || y > UINT16_MAX) {
+        return wo_fail(error, WO_ERR_FORMAT, "A TIM cannot be placed there.");
+    }
+    size_t at = 8;
+    if (wo_le32(data + 4) & TIM_HAS_CLUT) {
+        at += wo_le32(data + at);
+    }
+    wo_put_le16(data + at + 4, (uint16_t)x_words);
+    wo_put_le16(data + at + 6, (uint16_t)y);
+    return true;
+}
+
 bool wo_tim_decode(const uint8_t *data, size_t len, WoNativeImage *out, WoError *error) {
     memset(out, 0, sizeof(*out));
     uint32_t magic = 0;
@@ -457,6 +476,46 @@ bool wo_cmp_decode(const uint8_t *data, size_t len, WoCmp *out, WoError *error) 
     return true;
 }
 
+bool wo_cmp_encode(const uint8_t *const *entries, const size_t *sizes, size_t count, WoBuf *out,
+                   WoError *error) {
+    size_t total = 0;
+    for (size_t i = 0; i < count; i++) {
+        if (sizes[i] > WO_CMP_MAX_ENTRY_BYTES || total > WO_CMP_MAX_TOTAL_BYTES - sizes[i]) {
+            return wo_fail(error, WO_ERR_LIMIT, "The CMP archive would be too large.");
+        }
+        total += sizes[i];
+    }
+    if (count < 1 || count > WO_CMP_MAX_ENTRIES) {
+        return wo_fail(error, WO_ERR_LIMIT, "The CMP archive would have too many entries.");
+    }
+    /* Nine bits a byte, then the fourteen that end the stream. */
+    size_t stream = (total * 9u + 14u + 7u) / 8u;
+    size_t start = out->len;
+    if (!wo_buf_reserve(out, 4u + count * 4u + stream, error)) {
+        return false;
+    }
+    uint8_t *p = out->data + start;
+    memset(p, 0, 4u + count * 4u + stream);
+    wo_put_le32(p, (uint32_t)count);
+    for (size_t i = 0; i < count; i++) {
+        wo_put_le32(p + 4u + i * 4u, (uint32_t)sizes[i]);
+    }
+    uint8_t *bits = p + 4u + count * 4u;
+    size_t bit = 0;
+    for (size_t i = 0; i < count; i++) {
+        for (size_t j = 0; j < sizes[i]; j++) {
+            unsigned value = 0x100u | entries[i][j]; /* the literal flag, then the byte */
+            for (unsigned k = 0; k < 9; k++, bit++) {
+                if (value & (0x100u >> k)) {
+                    bits[bit / 8u] |= (uint8_t)(0x80u >> (bit & 7u));
+                }
+            }
+        }
+    }
+    out->len = start + 4u + count * 4u + stream;
+    return true;
+}
+
 /* --- WAD -------------------------------------------------------------------- */
 
 void wo_wad_free(WoWad *wad) {
@@ -540,6 +599,7 @@ bool wo_wad_parse(const uint8_t *data, size_t len, WoWad *out, WoError *error) {
             }
         }
         entries[i].size = size;
+        entries[i].record = at - 9;
         total += size;
     }
     if (total != len - at) {
