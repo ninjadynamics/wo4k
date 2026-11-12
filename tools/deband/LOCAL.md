@@ -6,6 +6,15 @@
 inheritance to its pipe and NUL handles. This fixes intermittent atomic rename
 failures with concurrent PNG workers; filtering and defaults are unchanged.
 
+The filter itself lives in `filter.c` / `filter.h` (band ramps, the
+four-sample stage, the dither; no files or threads). `deband.c` uses it, and
+so does the mod: it is compiled into the core library, and
+`src/core/wo_deband.c` debands the game's textures with it at install time.
+A change to the filter therefore changes what players get; bump
+`DEBAND_REVISION` in `wo_deband.c` with it so that installations rebuild. The
+native four-sample stage places its samples as FFmpeg's `deband` does, which
+makes the two modes agree but for the dither.
+
 The lossless PNG trimmer (`pngtrim.c`, previously the FFmpeg-based
 `assets/hd/trim.cmd`) is part of the tool: `-z` trims PNGs in place, and
 debanded PNG output is trimmed before it is published. `assets/hd/trim.cmd` is
@@ -53,5 +62,5 @@ README documents the other options, including explicit in-place processing.
 
 This is a maintainer tool. Its source can be committed, but generated binaries,
 dependencies, exported artwork and processed PNGs are ignored. `tools/` is not
-part of the game release payload. Adding/building the tool does not install
-processed images into the game or change Setup/Play.
+part of the game release payload. Building the tool does not install
+processed images into the game; Setup and Play carry the filter themselves.

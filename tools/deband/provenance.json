@@ -11,7 +11,8 @@
   "source_changes": [
     "Windows FFmpeg subprocesses use an explicit STARTUPINFOEX handle allowlist (output pipe and NUL only), preventing inherited temporary PNG handles from blocking concurrent workers' atomic renames.",
     "The lossless PNG trimmer that was assets/hd/trim.cmd (FFmpeg) is now pngtrim.c: deband -z trims PNGs in place, and debanded PNG output is trimmed before it is published.",
-    "Built by the repository Makefile (make deband); dependencies are pinned in dependencies.json. The debanding algorithm and defaults are unchanged. Exact changes are in Git history."
+    "Built by the repository Makefile (make deband); dependencies are pinned in dependencies.json. Exact changes are in Git history.",
+    "Band ramps run before the threshold filter (-b, -w, -k). The filter (band ramps, the four-sample stage, the dither) is in filter.c, which the mod's installer also compiles; the native four-sample stage takes its samples where FFmpeg's deband does and keeps its 16-bit arithmetic."
   ],
-  "scope": "Maintainer tool only; not a game runtime dependency or release payload."
+  "scope": "deband.exe is a maintainer tool, not part of a release. filter.c is compiled into Setup and Play, which deband the game's textures on the player's machine."
 }

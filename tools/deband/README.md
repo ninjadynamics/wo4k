@@ -3,7 +3,8 @@
 A C99 command-line utility that accepts one image or recursively processes a directory.
 
 - FFmpeg `deband` (16-bit processing) is the default when FFmpeg is installed.
-- Without FFmpeg, or with `-s`, an all-native C four-sample debanding approximation is used.
+- Without FFmpeg, or with `-s`, an all-native C four-sample filter is used. It takes its
+  samples where FFmpeg's does, so the two modes give the same picture but for the dither.
 - Both modes apply high-pass, blue-noise-like dithering before 8-bit quantization.
 - **Band ramps** run first in both modes. Artwork reduced to a few colours
   (a 16-colour PlayStation texture) shows a gradient as flat bands whose steps
@@ -118,7 +119,7 @@ pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-libpng mingw-
 Compile a statically linked executable:
 
 ```bash
-gcc -O3 -std=c99 -D_CRT_SECURE_NO_WARNINGS -static -static-libgcc -o deband.exe deband.c pngtrim.c -lpng -ljpeg -lz -lm
+gcc -O3 -std=c99 -D_CRT_SECURE_NO_WARNINGS -static -static-libgcc -o deband.exe deband.c filter.c pngtrim.c -lpng -ljpeg -lz -lm
 ```
 
 Or run `make static` from the UCRT64 terminal.
@@ -165,8 +166,11 @@ Other input formats are skipped when scanning a directory.
 - Each FFmpeg worker launches one FFmpeg process and streams 16-bit RGBA
   pixel data directly through a pipe, without any disk intermediate images.
 - The program applies the dithering and performs output encoding itself.
-- The native backend avoids FFmpeg entirely and uses a four-point edge-aware
-  debanding operation, with a precomputed direction lookup table.
+- The native backend avoids FFmpeg entirely. Its four samples lie where FFmpeg's
+  `deband` puts them (a direction and distance per pixel, from the pixel's place),
+  and it keeps FFmpeg's 16-bit arithmetic.
+- The filter (band ramps, the four-sample stage, the dither) is `filter.c`,
+  without files or threads, so that other programs can use it.
 - The 512x512 high-pass noise tile is shared across all worker threads.
 - libpng writes each output quickly; pngtrim.c then recompresses it losslessly.
 
@@ -174,8 +178,9 @@ On the development environment, a run of twelve 510x622 PNGs took 1.31 seconds
 with FFmpeg (`-j 4`) and 0.28 seconds with native C (`-s -j 8`). These are
 illustrative timings, not guaranteed results on your hardware.
 
-**Quality caveats:** Native C is only an approximation of FFmpeg's deband,
-not a pixel-identical port. The generated dither is high-frequency noise,
+**Quality caveats:** Native C follows FFmpeg's deband closely but is not
+pixel-identical: fully transparent samples are left out of its averages, and
+FFmpeg's own conversion to 16 bits adds rounding of its own. The generated dither is high-frequency noise,
 not an optimized mathematical blue-noise pattern. Both modes save at 8-bit
 per channel, and the processing does not retain all source color metadata.
 

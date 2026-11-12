@@ -26,7 +26,8 @@ DEBAND_CFLAGS := -std=c99 -O3 -Wall -Wextra -Werror -D__USE_MINGW_ANSI_STDIO=1 $
 .PHONY: deband deband-test
 HELP_TARGETS += deband deband-test
 CLEAN_FILES += $(DEBAND_EXE)
-DEPFILES += $(DEBAND_OBJ)/deband.d $(DEBAND_OBJ)/pngtrim.d $(DEBAND_OBJ)/pngtrim_test.d
+DEPFILES += $(DEBAND_OBJ)/deband.d $(DEBAND_OBJ)/debandfilter.d $(DEBAND_OBJ)/pngtrim.d \
+	$(DEBAND_OBJ)/pngtrim_test.d
 
 deband: $(DEBAND_EXE)
 
@@ -55,7 +56,13 @@ $(DEBAND_OBJ)/deband.o $(DEBAND_OBJ)/pngtrim.o $(DEBAND_OBJ)/pngtrim_test.o: \
 	$(call MKDIR,$(@D))
 	$(CC) $(DEBAND_CFLAGS) -MMD -MP -c $< -o $@
 
-$(DEBAND_EXE): $(DEBAND_OBJ)/deband.o $(DEBAND_OBJ)/pngtrim.o $(DEBAND_LIBS)
+# The filter is also part of the core library (src/core/module.mk), built
+# there with the core's flags; the tool keeps an object of its own.
+$(DEBAND_OBJ)/debandfilter.o: tools/deband/filter.c tools/deband/filter.h
+	$(call MKDIR,$(@D))
+	$(CC) $(DEBAND_CFLAGS) -MMD -MP -c $< -o $@
+
+$(DEBAND_EXE): $(DEBAND_OBJ)/deband.o $(DEBAND_OBJ)/debandfilter.o $(DEBAND_OBJ)/pngtrim.o $(DEBAND_LIBS)
 	$(CC) $^ $(LDFLAGS) -o $@ -lm
 
 $(DEBAND_TEST): $(DEBAND_OBJ)/pngtrim_test.o $(DEBAND_OBJ)/pngtrim.o $(DEBAND_LIBS)
