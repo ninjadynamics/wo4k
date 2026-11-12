@@ -11,7 +11,7 @@ set "upscayl=C:\Program Files\Upscayl\resources\bin\upscayl-bin.exe"
 set "models=C:\Program Files\Upscayl\resources\models"
 set "input=%root%\assets\sd"
 set "output=%root%\assets\hd"
-set "scale=5"
+set "scale=2"
 set "result=1"
 
 if not exist "%upscayl%" (
@@ -46,6 +46,16 @@ if not defined model%choice% (
     goto finish
 )
 set "name=!model%choice%!"
+
+rem The game rounds a page up to the next power of two of its largest
+rem picture's scale, and holds two copies of it: at 2x a page takes 2 MB of
+rem video memory, at 3x or 4x 8 MB, at 5x to 8x 32 MB. A race loads some
+rem thirty pages; at 5x the game ran out of video memory.
+set /p "scale=Scale, 2 to 4 [%scale%]: "
+if not "%scale%"=="2" if not "%scale%"=="3" if not "%scale%"=="4" (
+    echo The scale must be 2, 3 or 4.
+    goto finish
+)
 
 if not exist "%output%" mkdir "%output%"
 if exist "%output%\*.png" (
