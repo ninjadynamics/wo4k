@@ -625,7 +625,8 @@ static bool apply_scenery(const SceneryWads *wads, uint8_t *sheet, size_t len,
             ok = wo_fail(error, WO_ERR_FORMAT, "Scenery texture %zu lies outside the sheet: %s", i,
                          wads->game);
         } else {
-            ok = wo_tga_patch(sheet, len, &image, left, y, image.width, image.height, error);
+            ok = wo_tga_patch(sheet, len, &image, left, y, image.width, image.height, true,
+                              error);
             counts->ps1_regions++;
         }
         wo_native_image_free(&image);
@@ -759,7 +760,11 @@ static bool apply_operation(WoSheetBuilder *builder, const WoJson *op, uint8_t *
     if (!decode_operation(builder, src, ps1, &pixels, error)) {
         return false;
     }
-    bool ok = wo_tga_patch(sheet, len, &pixels, x, y, width, height, error);
+    /* Scenery is drawn solid; effects, sprites and shared textures may be
+     * blended, where flagged black must stay invisible. */
+    const char *name = ps1 ? wo_json_str(src, "ps1", "") : wo_json_str(src, "entry", "");
+    bool scenery = wo_str_iends_with(name, "scene.cmp");
+    bool ok = wo_tga_patch(sheet, len, &pixels, x, y, width, height, scenery, error);
     wo_native_image_free(&pixels);
     if (!ok) {
         wo_error_context(error, "%s: ", wo_json_str(op, "label", "texture region"));

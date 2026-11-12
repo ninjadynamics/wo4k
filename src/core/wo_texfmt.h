@@ -71,9 +71,17 @@ bool wo_tga_info(const uint8_t *data, size_t len, WoTgaInfo *out, WoError *error
  * the TGA origin bits). Black (ignoring bit 15) is transparent. */
 bool wo_tga_decode_bgra(const uint8_t *data, size_t len, WoImage *out, WoError *error);
 /* Write image into the sheet at (x, y), converting PlayStation colours to
- * the PC's RGB555 layout. width/height must equal the image's size. */
+ * the PC's RGB555 layout. width/height must equal the image's size.
+ *
+ * A PlayStation texel of black with the semi-transparency flag (0x8000) is
+ * solid black on a solid polygon and adds nothing on a blended one; only
+ * 0x0000 is see-through everywhere. The PC game keys every black texel.
+ * With opaque_black such texels are stored as the darkest grey, which the
+ * PC game draws: right for scenery, which is drawn solid, and wrong for
+ * explosions, flares and other blended textures, where the grey would show
+ * as a faint square. */
 bool wo_tga_patch(uint8_t *tga, size_t len, const WoNativeImage *image, int64_t x, int64_t y,
-                  int64_t width, int64_t height, WoError *error);
+                  int64_t width, int64_t height, bool opaque_black, WoError *error);
 
 /* --- CMP ---------------------------------------------------------------------- */
 typedef struct WoCmp {

@@ -156,13 +156,18 @@ static void test_tga(void) {
     CHECK(info.width == 4 && info.height == 3 && info.pixel_offset == 20);
     uint16_t px[4] = {0x001F, 0x7C00, 0x83E0, 0x8000}; /* red, blue, green+flag, opaque black */
     WoNativeImage image = {2, 2, px};
-    CHECK_OK(wo_tga_patch(b.data, b.len, &image, 1, 1, 2, 2, &error), &error);
+    CHECK_OK(wo_tga_patch(b.data, b.len, &image, 1, 1, 2, 2, true, &error), &error);
     /* PlayStation red (bits 0-4) becomes PC red (bits 10-14). */
     CHECK(wo_le16(b.data + 20 + (1 * 4 + 1) * 2) == 0x7C00);
     CHECK(wo_le16(b.data + 20 + (1 * 4 + 2) * 2) == 0x001F);
     CHECK(wo_le16(b.data + 20 + (2 * 4 + 1) * 2) == 0x83E0);
     /* Opaque black stays opaque for the PC game, which keys colour zero. */
     CHECK(wo_le16(b.data + 20 + (2 * 4 + 2) * 2) == 0x8421);
+    /* Where the texture may be blended it stays flagged black, which the PC
+     * game keys: nothing is added to the picture behind. */
+    CHECK_OK(wo_tga_patch(b.data, b.len, &image, 1, 1, 2, 2, false, &error), &error);
+    CHECK(wo_le16(b.data + 20 + (2 * 4 + 2) * 2) == 0x8000);
+    CHECK_OK(wo_tga_patch(b.data, b.len, &image, 1, 1, 2, 2, true, &error), &error);
     WoImage bgra = {0};
     CHECK_OK(wo_tga_decode_bgra(b.data, b.len, &bgra, &error), &error);
     const uint8_t *red = bgra.pixels + (1 * 4 + 1) * 4;
@@ -172,17 +177,17 @@ static void test_tga(void) {
     wo_image_free(&bgra);
 
     /* Placement outside the sheet, or a size that differs from the image. */
-    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 3, 0, 2, 2, &error), &error, WO_ERR_FORMAT);
-    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, -1, 0, 2, 2, &error), &error, WO_ERR_FORMAT);
-    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 0, 2, 2, 2, &error), &error, WO_ERR_FORMAT);
-    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 0, 0, 2, 1, &error), &error, WO_ERR_FORMAT);
+    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 3, 0, 2, 2, true, &error), &error, WO_ERR_FORMAT);
+    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, -1, 0, 2, 2, true, &error), &error, WO_ERR_FORMAT);
+    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 0, 2, 2, 2, true, &error), &error, WO_ERR_FORMAT);
+    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 0, 0, 2, 1, true, &error), &error, WO_ERR_FORMAT);
     /* Truncated pixel area. */
-    CHECK_FAILS(wo_tga_patch(b.data, b.len - 1, &image, 0, 0, 2, 2, &error), &error, WO_ERR_FORMAT);
+    CHECK_FAILS(wo_tga_patch(b.data, b.len - 1, &image, 0, 0, 2, 2, true, &error), &error, WO_ERR_FORMAT);
     CHECK_FAILS(wo_tga_info(b.data, b.len - 1, &info, &error), &error, WO_ERR_FORMAT);
     /* Not an uncompressed 16-bit image. */
     b.data[2] = 10;
     CHECK_FAILS(wo_tga_info(b.data, b.len, &info, &error), &error, WO_ERR_FORMAT);
-    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 0, 0, 2, 2, &error), &error, WO_ERR_FORMAT);
+    CHECK_FAILS(wo_tga_patch(b.data, b.len, &image, 0, 0, 2, 2, true, &error), &error, WO_ERR_FORMAT);
     b.data[2] = 2;
     b.data[16] = 24;
     CHECK_FAILS(wo_tga_info(b.data, b.len, &info, &error), &error, WO_ERR_FORMAT);

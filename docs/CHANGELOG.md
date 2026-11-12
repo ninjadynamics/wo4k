@@ -30,6 +30,9 @@
   decided by the texture's transparency multiplied by a per-corner value
   the game itself ignores for solid surfaces; where that value was low, the
   panel vanished. Only the texture decides now.
+- Keep that opaque black to scenery. Explosions, flares and other blended
+  textures use the same flagged black for "add nothing", and showed inside
+  faint grey squares.
 - Restore the PlayStation's opaque black. The PC game treats every pure
   black pixel as see-through, and the original PC port lost the
   PlayStation's marker for black that should stay solid, leaving small
