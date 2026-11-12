@@ -32,7 +32,7 @@ static const char *const runtime_files[] = {
     "runtime/libiconv-2.dll",  "runtime/wo2097-controller.exe", "runtime/wo4k-video.exe",
     "runtime/Wipeout2097.ini", "runtime/DDrawCompat-Wipeout2097.ini",
     "runtime/w2097-hd.cg",     "runtime/w2097-hd.cgp"};
-static const char *const folders[] = {"assets/hd", "assets/ui", "manifests", "licenses", "docs",
+static const char *const folders[] = {"assets/auth", "assets/ui", "manifests", "licenses", "docs",
                                       "patches"};
 
 static bool write_if_changed(const char *path, const WoJson *value, WoError *error) {
@@ -49,7 +49,7 @@ static bool write_if_changed(const char *path, const WoJson *value, WoError *err
 
 static bool artwork_manifest(WoError *error) {
     WoDirList list = {0};
-    if (!wo_list_dir("assets/hd", &list, error)) {
+    if (!wo_list_dir("assets/auth", &list, error)) {
         return false;
     }
     WoJson *art = wo_json_new_array();
@@ -59,7 +59,7 @@ static bool artwork_manifest(WoError *error) {
         if (list.items[i].is_dir || !wo_str_iends_with(name, ".png")) {
             continue;
         }
-        char *path = wo_format(error, "assets/hd/%s", name);
+        char *path = wo_format(error, "assets/auth/%s", name);
         uint32_t width = 0;
         uint32_t height = 0;
         char digest[WO_SHA256_HEX_SIZE];
@@ -145,7 +145,7 @@ bool build_sign_input(const char *folder, WoError *error) {
 
 static bool add_path(WoStrList *paths, const char *relative, WoError *error) {
     /* Maintainer-only helper kept beside the artwork, never shipped. */
-    if (wo_str_ieq(relative, "assets/hd/trim.cmd") ||
+    if (wo_str_ieq(relative, "assets/auth/trim.cmd") ||
         (wo_str_istarts_with(relative, "patches/") && !wo_str_iends_with(relative, ".json"))) {
         return true;
     }

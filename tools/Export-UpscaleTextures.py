@@ -83,7 +83,7 @@ def main():
     hd_coverage = {}
     protected = []
     for record in hd_plan:
-        path = root / 'assets/hd' / record['file']
+        path = root / 'assets/auth' / record['file']
         if not path.is_file():
             continue
         protected.append(dict(file=path.relative_to(root).as_posix(), sha256=sha(path.read_bytes())))
@@ -116,7 +116,7 @@ def main():
             hd = hd_coverage.get((Path(name).name, page))
             if hd:
                 sheet['mask'][:, page*256:(page+1)*256] = True
-                excluded.append(dict(atlas=name, page=page, existing_hd='assets/hd/' + hd))
+                excluded.append(dict(atlas=name, page=page, existing_hd='assets/auth/' + hd))
 
     groups = collections.OrderedDict()
     for op in plan['operations']:
@@ -273,7 +273,7 @@ def main():
         'mip levels, hashes, protected HD artwork and reconstruction instructions.\n'
         'baseline.zip preserves all original exported PNGs and original native\n'
         'sheets. Leave it and the manifest untouched when overwriting PNGs.\n'
-        'No game files or assets/hd files were changed. Individual PNGs will need\n'
+        'No game files or assets/auth files were changed. Individual PNGs will need\n'
         'packing into HD pages after you approve the results.\n', encoding='utf-8')
     print(json.dumps(dict(folder=str(out/'textures'), images=len(entries), counts=counts,
                           excluded_hd_pages=len(excluded), verified=True)))

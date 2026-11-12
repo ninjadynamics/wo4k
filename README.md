@@ -100,7 +100,7 @@ verified file's size, timestamps and file ID with its SHA-256 (in
 `.state/integrity.json`), and reads a file again whenever any of them changed,
 so edited, replaced, truncated or missing files are still found and repaired.
 The first launch after an install or update verifies everything once, and
-**Repair** always verifies every file. Edit HD PNGs in `assets/hd/` to have them
+**Repair** always verifies every file. Edit HD PNGs in `assets/auth/` to have them
 picked up at the next launch; audio outputs are rebuilt when changed or
 damaged, and HD PNGs are validated and read directly by the renderer. Setup's
 HD/audio preferences are respected. Original effects stay locally in
@@ -112,7 +112,7 @@ artwork remain usable when the original disc is offline; restoring missing
 music or PC data may require the configured source again. Texture choices are
 fixed at project time; launch checks verify installed output integrity without
 comparing PC and PS1 quality.
-Play checks every PNG in `assets/hd/` before each launch. All eleven
+Play checks every PNG in `assets/auth/` and `assets/hd/` before each launch. All eleven
 exported UI filenames are supported: `font-and-numbers`, `hud-gauges`,
 `hud-reticles`, `menu-background`, `menu-frame-left/middle/right`,
 `menu-controls-1/2`, `menu-logo-atlas`, and `menu-banner-logo` (all `.png`).
@@ -120,18 +120,24 @@ exported UI filenames are supported: `font-and-numbers`, `hud-gauges`,
 
 Individual texture edits are matched **by filename only** against
 `manifests/hd-textures.json`, which covers all 576 usable exported textures.
-Drop a matching PNG into `assets/hd/` and Play automatically registers it on
+Drop a matching PNG into `assets/auth/` and Play automatically registers it on
 the next launch; no executable rebuild is needed. Resolution and aspect ratio
 are up to you, and source PNGs stay unchanged. The renderer fits the image into
 the original texture region. Removing the PNG restores the native artwork on
 the next launch. The three exported `screen0` screenshot references are not
 runtime texture slots.
 
+There are two folders. `assets/auth/` holds the authored artwork that comes
+with the mod. `assets/hd/` is yours: a place for whole sets of upscaled
+textures, under the same filenames. For each texture the game uses the
+authored PNG if there is one, else the one in `assets/hd/`, else its own
+texture.
+
 Additional native TGA replacements work without a rebuild: use the original
 name, such as `SKY01.png`, or `HUD2.page0.png` for a zero-based individual page.
 A whole multi-page replacement such as `HUD2.png` retains the original
 horizontal page strip. Native filenames can also mirror `Pics/Hi-res/` under
-`assets/hd/`. Exported semantic names take priority over generic native names;
+`assets/auth/`. Exported semantic names take priority over generic native names;
 `menu-banner-logo.png` overlays only the logo regions of `menu-logo-atlas.png`,
 keeping the atlas's buttons/panels (or their SD originals).
 The HD header is joined in memory and drawn as one rectangle, allowing smooth
@@ -145,7 +151,7 @@ silently being skipped. Restart Play after changing artwork. The renderer uses
 premultiplied color for filtering/blending, preserving smooth edges and fades;
 your PNG files stay unchanged.
 
-HD PNGs live only in assets/hd; the runtime reads them directly, with no BMP,
+HD PNGs live only in assets/auth and assets/hd; the runtime reads them directly, with no BMP,
 RGBA or PNG copies in Wobble. Play applies layout migrations and removes known
 obsolete mod outputs before every launch, including after Update. Custom files,
 saves and preferences are preserved. Close the game before changing assets.
@@ -246,7 +252,8 @@ Update action downloads mod releases.
 
 ```text
 Setup.exe, Play.exe          setup window and game launcher
-assets/hd/                   editable supplied HD PNGs
+assets/auth/                 editable supplied HD PNGs
+assets/hd/                   your own upscaled textures, used where auth has none
 runtime/                     mod runtime, controller host, video player, DDrawCompat
 patches/                     checksum-guarded executable patch recipes
 manifests/, licenses/        file catalogues, provenance and third-party licenses

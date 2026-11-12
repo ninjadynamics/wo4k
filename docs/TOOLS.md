@@ -35,13 +35,14 @@ original inputs.
 
 ## HD artwork
 
-HD PNG sources live only in `assets/hd/`; the runtime decodes them directly.
+HD PNG sources live in `assets/auth/` (authored, shipped) and `assets/hd/` (upscaled sets, used
+where `auth` has no PNG of that name); the runtime decodes them directly.
 Play validates them before each launch. Setup's HD/original-audio preferences
 are retained during every refresh. Setup keeps the original sound effects in
 `wobble/audio/source/`; these are locally supplied game files, never release
 payloads. Changes to the audio processor are detected and the effects rebuilt.
 
-In a source checkout, double-click `assets/hd/trim.cmd` to losslessly
+In a source checkout, double-click `assets/auth/trim.cmd` to losslessly
 recompress the PNGs beside it. It runs `deband -z` (see below; build it once
 with `mingw32-make deband`), which keeps every pixel, alpha value, bit depth
 and colour-profile chunk, removes editing metadata, verifies the result by
@@ -80,7 +81,7 @@ lossless PNG trimmer. Build it from the repository root:
 ```bat
 mingw32-make deband         :: tools\deband\deband.exe (fetches pinned libpng, libjpeg, zlib)
 mingw32-make deband-test    :: trimmer tests
-tools\deband\deband.exe -z assets\hd
+tools\deband\deband.exe -z assets\auth
 ```
 
 `-h` shows the available options. Use `-o` with a separate output directory to

@@ -707,7 +707,7 @@ static bool migrate_layout(const WoMod *mod, int *removed, WoError *error) {
     static const char *const names[] = {"font-and-numbers", "hud-gauges", "notice", "title"};
     bool ok = true;
     for (size_t i = 0; ok && i < WO_COUNT(names) && wo_is_dir(legacy); i++) {
-        char *canonical_rel = wo_format(error, "assets/hd/%s.png", names[i]);
+        char *canonical_rel = wo_format(error, "assets/auth/%s.png", names[i]);
         char *canonical = canonical_rel ? wo_mod_path(mod, canonical_rel, error) : NULL;
         wo_free(canonical_rel);
         if (!canonical || !wo_is_file(canonical)) {
@@ -786,12 +786,15 @@ static bool refresh_assets(const WoMod *mod, WoProgress *progress, WoHashCache *
     WoHdResult art = {0};
     if (ok && wo_json_bool(receipt, "hd_textures", false)) {
         set_stage(progress, WO_STAGE_HD_ART);
-        char *canonical = wo_mod_path(mod, "assets/hd", error);
+        /* Authored artwork, then upscaled artwork where there is none. */
+        char *canonical = wo_mod_path(mod, "assets/auth", error);
+        char *upscaled = canonical ? wo_mod_path(mod, "assets/hd", error) : NULL;
         WoJson *plan = NULL;
         ok = wo_load_manifest(mod, "manifests/texture-selection.json", &plan, error);
-        WoHdOptions options = {catalog, canonical, canonical, mod->game, cache, plan};
-        ok = ok && canonical && wo_hd_install(&options, &art, error);
+        WoHdOptions options = {catalog, canonical, canonical, mod->game, cache, plan, upscaled};
+        ok = ok && upscaled && wo_hd_install(&options, &art, error);
         wo_json_free(plan);
+        wo_free(upscaled);
         wo_free(canonical);
         wo_laps_mark(laps, "art_ms");
     }

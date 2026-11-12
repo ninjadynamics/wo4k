@@ -17,6 +17,7 @@
 typedef struct Input {
     char *relative; /* '/'-separated */
     char *path;
+    bool fallback; /* from the folder beneath the authored one: used where it is, never copied */
 } Input;
 
 typedef struct Inputs {
@@ -44,7 +45,8 @@ static Input *find_input(const Inputs *inputs, const char *relative) {
 }
 
 /* A later folder's file replaces an earlier one with the same name. */
-static bool add_input(Inputs *inputs, const char *relative, const char *path, WoError *error) {
+static bool add_input(Inputs *inputs, const char *relative, const char *path, bool fallback,
+                      WoError *error) {
     char *path_copy = wo_strdup(path, error);
     if (!path_copy) {
         return false;
@@ -53,6 +55,7 @@ static bool add_input(Inputs *inputs, const char *relative, const char *path, Wo
     if (existing) {
         wo_free(existing->path);
         existing->path = path_copy;
+        existing->fallback = fallback;
         return true;
     }
     if (inputs->count == inputs->cap) {
@@ -72,11 +75,12 @@ static bool add_input(Inputs *inputs, const char *relative, const char *path, Wo
     }
     inputs->items[inputs->count].relative = relative_copy;
     inputs->items[inputs->count].path = path_copy;
+    inputs->items[inputs->count].fallback = fallback;
     inputs->count++;
     return true;
 }
 
-static bool collect_folder(const char *folder, Inputs *inputs, WoError *error) {
+static bool collect_folder(const char *folder, bool fallback, Inputs *inputs, WoError *error) {
     if (!folder || !wo_is_dir(folder)) {
         return true;
     }
@@ -95,7 +99,7 @@ static bool collect_folder(const char *folder, Inputs *inputs, WoError *error) {
                          entry->relative);
             break;
         }
-        ok = add_input(inputs, entry->relative, entry->path, error);
+        ok = add_input(inputs, entry->relative, entry->path, fallback, error);
     }
     wo_tree_free(&tree);
     return ok;
@@ -335,8 +339,10 @@ static bool add_regions(const WoJson *entry, const char *relative, bool transpar
                         const Natives *natives, WoScenery *scenery, WoHdRegionIndex *index,
                         WoError *error) {
     const WoJson *regions = wo_json_get(entry, "regions");
+    /* No regions: a picture the PC layout has no place for (a frame only
+     * the PlayStation's scenery has), found by its picture below. */
     if (!is_region_png_name(wo_json_str(entry, "file", "")) ||
-        !wo_json_is(regions, WO_JSON_ARRAY) || regions->count == 0) {
+        !wo_json_is(regions, WO_JSON_ARRAY)) {
         return wo_fail(error, WO_ERR_FORMAT, "HD texture has no valid region mapping: %s",
                        relative);
     }
@@ -541,8 +547,9 @@ static bool prepare(const WoHdOptions *options, Inputs *inputs, WoHdRegionIndex 
     Natives natives = {0};
     result->files = wo_json_new_array();
     bool ok = result->files != NULL || wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
-    ok = ok && collect_folder(options->canonical_dir, inputs, error) &&
-         collect_folder(options->source_dir, inputs, error) &&
+    ok = ok && collect_folder(options->fallback_dir, true, inputs, error) &&
+         collect_folder(options->canonical_dir, false, inputs, error) &&
+         collect_folder(options->source_dir, false, inputs, error) &&
          require_artwork(options->catalog, inputs, error) &&
          collect_natives(options->game_root, &natives, error);
     if (ok && inputs->count > 1) {
@@ -641,7 +648,8 @@ bool wo_hd_install(const WoHdOptions *options, WoHdResult *result, WoError *erro
     bool ok = true;
     for (size_t i = 0; ok && i < inputs.count; i++) {
         bool copied = false;
-        ok = keep_artwork(options->canonical_dir, &inputs.items[i], &copied, error);
+        ok = inputs.items[i].fallback ||
+             keep_artwork(options->canonical_dir, &inputs.items[i], &copied, error);
         result->updated += copied ? 1 : 0;
     }
     char *path = ok ? wo_path_child(options->game_root, "textures/hd-regions.bin", error) : NULL;

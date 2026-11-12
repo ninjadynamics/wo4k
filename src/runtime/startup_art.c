@@ -202,7 +202,7 @@ static void initialize_startup_art(const WCHAR *root,UINT display_width,UINT dis
        !equal(game+RVA_startup_flush,entry_startup_flush,sizeof(entry_startup_flush)))return;
     UINT n=0;while(root[n] && n<MAX_PATH-40) {startup_directory[n]=root[n];++n;}
     if(root[n])return;
-    const WCHAR *suffix=L"..\\assets\\hd\\";
+    const WCHAR *suffix=L"..\\assets\\auth\\";
     while((*((WCHAR *)startup_directory+n++)=*suffix++)) {}
     old_startup_load=(ArtLoadFn)hook(RVA_startup_load,entry_startup_load,sizeof(entry_startup_load),startup_load);
     old_startup_flush=(ArtFlushFn)hook(RVA_startup_flush,entry_startup_flush,sizeof(entry_startup_flush),startup_flush);

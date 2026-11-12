@@ -144,7 +144,7 @@ transparency is drawn by its own alpha, one without by the native cut-out.
 The exporter verifies the installed receipt and exact pixel reconstruction, never
 rewrites game/HD files, and refuses to overwrite an existing workspace. Exported
 individual images need packing into HD pages after visual approval; they are not
-direct `assets/hd` replacements. All exported original game artwork stays ignored
+direct `assets/auth` replacements. All exported original game artwork stays ignored
 by Git and is excluded from releases.
 
 `manifests/hd-textures.json` registers all 576 usable exported texture filenames
@@ -153,12 +153,22 @@ its original dimensions and every native sheet/page rectangle. The three legacy
 `screen0` screenshot sections are marked as reference images, not installable
 texture slots. No original game image pixels are included in the manifest.
 The 27 edited signs, logos, lucky cats and scene textures currently in
-`assets/hd/` are mostly at half their edited export dimensions (2x native).
+`assets/auth/` are mostly at half their edited export dimensions (2x native).
 The two cat billboards use alpha cutouts from their edge-connected near-black
 matte; faint background grain is removed while enclosed dark details stay opaque.
 The original full-size edited PNGs stay in the local export workspace.
 
-Drop a matching exported PNG directly into `assets/hd/` and launch Play. The
+Artwork is looked for in four places, best first: `assets/auth/` (authored,
+shipped with the mod), `assets/hd/` (upscaled sets, made with `tools\upscale.cmd`;
+not shipped), `assets/sd/` (the installer's debanded pictures, below) and the
+sheet itself. A PNG in `assets/hd/` is used where `assets/auth/` has none of
+that name. The catalogue also lists the 75 frames that only the PlayStation's
+scenery has, with no place in the PC layout (`"regions": []`): their places
+are found by their pictures, so every name in `assets/sd/` is a name the two
+folders above accept.
+
+Drop a matching exported PNG directly into `assets/auth/` (or `assets/hd/`)
+and launch Play. The
 filename alone selects the texture. Source resolution, aspect ratio and PNG
 hashes are not used to choose a slot. PNGs may have arbitrary dimensions and
 are never resized or rewritten on disk. Preserve the original logical layout
@@ -213,7 +223,7 @@ for a smooth ramp, so the result cannot go into the sheet: the runtime lays
 the PNGs over the sheet's page when it loads, before any HD region. Only
 colours are taken, and only where the sheet shows a texel, so cut-outs and
 the see-through black of effects stay the sheet's. A page that has a PNG of
-its own in `assets/hd/` is left alone. The layer is loaded with the HD
+its own in `assets/auth/` or `assets/hd/` is left alone. The layer is loaded with the HD
 textures and follows their setting.
 
 - What a sheet shows is what its build pasted last: the map's operations,

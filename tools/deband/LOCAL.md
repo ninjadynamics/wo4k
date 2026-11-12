@@ -17,7 +17,7 @@ makes the two modes agree but for the dither.
 
 The lossless PNG trimmer (`pngtrim.c`, previously the FFmpeg-based
 `assets/hd/trim.cmd`) is part of the tool: `-z` trims PNGs in place, and
-debanded PNG output is trimmed before it is published. `assets/hd/trim.cmd` is
+debanded PNG output is trimmed before it is published. `assets/auth/trim.cmd` is
 now a double-click launcher for `deband -z` on that folder.
 
 Build from the repository root with the same toolchain as the mod:

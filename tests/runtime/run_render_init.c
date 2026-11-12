@@ -235,7 +235,7 @@ int main(void)
     CreateDirectoryW(L"build\\test-work", NULL);
     CreateDirectoryW(WORK_DIR, NULL);
     if (!full_path(WORK_DIR, work) || !join(assets, repository,
-            L"assets\\hd") ||
+            L"assets\\auth") ||
         !join(race_art, game, L"textures\\sd\\Pics\\Hi-res\\NRACE01.TGA") ||
         !join(regions, game, L"textures\\hd-regions.bin")) {
         fprintf(stderr, "FAIL: invalid work paths\n");

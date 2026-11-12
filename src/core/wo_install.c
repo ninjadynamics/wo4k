@@ -504,11 +504,13 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
     }
     if (ok && config->hd_textures) {
         set_stage(progress, WO_STAGE_HD_ART);
-        char *canonical = wo_mod_path(mod, "assets/hd", error);
-        WoHdOptions options = {catalog, canonical, canonical, stage, NULL, plan};
+        char *canonical = wo_mod_path(mod, "assets/auth", error);
+        char *upscaled = canonical ? wo_mod_path(mod, "assets/hd", error) : NULL;
+        WoHdOptions options = {catalog, canonical, canonical, stage, NULL, plan, upscaled};
         WoHdResult result = {0};
-        ok = canonical && wo_hd_install(&options, &result, error);
+        ok = upscaled && wo_hd_install(&options, &result, error);
         wo_hd_result_free(&result);
+        wo_free(upscaled);
         wo_free(canonical);
     }
     if (ok) {

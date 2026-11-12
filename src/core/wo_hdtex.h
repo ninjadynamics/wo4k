@@ -1,7 +1,9 @@
 /* HD artwork installation (manifests/hd-textures.json).
  *
- * PNGs are discovered in the shipped artwork folder and in an optional
- * extra folder (whose files win and are copied into the shipped folder).
+ * PNGs are discovered in the shipped, authored artwork folder (assets/auth),
+ * in the folder of upscaled artwork beneath it (assets/hd: a PNG there is
+ * used where the authored folder has none of that name) and in an optional
+ * extra folder (whose files win and are copied into the authored folder).
  * Each PNG is either a catalog entry or a native texture name ("SKY01.png",
  * "HUD2.page1.png", optionally under Pics/Hi-res or Pics/Lo-res) whose page
  * count is inferred from the game's TGA sheets. Every image is decoded and
@@ -18,13 +20,14 @@
 
 typedef struct WoHdOptions {
     const WoJson *catalog;     /* parsed manifests/hd-textures.json (an array) */
-    const char *canonical_dir; /* <mod>/assets/hd */
+    const char *canonical_dir; /* <mod>/assets/auth */
     const char *source_dir;    /* optional extra artwork folder (may equal canonical_dir) */
     const char *game_root;
     WoHashCache *cache;        /* optional: skips decoding PNGs whose bytes were seen */
     /* Optional parsed manifests/texture-selection.json: with PlayStation
      * scenery in effect, region placements on the relaid sheets follow it. */
     const WoJson *plan;
+    const char *fallback_dir; /* optional: <mod>/assets/hd */
 } WoHdOptions;
 
 typedef struct WoHdResult {

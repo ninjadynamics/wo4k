@@ -153,7 +153,7 @@ static void test_install(void) {
         return;
     }
     WoJson *catalog = parse(CATALOG);
-    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL};
+    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL, NULL};
     WoHdResult result;
     WoError error = {0};
     CHECK_OK(wo_hd_install(&options, &result, &error), &error);
@@ -194,6 +194,34 @@ static void test_install(void) {
     CHECK_OK(wo_hd_install(&options, &result, &error), &error);
     CHECK(result.updated == 0 && !result.region_index_updated);
     wo_hd_result_free(&result);
+
+    /* A folder beneath the authored one: its picture is used where the
+     * authored folder has none of that name, stays where it is, and gives
+     * way to an authored one. */
+    char *beneath = wo_path_join(f.root, "assets/upscaled", &error);
+    char *copied = wo_path_join(f.assets, "scene-c.png", &error);
+    write_png(beneath, "scene-c.png", 64, 64, false);
+    write_png(beneath, "scene-b.png", 64, 64, false);
+    WoJson *wider = parse("[" FONT_AND_SCENE_A ","
+                          "{\"file\":\"scene-b.png\",\"kind\":\"region\",\"source_width\":16,"
+                          "\"source_height\":16,\"regions\":[{\"native\":\"sky01.tga\",\"page\":0,"
+                          "\"x\":0,\"y\":0,\"width\":16,\"height\":16}]},"
+                          "{\"file\":\"scene-c.png\",\"kind\":\"region\",\"source_width\":16,"
+                          "\"source_height\":16,\"regions\":[{\"native\":\"sky01.tga\",\"page\":0,"
+                          "\"x\":32,\"y\":0,\"width\":16,\"height\":16}]}]");
+    WoHdOptions layered = {wider, f.assets, f.assets, f.game, NULL, NULL, beneath};
+    CHECK_OK(wo_hd_install(&layered, &result, &error), &error);
+    CHECK(result.checked == 6 && result.region_placements == 4 && !wo_exists(copied));
+    for (size_t i = 0; i < wo_json_length(result.files); i++) {
+        const WoJson *record = wo_json_at(result.files, i);
+        if (wo_str_eq(wo_json_str(record, "file", ""), "scene-b.png")) {
+            CHECK(wo_json_int(record, "width", 0) == 32); /* the authored one, not the 64 beneath */
+        }
+    }
+    wo_hd_result_free(&result);
+    wo_json_free(wider);
+    wo_free(copied);
+    wo_free(beneath);
     wo_json_free(catalog);
     free_fixture(&f);
 }
@@ -205,7 +233,7 @@ static void expect_failure(HdFixture *f, const char *catalog_text, WoErrorKind k
     WoError error = {0};
     CHECK_OK(wo_sha256_file(f->index, before, &error), &error);
     WoJson *catalog = parse(catalog_text);
-    WoHdOptions options = {catalog, f->assets, f->extra, f->game, NULL, NULL};
+    WoHdOptions options = {catalog, f->assets, f->extra, f->game, NULL, NULL, NULL};
     WoHdResult result;
     CHECK_FAILS(wo_hd_install(&options, &result, &error), &error, kind);
     if (!strstr(error.message, needle)) {
@@ -230,7 +258,7 @@ static void test_rejects(void) {
         return;
     }
     WoJson *catalog = parse(CATALOG);
-    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL};
+    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL, NULL};
     WoHdResult result;
     WoError error = {0};
     CHECK_OK(wo_hd_install(&options, &result, &error), &error);
@@ -278,9 +306,18 @@ static void test_rejects(void) {
                          "\"source_height\":16,\"regions\":[{\"native\":\"zzz.tga\",\"page\":0,"
                          "\"x\":0,\"y\":0,\"width\":16,\"height\":16}]}]";
     expect_failure(&f, native, WO_ERR_FORMAT, "placement is invalid");
-    const char *none = "[" FONT_AND_SCENE_A ",{\"file\":\"scene-b.png\",\"kind\":\"region\",\"source_width\":16,"
-                       "\"source_height\":16,\"regions\":[]}]";
-    expect_failure(&f, none, WO_ERR_FORMAT, "no valid region mapping");
+    /* A picture with no place in the PC layout is accepted: its places are
+     * found by its picture where the PlayStation's scenery is in effect. */
+    WoJson *none = parse("[" FONT_AND_SCENE_A ",{\"file\":\"scene-b.png\",\"kind\":\"region\","
+                         "\"source_width\":16,\"source_height\":16,\"regions\":[]}]");
+    WoHdOptions placeless = {none, f.assets, f.extra, f.game, NULL, NULL, NULL};
+    WoHdRegionIndex unplaced;
+    WoHdResult listed;
+    CHECK_OK(wo_hd_build_index(&placeless, &unplaced, &listed, &error), &error);
+    CHECK(listed.checked == 5 && listed.region_placements == 2);
+    wo_hd_regions_free(&unplaced);
+    wo_hd_result_free(&listed);
+    wo_json_free(none);
     const char *rect = "[" FONT_AND_SCENE_A ",{\"file\":\"scene-b.png\",\"kind\":\"region\",\"regions\":[{\"native\":"
                        "\"sky01.tga\"}]}]";
     expect_failure(&f, rect, WO_ERR_FORMAT, "Invalid source rectangle");

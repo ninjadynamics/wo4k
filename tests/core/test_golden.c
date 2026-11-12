@@ -265,7 +265,7 @@ static void test_hd_regions_match(void) {
         CHECK_OK(wo_read_json("manifests/hd-textures.json", 16 << 20, &catalog, &error) &&
                      wo_read_json("manifests/texture-selection.json", 32 << 20, &plan, &error),
                  &error);
-        WoHdOptions options = {catalog, "assets/hd", "assets/hd", game, NULL, plan};
+        WoHdOptions options = {catalog, "assets/auth", "assets/auth", game, NULL, plan, "assets/hd"};
         WoHdRegionIndex index;
         WoHdResult result;
         CHECK_OK(wo_hd_build_index(&options, &index, &result, &error), &error);

@@ -6,10 +6,15 @@ static BOOL hd_append(WCHAR *out,UINT capacity,const WCHAR *text) {
     while(*text && n+1<capacity)out[n++]=*text++;
     if(n>=capacity || *text)return FALSE;out[n]=0;return TRUE;
 }
-static BOOL hd_path(WCHAR *out,const WCHAR *relative) {
-    out[0]=0;return hd_append(out,MAX_PATH,ui_hd_directory) && hd_append(out,MAX_PATH,relative);
-}
 static BOOL hd_exists(const WCHAR *path){DWORD attr=GetFileAttributesW(path);return attr!=INVALID_FILE_ATTRIBUTES && !(attr&FILE_ATTRIBUTE_DIRECTORY);}
+/* The authored picture of that name, or the upscaled one where there is none. */
+static BOOL hd_path(WCHAR *out,const WCHAR *relative) {
+    WCHAR upscaled[MAX_PATH];upscaled[0]=0;out[0]=0;
+    if(!hd_append(out,MAX_PATH,ui_hd_directory) || !hd_append(out,MAX_PATH,relative))return FALSE;
+    if(!hd_exists(out) && ui_upscaled_directory[0] && hd_append(upscaled,MAX_PATH,ui_upscaled_directory) &&
+       hd_append(upscaled,MAX_PATH,relative) && hd_exists(upscaled))copy((BYTE *)out,(const BYTE *)upscaled,sizeof(upscaled));
+    return TRUE;
+}
 static BOOL hd_native_name(WCHAR *out,const char *filename,BOOL nested,BOOL keep_extension,int page) {
     const char *name=filename,*end;
     if(nested){while(*name=='.' || *name=='\\' || *name=='/')++name;}

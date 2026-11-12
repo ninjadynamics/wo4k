@@ -92,7 +92,7 @@ only that, in place, for one PNG or every PNG in a directory:
 
 ```bat
 deband.exe -z image.png
-deband.exe -z assets\hd
+deband.exe -z assets\auth
 ```
 
 The image stays exactly as encoded: size, colour type, bit depth, interlacing,

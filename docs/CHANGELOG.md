@@ -62,6 +62,12 @@
   lays the result over its texture sheets in full colour, under any HD
   texture. It takes about five seconds, once, and follows the HD textures
   setting.
+- Give upscaled textures a folder of their own. The authored artwork that
+  comes with the mod moves from `assets/hd/` to `assets/auth/`, and
+  `assets/hd/` is now for whole sets of upscaled textures: the game uses the
+  authored PNG where there is one, else the one in `assets/hd/`, else its
+  debanded texture. Every debanded picture's filename is accepted there,
+  including the 75 scenery textures only the PlayStation has.
 - Let Valparaiso's waterfall fall. On the PlayStation the game moves twelve
   of the waterfall picture's sixteen colours along by one place at every
   step, so that bands of white water run down it. The PC game kept that
