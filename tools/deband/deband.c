@@ -19,6 +19,8 @@
  *  -t VAL    Deband threshold, 0.00003..0.5 (default 0.020)
  *  -r N      Deband radius in pixels, 1..128 (default 24)
  *  -d VAL    Dither amplitude in 8-bit levels, 0..4 (default 0.8)
+ *  -b VAL    Band step limit, 0..0.5 (default 0.16; 0 turns band ramps off)
+ *  -w N      Band ramp reach in pixels, 1..128 (default 12)
  *  -z        Trim only: losslessly recompress PNGs in place, no debanding
  *  -h        Help
  *
@@ -84,8 +86,8 @@ typedef struct {
     volatile long next;
     volatile long ok, failed, skipped;
     volatile long long saved; /* -z: bytes saved */
-    float threshold, dither;
-    int radius, simple, overwrite, trim;
+    float threshold, dither, band;
+    int radius, simple, overwrite, trim, reach;
     float *noise;
     float trig_cos[256], trig_sin[256];
 } Context;
@@ -566,8 +568,132 @@ static int img_write(const char *path, const uint8_t *rgba, int w, int h, int ki
 }
 
 /* Native approximation of FFmpeg's four-sample deband filter. */
-static uint8_t *simple_deband(const Job *j, int *w, int *h, const Context *ctx) {
-    uint8_t *src = img_read(j, w, h);
+/* Band ramps: coarse steps between flat areas, which the threshold filters
+ * leave alone.
+ *
+ * Artwork reduced to a few colours (a 16-colour PlayStation texture, a GIF)
+ * shows a gradient as flat bands whose steps are far larger than any deband
+ * threshold. Each band stood for every value between the midpoints to its
+ * neighbours, so a band is redrawn as a ramp between those midpoints: a
+ * pixel moves towards a neighbouring band by at most half the step, and by
+ * less the further it is from that band. Nothing moves across a step larger
+ * than the limit, so outlines and lettering stay; a wide flat area changes
+ * only within `reach` pixels of a band beside it. A band one pixel wide is
+ * already one sample of the gradient and stays as it is.
+ *
+ * Returns a new RGBA buffer. Alpha, and every byte of a fully transparent
+ * pixel, are copied unchanged; transparent pixels take no part. */
+#define BAND_FAR 1.0e9f
+static void band_distances(const uint8_t *src, const int32_t *label, int w, int h, int channel,
+                           int sign, int limit, float *dist, uint8_t *gap) {
+    size_t pixels = (size_t)w * h;
+    static const int nx4[4] = {1, -1, 0, 0}, ny4[4] = {0, 0, 1, -1};
+    for (size_t i = 0; i < pixels; i++) { dist[i] = BAND_FAR; gap[i] = 0; }
+    /* Seeds: pixels beside another band that is this much higher (or lower). */
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            size_t i = (size_t)y * w + x;
+            if (label[i] < 0) continue;
+            const uint8_t *p = src + i * 4u;
+            int best = 0;
+            for (int k = 0; k < 4; k++) {
+                int qx = x + nx4[k], qy = y + ny4[k];
+                if (qx < 0 || qy < 0 || qx >= w || qy >= h) continue;
+                size_t n = (size_t)qy * w + qx;
+                if (label[n] < 0 || label[n] == label[i]) continue;
+                const uint8_t *q = src + n * 4u;
+                int step = sign * ((int)q[channel] - (int)p[channel]);
+                if (step <= 0 || abs(q[0] - p[0]) > limit || abs(q[1] - p[1]) > limit ||
+                    abs(q[2] - p[2]) > limit) continue;
+                if (!best || step < best) best = step;
+            }
+            if (best) { dist[i] = 0.5f; gap[i] = (uint8_t)best; }
+        }
+    }
+    /* Distance to the nearest seed through the pixel's own band (chamfer
+     * sweeps, repeated until nothing changes); the seed's step travels along. */
+    for (int pass = 0, changed = 1; changed && pass < 64; pass++) {
+        changed = 0;
+        for (int dir = 0; dir < 2; dir++) {
+            for (int yy = 0; yy < h; yy++) {
+                int y = dir ? h - 1 - yy : yy;
+                for (int xx = 0; xx < w; xx++) {
+                    int x = dir ? w - 1 - xx : xx;
+                    size_t i = (size_t)y * w + x;
+                    if (label[i] < 0) continue;
+                    for (int dy = -1; dy <= 1; dy++) {
+                        for (int dx = -1; dx <= 1; dx++) {
+                            int qx = x + dx, qy = y + dy;
+                            if ((!dx && !dy) || qx < 0 || qy < 0 || qx >= w || qy >= h) continue;
+                            size_t n = (size_t)qy * w + qx;
+                            if (label[n] != label[i]) continue;
+                            float d = dist[n] + ((dx && dy) ? 1.41421356f : 1.0f);
+                            if (d + 1.0e-4f < dist[i]) { dist[i] = d; gap[i] = gap[n]; changed = 1; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+static uint8_t *band_ramps(const uint8_t *src, int w, int h, float band, int reach) {
+    size_t pixels = (size_t)w * h;
+    int limit = (int)floorf(band * 255.0f + 0.5f);
+    uint8_t *out = (uint8_t *)malloc(pixels * 4u);
+    int32_t *label = (int32_t *)malloc(pixels * sizeof(int32_t));
+    uint32_t *stack = (uint32_t *)malloc(pixels * sizeof(uint32_t));
+    float *up = (float *)malloc(pixels * sizeof(float));
+    float *down = (float *)malloc(pixels * sizeof(float));
+    uint8_t *gap_up = (uint8_t *)malloc(pixels);
+    uint8_t *gap_down = (uint8_t *)malloc(pixels);
+    if (!out || !label || !stack || !up || !down || !gap_up || !gap_down || pixels > 0x7fffffffu) {
+        free(out); out = NULL; goto done;
+    }
+    memcpy(out, src, pixels * 4u);
+    /* Bands: visible pixels of one exact colour, joined along edges. */
+    for (size_t i = 0; i < pixels; i++) label[i] = -1;
+    int32_t bands = 0;
+    for (size_t start = 0; start < pixels; start++) {
+        if (label[start] >= 0 || src[start * 4u + 3u] == 0) continue;
+        size_t top = 0;
+        stack[top++] = (uint32_t)start; label[start] = bands;
+        while (top) {
+            size_t i = stack[--top];
+            int x = (int)(i % (size_t)w), y = (int)(i / (size_t)w);
+            static const int nx4[4] = {1, -1, 0, 0}, ny4[4] = {0, 0, 1, -1};
+            for (int k = 0; k < 4; k++) {
+                int qx = x + nx4[k], qy = y + ny4[k];
+                if (qx < 0 || qy < 0 || qx >= w || qy >= h) continue;
+                size_t n = (size_t)qy * w + qx;
+                if (label[n] >= 0 || src[n * 4u + 3u] == 0 || memcmp(src + n * 4u, src + i * 4u, 3)) continue;
+                label[n] = bands; stack[top++] = (uint32_t)n;
+            }
+        }
+        bands++;
+    }
+    for (int channel = 0; channel < 3; channel++) {
+        band_distances(src, label, w, h, channel, 1, limit, up, gap_up);
+        band_distances(src, label, w, h, channel, -1, limit, down, gap_down);
+        for (size_t i = 0; i < pixels; i++) {
+            if (label[i] < 0) continue;
+            int has_up = up[i] < BAND_FAR, has_down = down[i] < BAND_FAR;
+            if (!has_up && !has_down) continue;
+            float width = has_up && has_down ? up[i] + down[i] : (float)reach;
+            if (width > (float)reach) width = (float)reach;
+            float value = (float)src[i * 4u + channel];
+            if (has_up && up[i] < width) value += 0.5f * gap_up[i] * (1.0f - up[i] / width);
+            if (has_down && down[i] < width) value -= 0.5f * gap_down[i] * (1.0f - down[i] / width);
+            out[i * 4u + channel] = quantize(value);
+        }
+    }
+done:
+    free(label); free(stack); free(up); free(down); free(gap_up); free(gap_down);
+    return out;
+}
+
+/* Takes ownership of src, the decoded (and band-ramped) RGBA image. */
+static uint8_t *simple_deband(const Job *j, uint8_t *src, int *w, int *h, const Context *ctx) {
     if (!src) return NULL;
     size_t pixels = (size_t)*w * *h;
     uint8_t *out = (uint8_t *)malloc(pixels * 4u);
@@ -940,9 +1066,35 @@ static void process_job(Context *ctx, size_t index) {
         free(parent); goto failed;
     }
     free(parent);
+#ifdef _WIN32
+    unsigned long pid = (unsigned long)GetCurrentProcessId();
+#else
+    unsigned long pid = (unsigned long)getpid();
+#endif
+    size_t nt = strlen(j->dst) + 100;
+    char *temp = (char *)malloc(nt);
+    if (!temp) goto failed;
+    /* Band ramps first: the threshold filter and the dither then work on them. */
+    uint8_t *base = NULL;
+    if (ctx->band > 0) {
+        int bw = 0, bh = 0;
+        uint8_t *decoded = img_read(j, &bw, &bh);
+        if (decoded && bw == w && bh == h) base = band_ramps(decoded, w, h, ctx->band, ctx->reach);
+        free(decoded);
+        if (!base) { fprintf(stderr, "ERROR: decode/band ramps failed: %s\n", j->src); free(temp); goto failed; }
+    }
     uint8_t *rgba = NULL;
     if (!ctx->simple) {
-        rgba = ffmpeg_deband(j, w, h, ctx);
+        /* FFmpeg reads a file: hand it the ramped image as a temporary PNG. */
+        Job ramped = *j;
+        int staged = 1;
+        if (base) {
+            snprintf(temp, nt, "%s.bandtmp.%lu.%lu.png", j->dst, pid, (unsigned long)index);
+            staged = img_write(temp, base, w, h, 1);
+            ramped.src = temp; ramped.kind = 1;
+        }
+        if (staged) rgba = ffmpeg_deband(&ramped, w, h, ctx);
+        if (base) remove_file(temp);
         if (rgba && !preserve_transparency(j, rgba, w, h)) {
             fprintf(stderr, "WARN: cannot restore original alpha for '%s'; trying native mode\n", j->src);
             free(rgba);
@@ -951,18 +1103,13 @@ static void process_job(Context *ctx, size_t index) {
     }
     if (!rgba) {
         if (!ctx->simple) fprintf(stderr, "WARN: FFmpeg failed for '%s'; trying simple mode\n", j->src);
-        rgba = simple_deband(j, &w, &h, ctx);
+        if (!base) base = img_read(j, &w, &h);
+        rgba = simple_deband(j, base, &w, &h, ctx);
+        base = NULL;
     }
-    if (!rgba) { fprintf(stderr, "ERROR: decode/deband failed: %s\n", j->src); goto failed; }
+    free(base);
+    if (!rgba) { fprintf(stderr, "ERROR: decode/deband failed: %s\n", j->src); free(temp); goto failed; }
 
-    size_t nt = strlen(j->dst) + 100;
-    char *temp = (char *)malloc(nt);
-    if (!temp) { free(rgba); goto failed; }
-#ifdef _WIN32
-    unsigned long pid = (unsigned long)GetCurrentProcessId();
-#else
-    unsigned long pid = (unsigned long)getpid();
-#endif
     snprintf(temp, nt, "%s.debandtmp.%lu.%lu", j->dst, pid, (unsigned long)index);
     int writer_kind = ctx->overwrite ? j->kind : 1;
     int wrote = img_write(temp, rgba, w, h, writer_kind);
@@ -1198,6 +1345,8 @@ static void usage(const char *exe) {
            "  -t F      Threshold 0.00003..0.5 (default: 0.020)\n"
            "  -r N      Radius 1..128 pixels (default: 24)\n"
            "  -d F      Dither strength 0..4 levels (default: 0.8)\n"
+           "  -b F      Band step limit 0..0.5 (default: 0.160; 0 = no band ramps)\n"
+           "  -w N      Band ramp reach 1..128 pixels (default: 12)\n"
            "  -z        Trim only: losslessly recompress PNGs in place (no debanding)\n"
            "  -h        Show help\n\n"
            "Without -x, produces PNGs and refuses to overwrite existing files.\n"
@@ -1215,6 +1364,7 @@ int main(int argc, char **argv) {
     Context ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.threshold = 0.020f; ctx.radius = 24; ctx.dither = 0.8f;
+    ctx.band = 0.160f; ctx.reach = 12;
     const char *input = NULL, *output = ".";
     int explicit_output = 0, jobs = 0;
     for (int i = 1; i < argc; i++) {
@@ -1227,6 +1377,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "-t") && i + 1 < argc) ctx.threshold = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "-r") && i + 1 < argc) ctx.radius = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-d") && i + 1 < argc) ctx.dither = (float)atof(argv[++i]);
+        else if (!strcmp(argv[i], "-b") && i + 1 < argc) ctx.band = (float)atof(argv[++i]);
+        else if (!strcmp(argv[i], "-w") && i + 1 < argc) ctx.reach = atoi(argv[++i]);
         else if (argv[i][0] == '-') { fprintf(stderr, "ERROR: unrecognized argument: %s\n", argv[i]); return 2; }
         else if (!input) input = argv[i];
         else { fprintf(stderr, "ERROR: too many input paths\n"); return 2; }
@@ -1236,7 +1388,8 @@ int main(int argc, char **argv) {
     if (ctx.trim) ctx.overwrite = 1;
     if (ctx.overwrite && explicit_output) { fprintf(stderr, "ERROR: -x and -o cannot be combined\n"); return 2; }
     if (ctx.radius < 1 || ctx.radius > 128 || ctx.threshold < 0.00003f ||
-        ctx.threshold > 0.5f || ctx.dither < 0 || ctx.dither > 4 || jobs > 128 || jobs < 0) {
+        ctx.threshold > 0.5f || ctx.dither < 0 || ctx.dither > 4 || jobs > 128 || jobs < 0 ||
+        ctx.band < 0 || ctx.band > 0.5f || ctx.reach < 1 || ctx.reach > 128) {
         fprintf(stderr, "ERROR: parameter outside accepted range\n"); return 2;
     }
     STATBUF st;
@@ -1306,9 +1459,10 @@ int main(int argc, char **argv) {
     if (ctx.trim)
         printf("Lossless PNG trim | images: %zu | workers: %d\n", ctx.count, threads);
     else
-        printf("Backend: %s | images: %zu | workers: %d | threshold: %.4f | radius: %d | dither: %.2f\n",
+        printf("Backend: %s | images: %zu | workers: %d | threshold: %.4f | radius: %d | dither: %.2f | "
+               "band: %.3f | reach: %d\n",
                ctx.simple ? "native C" : "FFmpeg", ctx.count, threads,
-               ctx.threshold, ctx.radius, ctx.dither);
+               ctx.threshold, ctx.radius, ctx.dither, ctx.band, ctx.reach);
     fflush(stdout);
 #ifdef _WIN32
     HANDLE *handles = (HANDLE *)calloc((size_t)threads, sizeof(HANDLE));

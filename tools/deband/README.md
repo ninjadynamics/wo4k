@@ -5,6 +5,13 @@ A C99 command-line utility that accepts one image or recursively processes a dir
 - FFmpeg `deband` (16-bit processing) is the default when FFmpeg is installed.
 - Without FFmpeg, or with `-s`, an all-native C four-sample debanding approximation is used.
 - Both modes apply high-pass, blue-noise-like dithering before 8-bit quantization.
+- **Band ramps** run first in both modes. Artwork reduced to a few colours
+  (a 16-colour PlayStation texture) shows a gradient as flat bands whose steps
+  are far larger than the threshold, which the filters above leave alone. Each
+  band is redrawn as a ramp towards its neighbours: a pixel moves by at most
+  half the step, steps larger than `-b` are treated as edges and kept, and a
+  wide flat area changes only within `-w` pixels of a neighbouring band. A
+  band one pixel wide is already one sample of the gradient and is unchanged.
 - **Transparency safety:** All alpha values remain unchanged. Pixels with alpha = 0
   retain all four original RGBA bytes, including the hidden RGB channels, and
   are never dithered. Native mode also ignores zero-alpha neighbors when debanding
@@ -29,6 +36,8 @@ Usage: deband [options] FILE_OR_DIRECTORY
   -t F      Threshold 0.00003..0.5 (default: 0.020)
   -r N      Radius 1..128 pixels (default: 24)
   -d F      Dither intensity 0..4 levels (default: 0.8)
+  -b F      Band step limit 0..0.5 (default: 0.160; 0 = no band ramps)
+  -w N      Band ramp reach 1..128 pixels (default: 12)
   -z        Trim only: losslessly recompress PNGs in place (no debanding)
   -h        Show help
 ```
