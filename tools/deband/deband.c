@@ -581,11 +581,17 @@ static int img_write(const char *path, const uint8_t *rgba, int w, int h, int ki
  * only within `reach` pixels of a band beside it. A band one pixel wide is
  * already one sample of the gradient and stays as it is.
  *
+ * Only a step of a staircase is a band: an area with a lighter neighbour on
+ * one side and a darker one on another. An area that is lighter, or darker,
+ * than everything around it is a detail (a rivet, a seam, a stripe's shade,
+ * the peak of a highlight) and keeps its colour; ramping it towards its
+ * surroundings would only wash it out.
+ *
  * Returns a new RGBA buffer. Alpha, and every byte of a fully transparent
  * pixel, are copied unchanged; transparent pixels take no part. */
 #define BAND_FAR 1.0e9f
 static void band_distances(const uint8_t *src, const int32_t *label, int w, int h, int channel,
-                           int sign, int limit, float *dist, uint8_t *gap) {
+                           int sign, int limit, float *dist, uint8_t *gap, uint8_t *stepped) {
     size_t pixels = (size_t)w * h;
     static const int nx4[4] = {1, -1, 0, 0}, ny4[4] = {0, 0, 1, -1};
     for (size_t i = 0; i < pixels; i++) { dist[i] = BAND_FAR; gap[i] = 0; }
@@ -607,7 +613,7 @@ static void band_distances(const uint8_t *src, const int32_t *label, int w, int 
                     abs(q[2] - p[2]) > limit) continue;
                 if (!best || step < best) best = step;
             }
-            if (best) { dist[i] = 0.5f; gap[i] = (uint8_t)best; }
+            if (best) { dist[i] = 0.5f; gap[i] = (uint8_t)best; stepped[label[i]] |= (uint8_t)(sign > 0 ? 1 : 2); }
         }
     }
     /* Distance to the nearest seed through the pixel's own band (chamfer
@@ -647,7 +653,9 @@ static uint8_t *band_ramps(const uint8_t *src, int w, int h, float band, int rea
     float *down = (float *)malloc(pixels * sizeof(float));
     uint8_t *gap_up = (uint8_t *)malloc(pixels);
     uint8_t *gap_down = (uint8_t *)malloc(pixels);
-    if (!out || !label || !stack || !up || !down || !gap_up || !gap_down || pixels > 0x7fffffffu) {
+    uint8_t *stepped = (uint8_t *)malloc(pixels); /* per band: 1 lighter, 2 darker neighbour */
+    if (!out || !label || !stack || !up || !down || !gap_up || !gap_down || !stepped ||
+        pixels > 0x7fffffffu) {
         free(out); out = NULL; goto done;
     }
     memcpy(out, src, pixels * 4u);
@@ -673,10 +681,11 @@ static uint8_t *band_ramps(const uint8_t *src, int w, int h, float band, int rea
         bands++;
     }
     for (int channel = 0; channel < 3; channel++) {
-        band_distances(src, label, w, h, channel, 1, limit, up, gap_up);
-        band_distances(src, label, w, h, channel, -1, limit, down, gap_down);
+        memset(stepped, 0, (size_t)bands);
+        band_distances(src, label, w, h, channel, 1, limit, up, gap_up, stepped);
+        band_distances(src, label, w, h, channel, -1, limit, down, gap_down, stepped);
         for (size_t i = 0; i < pixels; i++) {
-            if (label[i] < 0) continue;
+            if (label[i] < 0 || stepped[label[i]] != 3) continue;
             int has_up = up[i] < BAND_FAR, has_down = down[i] < BAND_FAR;
             if (!has_up && !has_down) continue;
             float width = has_up && has_down ? up[i] + down[i] : (float)reach;
@@ -688,7 +697,7 @@ static uint8_t *band_ramps(const uint8_t *src, int w, int h, float band, int rea
         }
     }
 done:
-    free(label); free(stack); free(up); free(down); free(gap_up); free(gap_down);
+    free(label); free(stack); free(up); free(down); free(gap_up); free(gap_down); free(stepped);
     return out;
 }
 

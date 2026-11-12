@@ -90,3 +90,11 @@ trimmed automatically. See [the tool's README](../tools/deband/README.md) and
 [the local notes](../tools/deband/LOCAL.md). The executable and processed
 artwork remain ignored, and this maintainer tool is excluded from game
 releases.
+
+`tools/Deband-Ps1Textures.py --disc <PlayStation ZIP or .bin>` exports every
+texture frame on a PlayStation disc to `assets/sd/` (see-through texels
+transparent), debands the set into `assets/sd-debanded/` and builds a
+left/right comparison page in `exports/ps1-deband-comparison/`. Scenery
+frames whose borders meet in the track models are debanded with a margin of
+their neighbours, so a gradient crossing two frames gets one ramp. Both
+folders are generated and ignored.

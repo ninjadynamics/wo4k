@@ -12,6 +12,9 @@ A C99 command-line utility that accepts one image or recursively processes a dir
   half the step, steps larger than `-b` are treated as edges and kept, and a
   wide flat area changes only within `-w` pixels of a neighbouring band. A
   band one pixel wide is already one sample of the gradient and is unchanged.
+  Only a step of a staircase counts as a band (a lighter neighbour on one
+  side, a darker one on another); an area lighter or darker than everything
+  around it is a detail and keeps its colour.
 - **Transparency safety:** All alpha values remain unchanged. Pixels with alpha = 0
   retain all four original RGBA bytes, including the hidden RGB channels, and
   are never dithered. Native mode also ignores zero-alpha neighbors when debanding

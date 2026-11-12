@@ -37,3 +37,6 @@ cache/
 # Maintainer Python caches are generated, not source assets.
 __pycache__/
 *.py[cod]
+
+assets/sd/
+assets/sd-debanded/
