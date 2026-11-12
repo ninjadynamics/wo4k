@@ -63,6 +63,7 @@ static void fixture_write_code(DWORD *operand,DWORD value){
 #include "test_hd_regions.c"
 #include "test_shadow_menu_motion.c"
 #include "test_billboard_roll.c"
+#include "test_effect_marks.c"
 #include "test_hd_retire.c"
 #include "test_dx_error.c"
 #include "test_screenshot.c"
@@ -175,6 +176,7 @@ void __stdcall test_entry(void){
     test_native_transform_finish(image);
     test_sprite_fades();
     test_billboard_roll();
+    test_effect_marks(image);
     test_ps1_native_emitters(image);
     /* Follow the actual patched race CALL target; emulate each native win.
      * Native flags and played markers must stay untouched by our wrapper. */

@@ -124,6 +124,10 @@ static void correct_billboards(LitVertex *v,int count,const BYTE *quads,const fl
             float x=(corner&1?1:-1)*width*.5f,y=(corner&2)?0:-height;
             float *p=&v[q*4+corner].x;
             for(UINT axis=0;axis<3;++axis)p[axis]=s[axis]/4096.0f+x*right[axis]+y*up[axis];
+            /* The game fills these slots again for every batch and leaves
+             * the marker field as it finds it: an explosion's marker must
+             * not pass to the plain billboard that gets its slot next. */
+            v[q*4+corner].reserved=0;
             if(s[3]==0x5753) {
                 v[q*4+corner].color=hd_premultiply_color((v[q*4+corner].color&0xffffff)|((DWORD)quads[q*32+15]<<24));
                 v[q*4+corner].reserved=SPRITE_VERTEX_TAG;

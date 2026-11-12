@@ -1,6 +1,8 @@
 /* Original trail simulation and flare artwork remain native. These wrappers
  * correct only render coordinates, depth and per-vertex alpha. Markers occupy
- * unused vertex fields until execute-stream preparation, then are cleared. */
+ * unused vertex fields until execute-stream preparation, then are cleared:
+ * from the stream's copy there, and from the game's own vertices once the
+ * frame has been drawn. */
 typedef void (__cdecl *FlareFn)(int,int,int,int,float);
 typedef void (__cdecl *TrailFn)(void *,void *,int);
 static FlareFn old_draw_flare;
@@ -81,9 +83,30 @@ static void adjust_flare_vertex(TLVertex *v) {
     v->y=height*flare_y/240+(v->y-height*flare_integer_y/240)*ui_y;
     *(DWORD *)&v->u=FLARE_VERTEX_TAG;v->v=0;
 }
+/* A trail's vertices sit in the game's per-frame vertex store, and the next
+ * frame hands the same slots out again from the start: to the track first,
+ * then to whatever else it draws. The game's own writers never touch the
+ * marker field, so a marker left behind turns the slot's next owner into a
+ * trail. After a race on a short track, the far end of a longer one reached
+ * the slots the short track's trails had used, and its road drew as a trail:
+ * added to what lies under it, with nothing left to see of the road itself.
+ * Remember each marked run and unmark it once the frame has been drawn. */
+#define TRAIL_MARK_CAPACITY 64
+static struct {LitVertex *vertices;int count;} trail_marks[TRAIL_MARK_CAPACITY];
+static UINT trail_mark_count;
+static void clear_trail_marks(void) {
+    for(UINT i=0;i<trail_mark_count;++i)for(int j=0;j<trail_marks[i].count;++j) {
+        LitVertex *v=trail_marks[i].vertices+j;
+        if(v->reserved==TRAIL_VERTEX_TAG)v->reserved=0;
+    }
+    trail_mark_count=0;
+}
 static void prepare_trail_vertices(void *vertices,int count) {
     if(!exhaust_active || !trail_depth || !vertices || count<=0 || count>180 || count%6)return;
+    /* A trail that cannot be remembered is left as the game draws it. */
+    if(trail_mark_count==TRAIL_MARK_CAPACITY)return;
     LitVertex *v=vertices;
+    trail_marks[trail_mark_count].vertices=v;trail_marks[trail_mark_count++].count=count;
     for(int i=0;i<count;++i) {
         BOOL center=(i%6==1 || i%6==4);
         v[i].color=(v[i].color&0xffffff)|(center?0xff000000u:0);
@@ -161,6 +184,8 @@ static void __cdecl __attribute__((noinline)) draw_flare(int x,int y,int distanc
     if(!(exhaust_flares++%600))wo_render_event("render_exhaust_flares",exhaust_flares);
 }
 static void __cdecl finish_render(void) {
+    /* The screen pass follows the world's queue: its trails are drawn. */
+    clear_trail_marks();
     if(exhaust_active) {
         BYTE *start=*(BYTE **)(game+0x53f1a0),*end=*(BYTE **)(game+0x631d54);
         BYTE *buffer=*(BYTE **)(game+0x7c9690);

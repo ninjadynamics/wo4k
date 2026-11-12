@@ -12,6 +12,11 @@ static void test_sprite_fades(void) {
     for(UINT i=0;i<4;++i)vertices[i].color=0xff80c040;((BYTE *)quad)[15]=0;
     correct_billboards(vertices,1,(const BYTE *)quad,identity);
     for(UINT i=0;i<4;++i)if(vertices[i].color)ExitProcess(207);
+    /* The game reuses the slot for a plain billboard and does not write the
+     * marker field: the sprite's marker must not stay behind. */
+    quad[3]=0;for(UINT i=0;i<4;++i)vertices[i].color=0xff80c040;
+    correct_billboards(vertices,1,(const BYTE *)quad,identity);
+    for(UINT i=0;i<4;++i)if(vertices[i].color!=0xff80c040 || vertices[i].reserved)ExitProcess(60);
 }
 static void sprite_gpu_packet(IDirect3DDevice7 *device,const BYTE *input,UINT length,TLVertex *vertices,BOOL corrected) {
     BYTE rewritten[1024];LitVertex tags[3]={{.reserved=SPRITE_VERTEX_TAG},{.reserved=SPRITE_VERTEX_TAG},{.reserved=SPRITE_VERTEX_TAG}};

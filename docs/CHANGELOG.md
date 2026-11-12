@@ -21,6 +21,15 @@
   sign on Odessa Keys). The original shape now only decides what is solid
   and what is see-through away from the edge; along the edge the HD picture
   does.
+- Stop stretches of road turning see-through after another track has been
+  raced in the same session (reported on Gare d'Europa's ramp to the big
+  jump, after Talon's Reach). WO4K marks the corners of each exhaust trail
+  so that it can draw them softly, in memory the game hands out again every
+  frame, to the track first. The marks were never taken away, so on a track
+  longer than the one before, the far end of the road landed on them and
+  was drawn like a trail: added to whatever lay beneath it. The marks are
+  now removed as soon as the frame is drawn, and those of explosion sprites
+  no longer pass to the trackside sprite that takes their place.
 - Fix the game crashing the moment it starts on PCs where Windows enforces
   Data Execution Prevention for every program. The original game marks its
   own code as data during startup, which only older DEP defaults forgive;
