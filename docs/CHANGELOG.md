@@ -38,12 +38,16 @@
   Start press that leaves the title screen no longer carries on into the
   main menu, and Start held after pausing a race no longer picks the pause
   menu's first entry.
-- Keep the PC's trackside boards with the PlayStation's scenery:
-  Sagarmatha's four "FEED ME" boards, two on Spilskinanke and one on Odessa
-  Keys. The PlayStation's models have boards there that its game covers
-  with advertising while it runs, which the PC game cannot do, so they
-  stood as dark panels. Play puts the PC's boards back on its next launch.
-  Boards the PC never had, and the one on Vostok Island, are still dark.
+- Fill the trackside boards of the PlayStation's scenery. Its models have
+  21 large boards that the PlayStation game covers with Red Bull
+  advertising while it runs, which the PC game cannot do, so they stood as
+  dark panels. Where the PC's own scenery has a board, the PC's board is
+  back: Sagarmatha's four "FEED ME" boards, Vostok Island's lucky cat, two
+  on Spilskinanke and one on Odessa Keys. The thirteen the PC never had
+  now show a mix of each track's own signs (Feisar, Auricom, FSOL,
+  potempkin, HOTEL and others), and one each on Valparaiso and Phenitia
+  Park shows Red Bull, from the PlayStation disc. Play rebuilds the track
+  archives and texture sheets once on its next launch.
 - Run Gare d'Europa's trains with the PlayStation's scenery. The game finds
   the train line by the names of the pylons at its two ends, and the
   PlayStation's model gives every pylon the same name, so the trains stood

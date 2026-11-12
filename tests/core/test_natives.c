@@ -408,6 +408,9 @@ static void put_be16(WoBuf *b, unsigned v) {
     wo_buf_append(b, bytes, 2, NULL);
 }
 
+#define OBJECT_HEAD (144 + 4 * 8) /* header and four vertices */
+#define PANEL_BYTES 44
+
 /* A scenery object: four vertices and `panels` textured quads (kind 8). */
 static void scene_object(WoBuf *b, const char *name, int32_t x, unsigned panels, unsigned texture) {
     uint8_t header[144] = {0};
@@ -441,14 +444,15 @@ static void scene_frame(WoBuf *frame, uint16_t base, uint16_t x_words, uint16_t 
     wo_put_le16(frame->data + 14, y);
 }
 
-/* An archive of a wall and two boards; frames[i] is {base, x, y}. */
-static void board_wad(WoBuf *wad, unsigned panels, const unsigned *textures,
+/* An archive of a wall, a board and a third object; frames[i] is
+ * {base, x, y} of a 4x2 texture. */
+static void board_wad(WoBuf *wad, unsigned panels, const char *third, const unsigned *textures,
                       const uint16_t frames[3][3]) {
     WoBuf contents[2] = {{0}, {0}};
     WoBuf tims[3] = {{0}, {0}, {0}};
     scene_object(&contents[0], "wall", 1000, 1, 0);
     scene_object(&contents[0], "redb", 2000, panels, textures[0]);
-    scene_object(&contents[0], "redb_1", 3000, panels, textures[1]);
+    scene_object(&contents[0], third, 3000, panels, textures[1]);
     for (int i = 0; i < 3; i++) {
         scene_frame(&tims[i], frames[i][0], (uint16_t)(320 + frames[i][1]), frames[i][2]);
     }
@@ -462,9 +466,23 @@ static void board_wad(WoBuf *wad, unsigned panels, const unsigned *textures,
     wo_buf_free(&contents[1]);
 }
 
-/* The PlayStation's boards are four panels on a placeholder texture; where
- * the PC's scenery has a board at the same place, the archive put in the
- * game folder has the PC's board, with its picture. */
+/* The scenery models of an archive, and its textures decoded. */
+static const uint8_t *scene_of(const WoBuf *archive, WoWad *wad, WoCmp *frames, size_t *size) {
+    WoError error = {0};
+    CHECK_OK(wo_wad_parse(archive->data, archive->len, wad, &error), &error);
+    const WoWadEntry *models = wo_wad_find(wad, "scene.prm");
+    const WoWadEntry *textures = wo_wad_find(wad, "scene.cmp");
+    CHECK(models && textures);
+    CHECK_OK(wo_cmp_decode(archive->data + textures->offset, textures->size, frames, &error),
+             &error);
+    *size = models->size;
+    return archive->data + models->offset;
+}
+
+/* The PlayStation's boards are four panels on a placeholder texture. Where
+ * the PC's scenery has a board at the same place the archive put in the
+ * game folder has the PC's board, with its picture; the others show the
+ * pictures the plan names. */
 static void test_boards(void) {
     const char *game = wo_test_dir("natives-boards");
     if (!game) {
@@ -474,29 +492,63 @@ static void test_boards(void) {
     WoError error = {0};
     WoBuf pc = {0};
     WoBuf ps1 = {0};
-    /* PlayStation: wall at (20,10), a picture the PC's first board shows at
-     * (40,4), the boards' placeholder at (60,20). */
+    WoBuf advert = {0};
+    WoBuf adverts = {0};
+    /* PlayStation: wall at (20,10), a sign at (40,4), the boards' placeholder
+     * at (60,20); two boards. */
     static const unsigned ps1_textures[] = {2, 2};
     static const uint16_t ps1_frames[3][3] = {{700, 20, 10}, {300, 40, 4}, {900, 60, 20}};
-    /* PC: wall at (8,4); the first board's picture, which the PlayStation
-     * has; the second board's own picture, where the PlayStation's wall is. */
-    static const unsigned pc_textures[] = {1, 2};
+    /* PC: wall at (8,4); the same sign; the one board's own picture, which
+     * sits where the PlayStation's wall is. The third object is no board. */
+    static const unsigned pc_textures[] = {2, 0};
     static const uint16_t pc_frames[3][3] = {{100, 8, 4}, {300, 30, 0}, {500, 20, 10}};
-    board_wad(&ps1, 4, ps1_textures, ps1_frames);
-    board_wad(&pc, 1, pc_textures, pc_frames);
+    board_wad(&ps1, 4, "redb_1", ps1_textures, ps1_frames);
+    board_wad(&pc, 1, "post", pc_textures, pc_frames);
+    scene_frame(&advert, 800, 320 + 50, 20);
+    tb_cmp(&adverts, &advert, 1);
+    size_t wall = OBJECT_HEAD + PANEL_BYTES;
+    size_t one_panel = OBJECT_HEAD + PANEL_BYTES;
+    size_t four_panels = OBJECT_HEAD + 4 * PANEL_BYTES;
 
-    /* On its own, or beside a PC archive without those boards, the
-     * PlayStation's archive is what the game gets. */
+    /* With nothing to put on them the boards stay, and so does the archive. */
     WoBuf made = {0};
     size_t kept = 9;
-    CHECK_OK(wo_boards_keep(ps1.data, ps1.len, NULL, 0, &made, &kept, &error), &error);
+    CHECK_OK(wo_boards_keep(ps1.data, ps1.len, NULL, 0, NULL, 0, NULL, 0, &made, &kept, &error),
+             &error);
     CHECK(kept == 0 && made.len == ps1.len && memcmp(made.data, ps1.data, ps1.len) == 0);
-    CHECK_OK(wo_boards_keep(ps1.data, ps1.len, ps1.data, 20, &made, &kept, &error), &error);
-    CHECK(kept == 0 && made.len == ps1.len);
 
+    /* One of the track's own textures on both boards: no texture is added,
+     * and each panel shows a quarter of the 4x2 picture. */
+    static const int sign[] = {1};
+    WoWad parsed = {0};
+    WoCmp frames = {0};
+    size_t size = 0;
+    CHECK_OK(wo_boards_keep(ps1.data, ps1.len, NULL, 0, NULL, 0, sign, 1, &made, &kept, &error),
+             &error);
+    CHECK(kept == 2);
+    const uint8_t *prm = scene_of(&made, &parsed, &frames, &size);
+    CHECK(size == wall + 2 * four_panels && frames.count == 3);
+    for (unsigned board = 0; board < 2; board++) {
+        for (unsigned q = 0; q < 4; q++) {
+            const uint8_t *panel = prm + wall + board * four_panels + OBJECT_HEAD + q * PANEL_BYTES;
+            CHECK(panel[12] == 0 && panel[13] == 1);
+            for (unsigned corner = 0; corner < 4; corner++) {
+                CHECK(panel[18 + corner * 2] == (q % 2) * 2 + corner % 2);
+                CHECK(panel[19 + corner * 2] == q / 2);
+            }
+            CHECK(panel[4] == 0 && panel[5] == 0 && panel[26] == 0x40 + 12 + 4); /* the rest is as it was */
+        }
+    }
+    wo_cmp_free(&frames);
+    wo_wad_free(&parsed);
+
+    /* Through the installer: the PC's board where the PC has one, the
+     * advert on the other. */
     write_buf(game, "TRACK09/TRACK.WAD", &pc);
     write_buf(game, "textures/ps1-source/TRACK09/TRACK.WAD", &ps1);
+    write_buf(game, "textures/ps1-source/TEXTURES/NINERED.CMP", &adverts);
     WoJson *plan = parse("{\"format\":1,\"revision\":3,\"scenery\":[{\"track\":\"TRACK09\","
+                         "\"boards\":{\"adverts\":\"TEXTURES/NINERED.CMP\",\"pictures\":[\"advert\"]},"
                          "\"atlases\":[\"Pics/Hi-res/SHEET.TGA\"]}],"
                          "\"operations\":[{\"atlas\":\"Pics/Hi-res/SHEET.TGA\",\"x\":8,\"y\":4,"
                          "\"width\":4,\"height\":2,\"source\":{\"wad\":\"TRACK09/TRACK.WAD\","
@@ -512,61 +564,76 @@ static void test_boards(void) {
         wo_json_free(receipt);
         CHECK_OK(wo_natives_test(game, plan, false, &healthy, &error), &error);
         CHECK(healthy);
-        /* The sheet: the PlayStation's wall and first picture where its
-         * archive has them, and the PC board's own picture where the PC's
-         * wall used to be, its own place being the PlayStation wall's. */
+        /* The sheet: the PlayStation's textures where its archive has them,
+         * the PC board's picture where the PC's wall used to be (its own
+         * place is the PlayStation wall's), the advert where its header
+         * says. */
         CHECK_OK(wo_read_file(sheet, 1 << 20, &bytes, &error), &error);
         CHECK(wo_le16(bytes.data + 18 + (10 * 64 + 20) * 2) == to_pc(700));
         CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 40) * 2) == to_pc(300));
         CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 8) * 2) == to_pc(500));
         CHECK(wo_le16(bytes.data + 18 + (5 * 64 + 11) * 2) == to_pc(500 + 7));
-        CHECK(wo_le16(bytes.data + 18 + (20 * 64 + 60) * 2) == 0x1234); /* no placeholder */
+        CHECK(wo_le16(bytes.data + 18 + (20 * 64 + 50) * 2) == to_pc(800));
         wo_buf_free(&bytes);
 
-        /* The archive: the PlayStation's wall, then the PC's two boards,
-         * one panel each, numbered for the textures beside them. */
-        WoWad parsed = {0};
-        WoCmp frames = {0};
-        CHECK_OK(wo_read_file(wad, 1 << 20, &bytes, &error) &&
-                     wo_wad_parse(bytes.data, bytes.len, &parsed, &error),
-                 &error);
-        const WoWadEntry *models = wo_wad_find(&parsed, "scene.prm");
-        const WoWadEntry *textures = wo_wad_find(&parsed, "scene.cmp");
-        size_t wall = 144 + 32 + 44;
-        size_t board = 144 + 32 + 44;
-        CHECK(models && textures && models->size == wall + 2 * board);
-        const uint8_t *prm = bytes.data + models->offset;
+        /* The archive: the PlayStation's wall, the PC's board of one panel
+         * numbered for its picture, added fourth, and the PlayStation's
+         * other board with the advert, added fifth. */
+        CHECK_OK(wo_read_file(wad, 1 << 20, &bytes, &error), &error);
+        prm = scene_of(&bytes, &parsed, &frames, &size);
+        CHECK(size == wall + one_panel + four_panels && frames.count == 5);
         CHECK(memcmp(prm + wall, "redb", 5) == 0 && prm[wall + 33] == 1);
-        CHECK(prm[wall + 144 + 32 + 12] == 0 && prm[wall + 144 + 32 + 13] == 1);
-        CHECK(memcmp(prm + wall + board, "redb_1", 7) == 0);
-        CHECK(prm[wall + board + 144 + 32 + 13] == 2);
-        /* The rest of the PC's panel came along untouched. */
-        CHECK(prm[wall + 144 + 32 + 14] == 0x40 + 0 + 1);
-        CHECK_OK(wo_cmp_decode(bytes.data + textures->offset, textures->size, &frames, &error),
-                 &error);
-        CHECK(frames.count == 3);
+        CHECK(prm[wall + OBJECT_HEAD + 12] == 0 && prm[wall + OBJECT_HEAD + 13] == 3);
+        CHECK(prm[wall + OBJECT_HEAD + 14] == 0x40 + 0 + 1); /* the PC's panel, otherwise untouched */
+        const uint8_t *other = prm + wall + one_panel;
+        CHECK(memcmp(other, "redb_1", 7) == 0 && other[33] == 4);
+        for (unsigned q = 0; q < 4; q++) {
+            const uint8_t *panel = other + OBJECT_HEAD + q * PANEL_BYTES;
+            CHECK(panel[13] == 4 && panel[18] == (q % 2) * 2 && panel[20] == (q % 2) * 2 + 1);
+        }
         uint32_t x = 0;
         uint32_t y = 0;
         uint32_t per_word = 0;
-        CHECK_OK(wo_tim_origin(frames.data + frames.offsets[2], frames.sizes[2], &x, &y, &per_word,
+        CHECK_OK(wo_tim_origin(frames.data + frames.offsets[3], frames.sizes[3], &x, &y, &per_word,
                                &error),
                  &error);
-        CHECK(x == 320 + 8 && y == 4);
-        CHECK(wo_le16(frames.data + frames.offsets[2] + 20) == 500);
+        CHECK(x == 320 + 8 && y == 4 && wo_le16(frames.data + frames.offsets[3] + 20) == 500);
+        CHECK_OK(wo_tim_origin(frames.data + frames.offsets[4], frames.sizes[4], &x, &y, &per_word,
+                               &error),
+                 &error);
+        CHECK(x == 320 + 50 && y == 20 && wo_le16(frames.data + frames.offsets[4] + 20) == 800);
         CHECK(wo_le16(frames.data + frames.offsets[0] + 20) == 700);
         wo_cmp_free(&frames);
         wo_wad_free(&parsed);
         wo_buf_free(&bytes);
     }
 
+    /* A PC board showing a picture the PlayStation has takes that texture's
+     * number, and nothing is added. The other board, given no picture,
+     * stays as it is. */
+    WoBuf same = {0};
+    static const unsigned same_textures[] = {1, 0};
+    board_wad(&same, 1, "post", same_textures, pc_frames);
+    CHECK_OK(wo_boards_keep(ps1.data, ps1.len, same.data, same.len, adverts.data, adverts.len,
+                            NULL, 0, &made, &kept, &error),
+             &error);
+    CHECK(kept == 1);
+    prm = scene_of(&made, &parsed, &frames, &size);
+    CHECK(size == wall + one_panel + four_panels && frames.count == 3);
+    CHECK(prm[wall + OBJECT_HEAD + 13] == 1 && prm[wall + one_panel + OBJECT_HEAD + 13] == 2);
+    wo_cmp_free(&frames);
+    wo_wad_free(&parsed);
+    wo_buf_free(&same);
+
     /* A model file with a primitive this code does not know is left alone. */
-    WoWad parsed = {0};
     CHECK_OK(wo_wad_parse(ps1.data, ps1.len, &parsed, &error), &error);
     const WoWadEntry *models = wo_wad_find(&parsed, "scene.prm");
     CHECK(models != NULL);
     if (models) {
-        ps1.data[models->offset + 144 + 32 + 1] = 9;
-        CHECK_OK(wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, &made, &kept, &error), &error);
+        ps1.data[models->offset + OBJECT_HEAD + 1] = 9;
+        CHECK_OK(wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, adverts.data, adverts.len,
+                                sign, 1, &made, &kept, &error),
+                 &error);
         CHECK(kept == 0 && made.len == ps1.len && memcmp(made.data, ps1.data, ps1.len) == 0);
     }
     wo_wad_free(&parsed);
@@ -574,6 +641,8 @@ static void test_boards(void) {
     wo_free(wad);
     wo_free(sheet);
     wo_json_free(plan);
+    wo_buf_free(&adverts);
+    wo_buf_free(&advert);
     wo_buf_free(&pc);
     wo_buf_free(&ps1);
 }

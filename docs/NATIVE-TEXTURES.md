@@ -44,18 +44,29 @@ The archive put in place is not always the disc's byte for byte. The
 PlayStation scenery has large trackside boards (objects named `redb...`)
 that its game covers with Red Bull advertising while it runs; in the
 archive each is four panels on a tiny placeholder texture, and the PC game
-has no code for them outside Talon's Reach. The PC scenery replaced some of
-them with a single panel showing a picture of its own (Sagarmatha's four
-"FEED ME" boards, two on Spilskinanke, one each on Odessa Keys and Vostok
-Island) and dropped the rest. Where the PC archive has a board at the same
-place as a PlayStation one, the installed archive takes the PC's board
-(`wo_boards.c`): its model record, renumbered for the PlayStation textures.
-A picture those textures do not include takes over the placeholder and is
-placed where a PC scenery texture used to be and no PlayStation one is; the
-texture file is then stored uncompressed, which the game reads as well.
-Vostok Island's board has no such room and stays as the disc has it, as do
-the boards the PC scenery never had (one on Gare d'Europa and Odessa Keys,
-five on Valparaiso, six on Phenitia Park): dark panels.
+has no code for them outside Talon's Reach. Left alone they stand as dark
+panels. `wo_boards.c` fills them in:
+
+- Where the PC archive has a board at the same place (it replaced some
+  with a single panel showing a picture of its own: Sagarmatha's four
+  "FEED ME" boards, Vostok Island's cat, two on Spilskinanke, one on Odessa
+  Keys), the installed archive takes the PC's board: its model record,
+  renumbered for the PlayStation textures.
+- The other thirteen (one on Gare d'Europa and Odessa Keys, five on
+  Valparaiso, six on Phenitia Park) take, in turn, the pictures the track's
+  `boards.pictures` in the map lists: `scene:<n>`, one of the track's own
+  scenery textures (its sponsors' and shop signs), or `advert`, the first
+  picture of the track's `boards.adverts` file (`TEXTURES/...RED.CMP`, the
+  Red Bull logo; the disc names these files after Greek letters whose
+  place in the alphabet is the track's number). A quarter of the picture
+  goes on each panel, as the game's own board routine lays one out.
+
+A picture the PlayStation scenery textures do not include is added after
+them: the advert where its own header places it, which the PlayStation
+layout keeps clear, and a PC picture where the PC has it if that is clear,
+else in the advert's place on a track that does not show the advert, else
+where a PC scenery texture large enough used to be. A changed texture file
+is stored uncompressed, which the game reads as well.
 
 Otherwise packed TGA sheets are rebuilt without changing PC model references, UVs,
 track geometry or texture indices. One exception corrects the PC release's

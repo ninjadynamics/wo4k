@@ -247,7 +247,27 @@ def main():
     # ones, and these sheets are laid out as the archive's TIM headers say.
     # Not Talon's Reach: its model is the same on both, and the PlayStation
     # layout puts its smoke texture where the PC game keeps its own effects.
-    scenery = [{'track': track, 'atlases': [name for name in used if Path(name).stem.upper() == f'NRACE{number:02d}']}
+    # Trackside boards the PC scenery never had take, in turn, the pictures
+    # listed here: the track's own scenery textures (scene.cmp numbers) or
+    # the PlayStation's advert, the first picture of the track's advert file.
+    # The disc names those files after Greek letters, by their place in the
+    # alphabet: the track's number.
+    greek = {1: 'ALPHA', 2: 'BETA', 6: 'ZETA', 7: 'ETA', 8: 'THETA', 13: 'NU', 17: 'RHO', 20: 'UPSIL'}
+    board_pictures = {
+        'TRACK02': ['scene:4'],  # FSOL
+        'TRACK17': ['scene:30'],  # potempkin
+        'TRACK13': ['scene:21', 'scene:20', 'scene:18', 'advert', 'scene:21'],  # Feisar, FEED ME, Auricom
+        'TRACK20': ['scene:11', 'scene:28', 'scene:30', 'scene:31', 'scene:32', 'advert'],  # Feisar Euro, FEED ME, HOTEL, Spudys, Docs
+    }
+
+    def boards(track):
+        entry = {'adverts': f'TEXTURES/{greek[int(track[5:])]}RED.CMP'}
+        if track in board_pictures:
+            entry['pictures'] = board_pictures[track]
+        return entry
+
+    scenery = [{'track': track, 'boards': boards(track),
+                'atlases': [name for name in used if Path(name).stem.upper() == f'NRACE{number:02d}']}
                for number, track in enumerate(race_order, 1) if track != 'TRACK01']
     plan = {**{k: v for k, v in plan.items() if k != 'operations'},
             'scenery': scenery,

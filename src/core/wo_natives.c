@@ -1,6 +1,7 @@
 #include "core/wo_natives.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/wo_boards.h"
@@ -502,16 +503,22 @@ static const WoJson *plan_scenery(const WoJson *plan, const char *atlas) {
 
 /* The three archives of a track: the one the game loads, the imported
  * PlayStation one and the retained PC one. */
+#define SCENERY_BOARD_PICTURES 16
+
 typedef struct SceneryWads {
     char *game;
     char *ps1;
     char *pc;
+    char *adverts; /* the PlayStation's board pictures for the track, or NULL */
+    int pictures[SCENERY_BOARD_PICTURES]; /* see wo_boards_keep */
+    size_t picture_count;
 } SceneryWads;
 
 static void scenery_wads_free(SceneryWads *wads) {
     wo_free(wads->game);
     wo_free(wads->ps1);
     wo_free(wads->pc);
+    wo_free(wads->adverts);
     memset(wads, 0, sizeof(*wads));
 }
 
@@ -527,6 +534,28 @@ static bool scenery_wads(const char *game_root, const WoJson *entry, SceneryWads
         wads->ps1 = wads->game ? wo_path_child(game_root, ps1, error) : NULL;
         wads->pc = wads->ps1 ? wo_path_child(game_root, pc, error) : NULL;
     }
+    /* "boards": the track's advert file and what its boards show, each
+     * "advert" or "scene:<texture number>". */
+    const WoJson *boards = wo_json_get(entry, "boards");
+    const char *file = wo_json_str(boards, "adverts", NULL);
+    if (wads->pc && file) {
+        char *adverts = wo_format(error, "textures/ps1-source/%s", file);
+        wads->adverts = adverts ? wo_path_child(game_root, adverts, error) : NULL;
+        wo_free(adverts);
+        if (!wads->adverts) {
+            wo_free(wads->pc);
+            wads->pc = NULL;
+        }
+    }
+    const WoJson *pictures = wo_json_get(boards, "pictures");
+    for (size_t i = 0; i < wo_json_length(pictures) && i < SCENERY_BOARD_PICTURES; i++) {
+        const char *picture = wo_json_as_str(wo_json_at(pictures, i), "");
+        int number = WO_BOARD_ADVERT;
+        if (strncmp(picture, "scene:", 6) == 0) {
+            number = atoi(picture + 6);
+        }
+        wads->pictures[wads->picture_count++] = number;
+    }
     wo_free(pc);
     wo_free(ps1);
     wo_free(relative);
@@ -538,15 +567,21 @@ static bool scenery_wads(const char *game_root, const WoJson *entry, SceneryWads
 }
 
 /* The archive the game should load for a track: the imported PlayStation
- * one, with the trackside boards the PC's scenery also has taken from the
- * retained PC archive (wo_boards.h). */
+ * one with its trackside boards filled in, from the retained PC archive
+ * where that has the board and from the PlayStation's own advert where it
+ * does not (wo_boards.h). */
 static bool scenery_wanted(const SceneryWads *wads, WoBuf *out, WoError *error) {
     WoBuf ps1 = {0};
     WoBuf pc = {0};
+    WoBuf adverts = {0};
     bool ok = wo_read_file(wads->ps1, WO_TEXSRC_MAX_FILE_BYTES, &ps1, error) &&
               (!wo_is_file(wads->pc) ||
                wo_read_file(wads->pc, WO_TEXSRC_MAX_FILE_BYTES, &pc, error)) &&
-              wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, out, NULL, error);
+              (!wads->adverts || !wo_is_file(wads->adverts) ||
+               wo_read_file(wads->adverts, WO_TEXSRC_MAX_FILE_BYTES, &adverts, error)) &&
+              wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, adverts.data, adverts.len,
+                             wads->pictures, wads->picture_count, out, NULL, error);
+    wo_buf_free(&adverts);
     wo_buf_free(&pc);
     wo_buf_free(&ps1);
     return ok;
@@ -619,8 +654,9 @@ static bool load_scene_frames(const char *wad_path, WoCmp *frames, WoError *erro
 }
 
 /* Lay the sheet's scenery out as the archive in place has it: paste its
- * frames where their headers place them. A picture kept from the PC's
- * boards (Sagarmatha's "FEED ME") is one of those frames. */
+ * frames where their headers place them. Pictures added for its boards
+ * (the PC's "FEED ME" on Sagarmatha, the PlayStation's advert) are among
+ * those frames. */
 static bool apply_scenery(const SceneryWads *wads, uint8_t *sheet, size_t len,
                           WoNativeCounts *counts, WoError *error) {
     WoTgaInfo info;

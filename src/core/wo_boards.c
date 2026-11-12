@@ -6,9 +6,14 @@
 
 #define PRM_HEADER 144u
 #define BOARD_PREFIX "redb"
+#define BOARD_PANELS 4u
+#define PANEL_KIND 8u       /* a shaded, textured quad */
+#define PANEL_TEXTURE 8u    /* in a panel's body: its texture number */
+#define PANEL_UVS 14u       /* and its four corners' texture coordinates */
 #define SHEET_VRAM_X 320 /* the sheet's first page, in video memory words */
 #define SHEET_PAGE 256
 #define SHEET_HEIGHT 256
+#define NEW_FRAMES 8u
 #define NO_FRAME SIZE_MAX
 
 /* --- Scenery models -------------------------------------------------------------
@@ -127,21 +132,40 @@ static bool prm_list(const uint8_t *data, size_t len, PrmList *out, bool *known,
     return true;
 }
 
-/* --- Texture use ---------------------------------------------------------------- */
+/* A board as the PlayStation has it: four textured quads and nothing else. */
+static bool four_panels(const uint8_t *data, const PrmObject *object) {
+    size_t vertices = be16(data + object->offset + 16);
+    size_t normals = be16(data + object->offset + 24);
+    size_t p = object->offset + PRM_HEADER + (vertices + normals) * 8u;
+    if (be16(data + object->offset + 32) != BOARD_PANELS) {
+        return false;
+    }
+    for (size_t i = 0; i < BOARD_PANELS; i++) {
+        size_t body = 0;
+        size_t texture = 0;
+        if (be16(data + p) != PANEL_KIND || !prm_primitive(PANEL_KIND, &body, &texture)) {
+            return false;
+        }
+        p += 4 + body;
+    }
+    return true;
+}
+
+/* --- Texture numbers ------------------------------------------------------------ */
 
 #define USE_FRAMES 1024u
 
 typedef struct TextureUse {
     const uint8_t *data;
-    size_t counts[USE_FRAMES];
+    bool used[USE_FRAMES];
     bool beyond; /* a number outside the table */
 } TextureUse;
 
-static void count_texture(void *context, size_t field) {
+static void note_texture(void *context, size_t field) {
     TextureUse *use = context;
     unsigned frame = be16(use->data + field);
     if (frame < USE_FRAMES) {
-        use->counts[frame]++;
+        use->used[frame] = true;
     } else {
         use->beyond = true;
     }
@@ -154,6 +178,11 @@ typedef struct TextureMap {
     bool unmapped;
 } TextureMap;
 
+static void put_be16(uint8_t *p, size_t value) {
+    p[0] = (uint8_t)(value >> 8);
+    p[1] = (uint8_t)value;
+}
+
 static void map_texture(void *context, size_t field) {
     TextureMap *map = context;
     unsigned frame = be16(map->data + field);
@@ -161,8 +190,7 @@ static void map_texture(void *context, size_t field) {
         map->unmapped = true;
         return;
     }
-    map->data[field] = (uint8_t)(map->to[frame] >> 8);
-    map->data[field + 1] = (uint8_t)map->to[frame];
+    put_be16(map->data + field, map->to[frame]);
 }
 
 /* --- Pictures and their places -------------------------------------------------- */
@@ -180,9 +208,7 @@ static bool rects_meet(const Rect *a, const Rect *b) {
 }
 
 /* A texture's place in the sheet; false when it is not a texture. */
-static bool frame_rect(const WoCmp *frames, size_t index, Rect *out, uint32_t *per_word) {
-    const uint8_t *tim = frames->data + frames->offsets[index];
-    size_t size = frames->sizes[index];
+static bool tim_rect(const uint8_t *tim, size_t size, Rect *out, uint32_t *per_word) {
     WoNativeImage image;
     uint32_t x = 0;
     uint32_t y = 0;
@@ -196,6 +222,15 @@ static bool frame_rect(const WoCmp *frames, size_t index, Rect *out, uint32_t *p
     out->height = image.height;
     wo_native_image_free(&image);
     return true;
+}
+
+static bool frame_rect(const WoCmp *frames, size_t index, Rect *out, uint32_t *per_word) {
+    return tim_rect(frames->data + frames->offsets[index], frames->sizes[index], out, per_word);
+}
+
+static bool in_sheet(const Rect *spot) {
+    return spot->left >= 0 && spot->left % SHEET_PAGE + spot->width <= SHEET_PAGE &&
+           spot->top + spot->height <= SHEET_HEIGHT;
 }
 
 static bool same_picture(const WoCmp *a, size_t i, const WoCmp *b, size_t j) {
@@ -216,39 +251,6 @@ static bool same_picture(const WoCmp *a, size_t i, const WoCmp *b, size_t j) {
     }
     wo_native_image_free(&one);
     return same;
-}
-
-/* A place in the sheet for the PC texture `wanted`, clear of the PlayStation
- * textures in `taken`: its own place if none of them is there, or else the
- * corner of a PC scenery texture large enough to hold it. Those places
- * belong to scenery the PlayStation models no longer use. */
-static bool free_place(const WoCmp *pc, size_t wanted, const Rect *taken, size_t taken_count,
-                       Rect *place, uint32_t *per_word) {
-    Rect picture;
-    if (!frame_rect(pc, wanted, &picture, per_word)) {
-        return false;
-    }
-    for (size_t candidate = 0; candidate <= pc->count; candidate++) {
-        /* First the picture's own place, then each PC texture's. */
-        size_t at = candidate ? candidate - 1 : wanted;
-        Rect host;
-        uint32_t host_words = 0;
-        if (!frame_rect(pc, at, &host, &host_words) || host.width < picture.width ||
-            host.height < picture.height || host.left < 0 || host.left % *per_word) {
-            continue;
-        }
-        Rect spot = {host.left, host.top, picture.width, picture.height};
-        bool fits = spot.left % SHEET_PAGE + spot.width <= SHEET_PAGE &&
-                    spot.top + spot.height <= SHEET_HEIGHT;
-        for (size_t i = 0; fits && i < taken_count; i++) {
-            fits = !taken[i].width || !rects_meet(&spot, &taken[i]);
-        }
-        if (fits) {
-            *place = spot;
-            return true;
-        }
-    }
-    return false;
 }
 
 /* --- The archive ---------------------------------------------------------------- */
@@ -288,14 +290,6 @@ static bool scene_open(const uint8_t *data, size_t len, Scene *scene, WoError *e
     return prm_list(scene->prm, scene->models->size, &scene->objects, &scene->known, error);
 }
 
-/* Count the texture numbers one object uses. */
-static void object_use(const Scene *scene, size_t index, TextureUse *use) {
-    PrmObject scratch;
-    use->data = scene->prm;
-    prm_object(scene->prm, scene->models->size, scene->objects.items[index].offset, &scratch,
-               count_texture, use);
-}
-
 /* The PlayStation archive with new models and, if textures is not NULL, new
  * textures. */
 static bool write_archive(const uint8_t *ps1, const Scene *scene, const WoBuf *models,
@@ -323,21 +317,79 @@ static bool write_archive(const uint8_t *ps1, const Scene *scene, const WoBuf *m
     return ok;
 }
 
+/* A texture added after the PlayStation's own. */
+typedef struct NewFrame {
+    WoBuf tim;
+    Rect place;
+    size_t pc_frame; /* the PC texture it is, or NO_FRAME: the advert */
+} NewFrame;
+
 /* Working memory for one archive. */
 typedef struct Boards {
-    Scene mine;        /* the PlayStation archive's scenery */
-    Scene theirs;      /* the PC archive's */
-    TextureUse all;    /* by every PlayStation object */
-    TextureUse paired; /* by the boards that have a PC twin */
-    TextureUse shown;  /* by one PC board */
-    size_t *map;       /* PC texture number to the new archive's */
-    Rect *taken;       /* the PlayStation textures' places (width 0: none) */
-    size_t spare;      /* the placeholder only paired boards use */
-    size_t added;      /* the PC texture that takes its place */
-    WoBuf picture;     /* that texture, moved */
+    Scene mine;       /* the PlayStation archive's scenery */
+    Scene theirs;     /* the PC archive's */
+    WoCmp adverts;    /* the PlayStation's board pictures for this track */
+    TextureUse shown; /* by one PC board */
+    size_t *map;      /* PC texture number to the new archive's */
+    Rect *taken;      /* the PlayStation textures' places (width 0: none) */
+    NewFrame added[NEW_FRAMES];
+    size_t added_count;
+    size_t advert; /* the advert's texture number, or NO_FRAME */
+    const int *pictures; /* what the boards without a PC twin show, in turn */
+    size_t picture_count;
+    Rect advert_place;
+    bool advert_fits;
     WoBuf models;
     WoBuf textures;
 } Boards;
+
+static void drop_added(Boards *b) {
+    for (size_t i = 0; i < b->added_count; i++) {
+        wo_buf_free(&b->added[i].tim);
+    }
+    b->added_count = 0;
+}
+
+/* Nothing the archive will hold is at `spot`. */
+static bool spot_clear(const Boards *b, const Rect *spot) {
+    for (size_t i = 0; i < b->mine.frames.count; i++) {
+        if (b->taken[i].width && rects_meet(spot, &b->taken[i])) {
+            return false;
+        }
+    }
+    for (size_t i = 0; i < b->added_count; i++) {
+        if (rects_meet(spot, &b->added[i].place)) {
+            return false;
+        }
+    }
+    return in_sheet(spot);
+}
+
+/* Add a texture at `place`: `size` bytes of TIM, moved there. *added is false
+ * when there is no room for another. */
+static bool add_frame(Boards *b, const uint8_t *tim, size_t size, const Rect *place,
+                      uint32_t per_word, size_t pc_frame, bool *added, WoError *error) {
+    *added = false;
+    if (b->added_count == NEW_FRAMES) {
+        return true;
+    }
+    NewFrame *frame = &b->added[b->added_count];
+    memset(frame, 0, sizeof(*frame));
+    if (!wo_buf_append(&frame->tim, tim, size, error)) {
+        return false;
+    }
+    if (!wo_tim_move(frame->tim.data, frame->tim.len,
+                     (uint32_t)(place->left / per_word + SHEET_VRAM_X), (uint32_t)place->top,
+                     NULL)) {
+        wo_buf_free(&frame->tim);
+        return true;
+    }
+    frame->place = *place;
+    frame->pc_frame = pc_frame;
+    b->added_count++;
+    *added = true;
+    return true;
+}
 
 /* Pair each board with the PC's board at the same place; how many. */
 static size_t pair_boards(Boards *b) {
@@ -361,61 +413,96 @@ static size_t pair_boards(Boards *b) {
     return boards;
 }
 
-/* The one texture the paired boards use, if nothing else uses it. */
-static void find_spare(Boards *b) {
-    size_t used = 0;
-    b->spare = NO_FRAME;
-    for (size_t i = 0; i < b->mine.objects.count; i++) {
-        if (b->mine.objects.items[i].twin != NO_FRAME) {
-            object_use(&b->mine, i, &b->paired);
-        }
-    }
-    for (size_t frame = 0; frame < USE_FRAMES && frame < b->mine.frames.count; frame++) {
-        if (b->paired.counts[frame]) {
-            used++;
-            b->spare = b->paired.counts[frame] == b->all.counts[frame] ? frame : NO_FRAME;
-        }
-    }
-    if (used != 1) {
-        b->spare = NO_FRAME;
-    }
+/* A board of four panels that has no PC twin. */
+static bool free_board(const Boards *b, size_t index) {
+    const PrmObject *object = &b->mine.objects.items[index];
+    return object->board && object->twin == NO_FRAME && four_panels(b->mine.prm, object);
 }
 
-/* Find the PC texture `frame` among the new archive's textures, giving it
- * the placeholder if the PlayStation has no such picture. *found is false
- * when it has no place; false is returned only for lack of memory. */
+/* What the n-th such board is to show: a PlayStation scenery texture's
+ * number, WO_BOARD_ADVERT, or nothing new (NO_PICTURE). */
+#define NO_PICTURE (-2)
+static int board_picture(const Boards *b, size_t n) {
+    return b->picture_count ? b->pictures[n % b->picture_count] : NO_PICTURE;
+}
+
+static bool advert_wanted(const Boards *b) {
+    size_t n = 0;
+    for (size_t i = 0; i < b->mine.objects.count; i++) {
+        if (free_board(b, i) && board_picture(b, n++) == WO_BOARD_ADVERT) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* A place for the PC texture `frame`, which the PlayStation does not have:
+ * where the PC has it if nothing is there now, else where this track's
+ * advert would go, else the corner of a PC scenery texture large enough
+ * to hold it. All of these belong to scenery the PlayStation models do not
+ * use. */
+static bool place_picture(const Boards *b, size_t frame, Rect *place, uint32_t *per_word) {
+    const WoCmp *pc = &b->theirs.frames;
+    Rect picture;
+    if (!frame_rect(pc, frame, &picture, per_word)) {
+        return false;
+    }
+    for (size_t candidate = 0; candidate < pc->count + 2; candidate++) {
+        Rect host;
+        uint32_t host_words = 0;
+        if (candidate == 1) {
+            if (!b->advert_fits) {
+                continue;
+            }
+            host = b->advert_place;
+        } else if (!frame_rect(pc, candidate ? candidate - 2 : frame, &host, &host_words)) {
+            continue;
+        }
+        if (host.width < picture.width || host.height < picture.height || host.left < 0 ||
+            host.left % *per_word) {
+            continue;
+        }
+        Rect spot = {host.left, host.top, picture.width, picture.height};
+        if (spot_clear(b, &spot)) {
+            *place = spot;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Find the PC texture `frame` among the new archive's textures, adding it
+ * if the PlayStation has no such picture. *found is false when it has no
+ * place; false is returned only for lack of memory. */
 static bool map_picture(Boards *b, size_t frame, bool *found, WoError *error) {
     const WoCmp *pc = &b->theirs.frames;
     const WoCmp *ps1 = &b->mine.frames;
     *found = true;
     for (size_t i = 0; i < ps1->count; i++) {
-        if (i != b->spare && same_picture(pc, frame, ps1, i)) {
+        if (same_picture(pc, frame, ps1, i)) {
             b->map[frame] = i;
             return true;
         }
     }
-    if (b->added != NO_FRAME) {
-        /* The placeholder is taken: only the same picture again will do. */
-        *found = same_picture(pc, frame, pc, b->added);
-        b->map[frame] = *found ? b->spare : NO_FRAME;
-        return true;
+    for (size_t i = 0; i < b->added_count; i++) {
+        if (same_picture(pc, frame, pc, b->added[i].pc_frame)) {
+            b->map[frame] = ps1->count + i;
+            return true;
+        }
     }
     Rect place;
     uint32_t per_word = 0;
-    *found = b->spare != NO_FRAME &&
-             free_place(pc, frame, b->taken, ps1->count, &place, &per_word);
+    *found = place_picture(b, frame, &place, &per_word);
     if (!*found) {
         return true;
     }
-    b->picture.len = 0;
-    if (!wo_buf_append(&b->picture, pc->data + pc->offsets[frame], pc->sizes[frame], error)) {
+    if (!add_frame(b, pc->data + pc->offsets[frame], pc->sizes[frame], &place, per_word, frame,
+                   found, error)) {
         return false;
     }
-    *found = wo_tim_move(b->picture.data, b->picture.len,
-                         (uint32_t)(place.left / per_word + SHEET_VRAM_X), (uint32_t)place.top,
-                         NULL);
-    b->added = frame;
-    b->map[frame] = b->spare;
+    if (*found) {
+        b->map[frame] = ps1->count + b->added_count - 1;
+    }
     return true;
 }
 
@@ -427,11 +514,14 @@ static bool map_pictures(Boards *b, bool *found, WoError *error) {
         if (twin == NO_FRAME) {
             continue;
         }
+        PrmObject scratch;
         memset(&b->shown, 0, sizeof(b->shown));
-        object_use(&b->theirs, twin, &b->shown);
+        b->shown.data = b->theirs.prm;
+        prm_object(b->theirs.prm, b->theirs.models->size, b->theirs.objects.items[twin].offset,
+                   &scratch, note_texture, &b->shown);
         *found = !b->shown.beyond;
         for (size_t frame = 0; *found && frame < USE_FRAMES; frame++) {
-            if (!b->shown.counts[frame]) {
+            if (!b->shown.used[frame]) {
                 continue;
             }
             if (frame >= b->theirs.frames.count) {
@@ -444,19 +534,55 @@ static bool map_pictures(Boards *b, bool *found, WoError *error) {
     return true;
 }
 
-/* The models: the PlayStation's, with the paired boards the PC's. */
-static bool write_models(Boards *b, bool *mapped, WoError *error) {
+/* A picture on a board of four panels: each panel shows a quarter of it,
+ * as the game's own board routine lays one out. */
+static void advertise(uint8_t *board, size_t texture, const Rect *picture) {
+    size_t vertices = be16(board + 16);
+    size_t normals = be16(board + 24);
+    uint8_t *panel = board + PRM_HEADER + (vertices + normals) * 8u;
+    unsigned half_w = (unsigned)picture->width / 2u;
+    unsigned half_h = (unsigned)picture->height / 2u;
+    for (unsigned q = 0; q < BOARD_PANELS; q++) {
+        size_t body = 0;
+        size_t field = 0;
+        prm_primitive(PANEL_KIND, &body, &field);
+        put_be16(panel + 4 + PANEL_TEXTURE, texture);
+        for (unsigned corner = 0; corner < 4; corner++) {
+            uint8_t *uv = panel + 4 + PANEL_UVS + corner * 2u;
+            uv[0] = (uint8_t)((q % 2u) * half_w + (corner % 2u) * (half_w - 1u));
+            uv[1] = (uint8_t)((q / 2u) * half_h + (corner / 2u) * (half_h - 1u));
+        }
+        panel += 4 + body;
+    }
+}
+
+/* The models: the PlayStation's, with the paired boards the PC's and the
+ * others showing their pictures. *changed counts the boards that are not
+ * as they were. */
+static bool write_models(Boards *b, bool *mapped, size_t *changed, WoError *error) {
     *mapped = true;
+    *changed = 0;
+    size_t free_boards = 0;
     for (size_t i = 0; *mapped && i < b->mine.objects.count; i++) {
         const PrmObject *object = &b->mine.objects.items[i];
+        size_t at = b->models.len;
         if (object->twin == NO_FRAME) {
             if (!wo_buf_append(&b->models, b->mine.prm + object->offset, object->size, error)) {
                 return false;
             }
+            int picture = free_board(b, i) ? board_picture(b, free_boards++) : NO_PICTURE;
+            if (picture == WO_BOARD_ADVERT && b->advert != NO_FRAME) {
+                advertise(b->models.data + at, b->advert,
+                          &b->added[b->advert - b->mine.frames.count].place);
+                ++*changed;
+            } else if (picture >= 0 && (size_t)picture < b->mine.frames.count &&
+                       b->taken[picture].width) {
+                advertise(b->models.data + at, (size_t)picture, &b->taken[picture]);
+                ++*changed;
+            }
             continue;
         }
         const PrmObject *twin = &b->theirs.objects.items[object->twin];
-        size_t at = b->models.len;
         if (!wo_buf_append(&b->models, b->theirs.prm + twin->offset, twin->size, error)) {
             return false;
         }
@@ -464,48 +590,52 @@ static bool write_models(Boards *b, bool *mapped, WoError *error) {
         PrmObject scratch;
         prm_object(b->models.data, b->models.len, at, &scratch, map_texture, &renumber);
         *mapped = !renumber.unmapped;
+        ++*changed;
     }
     return true;
 }
 
-/* The textures: the PlayStation's, the placeholder now the PC's picture. */
+/* The textures: the PlayStation's, then the added ones. */
 static bool write_textures(Boards *b, WoError *error) {
     const WoCmp *ps1 = &b->mine.frames;
-    const uint8_t **entries = wo_alloc_array(ps1->count, sizeof(*entries), error);
-    size_t *sizes = entries ? wo_alloc_array(ps1->count, sizeof(size_t), error) : NULL;
+    size_t count = ps1->count + b->added_count;
+    const uint8_t **entries = wo_alloc_array(count, sizeof(*entries), error);
+    size_t *sizes = entries ? wo_alloc_array(count, sizeof(size_t), error) : NULL;
     bool ok = sizes != NULL;
-    for (size_t i = 0; ok && i < ps1->count; i++) {
-        entries[i] = i == b->spare ? b->picture.data : ps1->data + ps1->offsets[i];
-        sizes[i] = i == b->spare ? b->picture.len : ps1->sizes[i];
+    for (size_t i = 0; ok && i < count; i++) {
+        bool own = i < ps1->count;
+        entries[i] = own ? ps1->data + ps1->offsets[i] : b->added[i - ps1->count].tim.data;
+        sizes[i] = own ? ps1->sizes[i] : b->added[i - ps1->count].tim.len;
     }
-    ok = ok && wo_cmp_encode(entries, sizes, ps1->count, &b->textures, error);
+    ok = ok && wo_cmp_encode(entries, sizes, count, &b->textures, error);
     wo_free(sizes);
     wo_free((void *)entries);
     return ok;
 }
 
-/* *kept is the number of boards taken, 0 when the archive stays as it is. */
+/* *kept is the number of boards changed, 0 when the archive stays as it is. */
 static bool keep_boards(Boards *b, const uint8_t *ps1, size_t ps1_len, const uint8_t *pc,
-                        size_t pc_len, WoBuf *out, size_t *kept, WoError *error) {
+                        size_t pc_len, const uint8_t *adverts, size_t adverts_len, WoBuf *out,
+                        size_t *kept, WoError *error) {
+    /* b->pictures and b->picture_count are set by the caller. */
     *kept = 0;
     if (!scene_open(ps1, ps1_len, &b->mine, error) || !scene_open(pc, pc_len, &b->theirs, error)) {
         return false;
     }
-    if (!b->mine.known || !b->theirs.known) {
+    if (!b->mine.known) {
         return true;
     }
+    size_t boards = 0;
     for (size_t i = 0; i < b->mine.objects.count; i++) {
-        object_use(&b->mine, i, &b->all);
+        boards += b->mine.objects.items[i].board;
     }
-    size_t boards = pair_boards(b);
-    if (!boards || b->all.beyond) {
+    if (!boards) {
         return true;
     }
-    find_spare(b);
-    b->added = NO_FRAME;
-    b->map = wo_alloc_array(b->theirs.frames.count, sizeof(size_t), error);
-    b->taken = b->map ? wo_alloc_array(b->mine.frames.count, sizeof(Rect), error) : NULL;
-    if (!b->taken) {
+    b->advert = NO_FRAME;
+    b->taken = wo_alloc_array(b->mine.frames.count, sizeof(Rect), error);
+    b->map = b->taken ? wo_alloc_array(b->theirs.frames.count + 1, sizeof(size_t), error) : NULL;
+    if (!b->map) {
         return false;
     }
     for (size_t i = 0; i < b->theirs.frames.count; i++) {
@@ -513,35 +643,71 @@ static bool keep_boards(Boards *b, const uint8_t *ps1, size_t ps1_len, const uin
     }
     for (size_t i = 0; i < b->mine.frames.count; i++) {
         uint32_t per_word = 0;
-        if (i == b->spare || !frame_rect(&b->mine.frames, i, &b->taken[i], &per_word)) {
+        if (!frame_rect(&b->mine.frames, i, &b->taken[i], &per_word)) {
             memset(&b->taken[i], 0, sizeof(b->taken[i]));
         }
     }
-    bool whole = true;
-    if (!map_pictures(b, &whole, error) || (whole && !write_models(b, &whole, error)) ||
-        (whole && b->added != NO_FRAME && !write_textures(b, error))) {
+    /* Where this track's advert goes, which the PlayStation keeps clear. */
+    uint32_t advert_words = 0;
+    bool advert = adverts && adverts_len &&
+                  wo_cmp_decode(adverts, adverts_len, &b->adverts, NULL) && b->adverts.count &&
+                  frame_rect(&b->adverts, 0, &b->advert_place, &advert_words);
+
+    /* The PC's boards first. A picture of theirs may go where the advert
+     * would, on a track where no board shows the advert. If one of their
+     * pictures has no place, the PC's boards are not kept and those boards
+     * take their turn with the others. */
+    bool whole = b->theirs.known && pair_boards(b) > 0;
+    b->advert_fits = advert && !advert_wanted(b) && spot_clear(b, &b->advert_place);
+    if (whole && !map_pictures(b, &whole, error)) {
         return false;
     }
     if (!whole) {
+        for (size_t i = 0; i < b->mine.objects.count; i++) {
+            b->mine.objects.items[i].twin = NO_FRAME;
+        }
+        drop_added(b);
+    }
+    if (advert_wanted(b) && advert && spot_clear(b, &b->advert_place)) {
+        bool added = false;
+        if (!add_frame(b, b->adverts.data + b->adverts.offsets[0], b->adverts.sizes[0],
+                       &b->advert_place, advert_words, NO_FRAME, &added, error)) {
+            return false;
+        }
+        if (added) {
+            b->advert = b->mine.frames.count + b->added_count - 1;
+        }
+    }
+    size_t changed = 0;
+    if (!write_models(b, &whole, &changed, error)) {
+        return false;
+    }
+    if (!whole || !changed) {
         return true;
     }
-    if (!write_archive(ps1, &b->mine, &b->models, b->added != NO_FRAME ? &b->textures : NULL, out,
+    if (b->added_count && !write_textures(b, error)) {
+        return false;
+    }
+    if (!write_archive(ps1, &b->mine, &b->models, b->added_count ? &b->textures : NULL, out,
                        error)) {
         return false;
     }
-    *kept = boards;
+    *kept = changed;
     return true;
 }
 
 bool wo_boards_keep(const uint8_t *ps1, size_t ps1_len, const uint8_t *pc, size_t pc_len,
-                    WoBuf *out, size_t *kept, WoError *error) {
+                    const uint8_t *adverts, size_t adverts_len, const int *pictures,
+                    size_t picture_count, WoBuf *out, size_t *kept, WoError *error) {
     Boards *b = wo_alloc(sizeof(*b), error);
     if (!b) {
         return false;
     }
     memset(b, 0, sizeof(*b));
+    b->pictures = pictures;
+    b->picture_count = pictures ? picture_count : 0;
     size_t boards = 0;
-    bool ok = keep_boards(b, ps1, ps1_len, pc, pc_len, out, &boards, error);
+    bool ok = keep_boards(b, ps1, ps1_len, pc, pc_len, adverts, adverts_len, out, &boards, error);
     if (ok && !boards) {
         out->len = 0;
         ok = wo_buf_append(out, ps1, ps1_len, error);
@@ -549,11 +715,12 @@ bool wo_boards_keep(const uint8_t *ps1, size_t ps1_len, const uint8_t *pc, size_
     if (kept) {
         *kept = ok ? boards : 0;
     }
-    wo_buf_free(&b->picture);
+    drop_added(b);
     wo_buf_free(&b->textures);
     wo_buf_free(&b->models);
     wo_free(b->taken);
     wo_free(b->map);
+    wo_cmp_free(&b->adverts);
     scene_free(&b->theirs);
     scene_free(&b->mine);
     wo_free(b);
