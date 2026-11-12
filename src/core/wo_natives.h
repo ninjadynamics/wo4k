@@ -120,8 +120,8 @@ typedef struct WoScenery WoScenery;
 /* *out is NULL, without an error, when no PlayStation scenery is in effect. */
 bool wo_scenery_open(const char *game_root, const WoJson *plan, WoScenery **out, WoError *error);
 void wo_scenery_close(WoScenery *scenery);
-/* True when the rectangle on a relaid sheet held scenery in either layout,
- * so a placement located in the PC layout no longer holds there. */
+/* True when a PlayStation scenery frame covers part of the rectangle on a
+ * relaid sheet, so a placement located in the PC layout no longer holds. */
 bool wo_scenery_covers(const WoScenery *scenery, const char *native, int64_t page, int64_t x,
                        int64_t y, int64_t width, int64_t height);
 /* The places of the picture a catalogue PNG is named after (free with

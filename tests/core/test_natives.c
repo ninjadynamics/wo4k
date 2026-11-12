@@ -375,7 +375,10 @@ static void test_scenery(void) {
         CHECK_OK(wo_read_file(sheet, 1 << 20, &bytes, &error), &error);
         CHECK(wo_le16(bytes.data + 18 + (10 * 64 + 20) * 2) == to_pc(700));
         CHECK(wo_le16(bytes.data + 18 + (11 * 64 + 23) * 2) == to_pc(700 + 7));
-        CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 8) * 2) == 0); /* PC frame cleared */
+        /* What the PlayStation frames do not cover is not cleared: the PC
+         * archive repeats shared textures the PlayStation models still use
+         * there. (This plan's own placement reads the archive now in place.) */
+        CHECK(wo_le16(bytes.data + 18 + (4 * 64 + 8) * 2) == to_pc(700));
         wo_buf_free(&bytes);
         WoBuf now = {0};
         WoBuf old = {0};

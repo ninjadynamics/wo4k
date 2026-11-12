@@ -477,8 +477,10 @@ static bool op_int(const WoJson *object, const char *key, int64_t *out, WoError 
  * ones and each track's sheet is laid out as PlayStation video memory:
  * sheet page 0 is VRAM x 320, one sheet texel per texel of the frame.
  * The plan's "scenery" lists each track with its sheets. The PC archive is
- * kept under textures/native-source so its frames can be cleared from the
- * sheet. */
+ * kept under textures/native-source. Its frames are left in the sheet where
+ * the PlayStation ones do not cover them: the PC archive repeats textures
+ * the game also loads from the shared archives (the start gantry), which
+ * the PlayStation models still use at those places. */
 #define SCENERY_VRAM_X 320
 
 static bool file_is(const char *path, const char *expected);
@@ -592,52 +594,43 @@ static bool load_scene_frames(const char *wad_path, WoCmp *frames, WoError *erro
     return ok;
 }
 
-/* Lay the sheet's scenery out as the PlayStation archive has it: clear the
- * PC archive's frames, then paste the PlayStation frames where their headers
- * place them. */
+/* Lay the sheet's scenery out as the PlayStation archive has it: paste its
+ * frames where their headers place them. Art the PC release painted into
+ * its sheets for its own models (Sagarmatha's "FEED ME" hoarding) is not
+ * carried over: the PlayStation models do not show it. */
 static bool apply_scenery(const SceneryWads *wads, uint8_t *sheet, size_t len,
                           WoNativeCounts *counts, WoError *error) {
     WoTgaInfo info;
     if (!wo_tga_info(sheet, len, &info, error)) {
         return false;
     }
-    bool ok = true;
-    for (int pass = wo_is_file(wads->pc) ? 0 : 1; ok && pass < 2; pass++) {
-        const char *source = pass ? wads->game : wads->pc;
-        WoCmp frames;
-        ok = load_scene_frames(source, &frames, error);
-        for (size_t i = 0; ok && i < frames.count; i++) {
-            if (!frames.sizes[i]) {
-                continue;
-            }
-            const uint8_t *tim = frames.data + frames.offsets[i];
-            WoNativeImage image;
-            uint32_t x = 0;
-            uint32_t y = 0;
-            uint32_t per_word = 1;
-            ok = wo_tim_origin(tim, frames.sizes[i], &x, &y, &per_word, error) &&
-                 wo_tim_decode(tim, frames.sizes[i], &image, error);
-            if (!ok) {
-                break;
-            }
-            int64_t left = ((int64_t)x - SCENERY_VRAM_X) * per_word;
-            if (left < 0 || left + image.width > info.width || y + image.height > info.height) {
-                ok = wo_fail(error, WO_ERR_FORMAT, "Scenery texture %zu lies outside the sheet: %s",
-                             i, source);
-            } else if (pass) {
-                ok = wo_tga_patch(sheet, len, &image, left, y, image.width, image.height, error);
-                counts->ps1_regions++;
-            } else {
-                for (uint32_t row = 0; row < image.height; row++) {
-                    memset(sheet + info.pixel_offset +
-                               ((size_t)(y + row) * info.width + (size_t)left) * 2u,
-                           0, (size_t)image.width * 2u);
-                }
-            }
-            wo_native_image_free(&image);
+    WoCmp frames;
+    bool ok = load_scene_frames(wads->game, &frames, error);
+    for (size_t i = 0; ok && i < frames.count; i++) {
+        if (!frames.sizes[i]) {
+            continue;
         }
-        wo_cmp_free(&frames);
+        const uint8_t *tim = frames.data + frames.offsets[i];
+        WoNativeImage image;
+        uint32_t x = 0;
+        uint32_t y = 0;
+        uint32_t per_word = 1;
+        ok = wo_tim_origin(tim, frames.sizes[i], &x, &y, &per_word, error) &&
+             wo_tim_decode(tim, frames.sizes[i], &image, error);
+        if (!ok) {
+            break;
+        }
+        int64_t left = ((int64_t)x - SCENERY_VRAM_X) * per_word;
+        if (left < 0 || left + image.width > info.width || y + image.height > info.height) {
+            ok = wo_fail(error, WO_ERR_FORMAT, "Scenery texture %zu lies outside the sheet: %s", i,
+                         wads->game);
+        } else {
+            ok = wo_tga_patch(sheet, len, &image, left, y, image.width, image.height, error);
+            counts->ps1_regions++;
+        }
+        wo_native_image_free(&image);
     }
+    wo_cmp_free(&frames);
     return ok;
 }
 
@@ -1183,17 +1176,15 @@ bool wo_scenery_open(const char *game_root, const WoJson *plan, WoScenery **out,
         SceneryWads wads;
         ok = scenery_wads(p.game, entry, &wads, error);
         if (ok && same_file_bytes(wads.ps1, wads.game)) {
-            for (int pass = wo_is_file(wads.pc) ? 0 : 1; ok && pass < 2; pass++) {
-                WoCmp frames;
-                ok = load_scene_frames(pass ? wads.game : wads.pc, &frames, error);
-                for (size_t f = 0; ok && f < frames.count; f++) {
-                    if (frames.sizes[f]) {
-                        ok = scenery_note(scenery, native, frames.data + frames.offsets[f],
-                                          frames.sizes[f], pass == 1, error);
-                    }
+            WoCmp frames;
+            ok = load_scene_frames(wads.game, &frames, error);
+            for (size_t f = 0; ok && f < frames.count; f++) {
+                if (frames.sizes[f]) {
+                    ok = scenery_note(scenery, native, frames.data + frames.offsets[f],
+                                      frames.sizes[f], true, error);
                 }
-                wo_cmp_free(&frames);
             }
+            wo_cmp_free(&frames);
         }
         scenery_wads_free(&wads);
     }
