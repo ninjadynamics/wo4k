@@ -100,7 +100,7 @@ def layout_corrections(operations):
         for frame, x in ((25, 2304), (26, 2368)):
             kept.append(dict(atlas=atlas, x=x, y=0, width=64, height=64,
                              source={'wad': GRASS_FIX['file'], 'entry': 'scene.cmp', 'frame': frame},
-                             label=f'TRACK17/scene.cmp/{frame}', patch=GRASS_FIX['id']))
+                             label=f'TRACK17/PC-SCENE.CMP/{frame}', patch=GRASS_FIX['id']))
     return kept, [GRASS_FIX]
 
 

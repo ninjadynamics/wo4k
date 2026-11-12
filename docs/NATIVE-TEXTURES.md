@@ -97,8 +97,10 @@ The manifest records every destination rectangle, source choice, mip level,
 original dimensions and hashes; the ZIP retains original PNGs and native sheets.
 
 Overwrite only the editable PNGs, preserving filenames, aspect ratios, full
-canvases and orientation. Native black pixels remain RGB: transparency and effect
-blending depend on the draw, so global black-to-alpha conversion is inappropriate.
+canvases and orientation. See-through texels (exact native black, which the game
+keys on every sheet) are exported transparent; the PlayStation's opaque black
+stays opaque black. Keep the alpha channel through upscaling: a replacement with
+transparency is drawn by its own alpha, one without by the native cut-out.
 The exporter verifies the installed receipt and exact pixel reconstruction, never
 rewrites game/HD files, and refuses to overwrite an existing workspace. Exported
 individual images need packing into HD pages after visual approval; they are not

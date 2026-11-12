@@ -154,13 +154,20 @@ def main():
             path = out / 'textures' / filename
             if path.exists():
                 raise ValueError(f'Filename collision: {filename}')
+            # The game keys exact black on every sheet, and the installer
+            # stores the PlayStation's opaque black as near-black, so exact
+            # black is precisely what is see-through. Say so in the PNG: an
+            # HD replacement with transparency is drawn by its own alpha.
+            keyed = ~pixels.any(axis=2)
             image = Image.fromarray(pixels)
+            if keyed.any():
+                image.putalpha(Image.fromarray(np.where(keyed, 0, 255).astype('uint8')))
             image.save(path)
             raw = path.read_bytes()
             baseline.writestr('textures/' + filename, raw)
             entries.append(dict(id=identity, file='textures/'+filename,
                                 kind=kind, source=source, provenance=provenance,
-                                width=image.width, height=image.height, mode='RGB',
+                                width=image.width, height=image.height, mode=image.mode,
                                 png_sha256=sha(raw), rgb_sha256=sha(pixels.tobytes()),
                                 placements=placements))
 
@@ -213,7 +220,7 @@ def main():
         reconstructed = {name: np.zeros_like(sheet['rgb']) for name, sheet in sheets.items()}
         for entry in entries:
             with Image.open(out / entry['file']) as image:
-                pixels = np.array(image)
+                pixels = np.array(image)[:, :, :3]
             for dest in entry['placements']:
                 if dest['atlas'] not in reconstructed:
                     continue
@@ -235,7 +242,7 @@ def main():
                     native_sheets=sources,
                     pixel_conventions=dict(orientation='native loader row order; no vertical flip',
                         color='native RGB555 expanded by channel*255//31; no colour adjustment',
-                        alpha='RGB exports retain native black pixels. Color-keying, transparency and additive/subtractive blending are per draw; never infer global alpha from black.',
+                        alpha='Exact native black, which the game keys on every sheet, is exported fully transparent (RGBA); the opaque black of the PlayStation data is near-black and stays opaque. Fully opaque textures are RGB. Additive/subtractive blending is per draw.',
                         original_bit15='Preserved in baseline native sheets; not converted to PNG alpha'),
                     reintegration=dict(status='export only; not installed',
                         coordinates='Unscaled native sheet pixels; page_x/page_y address the 256x256 page',
@@ -257,8 +264,10 @@ def main():
         'Overwrite the PNGs with your upscaled results. Keep the filenames, aspect\n'
         'ratios, full canvases and orientation. Do not trim, rotate, or add borders.\n'
         'Atlas sections can contain several neighboring cells: preserve their layout.\n'
-        'Black pixels are retained intentionally: native blending/keying is per draw.\n'
-        'Do not automatically turn all black into alpha or paint over black effect mattes.\n'
+        'See-through areas are transparent in the PNGs; black that is still opaque is\n'
+        'solid paint. Keep the alpha channel through upscaling: a PNG with transparency\n'
+        'is drawn by its own alpha, one without it by the original cut-out. Do not\n'
+        'paint over the black of glow and flare textures, which the game adds on screen.\n'
         'Use a consistent integer enlargement factor where possible.\n\n'
         'manifest.json records native rectangles, every shared destination, sources,\n'
         'mip levels, hashes, protected HD artwork and reconstruction instructions.\n'
