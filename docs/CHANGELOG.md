@@ -38,6 +38,11 @@
   Start press that leaves the title screen no longer carries on into the
   main menu, and Start held after pausing a race no longer picks the pause
   menu's first entry.
+- Run Gare d'Europa's trains with the PlayStation's scenery. The game finds
+  the train line by the names of the pylons at its two ends, and the
+  PlayStation's model gives every pylon the same name, so the trains stood
+  still. Where the ends are not named, WO4K now measures the line between
+  the two pylons furthest apart.
 - Fix the game crashing the moment it starts on PCs where Windows enforces
   Data Execution Prevention for every program. The original game marks its
   own code as data during startup, which only older DEP defaults forgive;

@@ -123,6 +123,7 @@ static void *hook(UINT rva,const BYTE *expected,UINT n,const void *replacement) 
 #include "keyboard_focus.c"
 #include "movies_patch.c"
 #include "title_patch.c"
+#include "train_route.c"
 #include "audio_menu_patch.c"
 #include "png_art.c"
 #include "startup_art.c"
@@ -382,6 +383,7 @@ void wo_render_initialize(BYTE *image,const WCHAR *root) {
     initialize_refresh(settings);
     initialize_movies(root,(UINT)width,(UINT)height);
     initialize_title();
+    initialize_train_route();
     initialize_audio_menu();
     initialize_startup_art(root,(UINT)width,(UINT)height);
     initialize_dx_error();
