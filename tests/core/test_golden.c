@@ -669,7 +669,7 @@ static void test_ps1_disc(void) {
     if (dir && installed && wo_is_dir(installed)) {
         compare_ps1_import(dir, installed, &same, &total);
         printf("  (%zu of %zu imported PlayStation files identical to ps1-source)\n", same, total);
-        CHECK(same == total && total == 137);
+        CHECK(same == total && total == 145); /* 137 texture files and 8 track archives */
     }
     wo_json_free(plan);
     wo_free(descriptor);
