@@ -470,6 +470,13 @@ static bool op_int(const WoJson *object, const char *key, int64_t *out, WoError 
     return true;
 }
 
+/* A picture about to be pasted on a sheet is shown to an observer instead
+ * (wo_natives_regions), which thereby sees exactly what a build pastes. */
+typedef struct RegionObserver {
+    WoSheetRegionFn visit;
+    void *context;
+} RegionObserver;
+
 /* --- PlayStation scenery -------------------------------------------------------------
  * The PC release's scenery is an earlier build: seven of its eight track
  * models are smaller than the PlayStation's, and its texture layout has
@@ -657,8 +664,9 @@ static bool load_scene_frames(const char *wad_path, WoCmp *frames, WoError *erro
  * frames where their headers place them. Pictures added for its boards
  * (the PC's "FEED ME" on Sagarmatha, the PlayStation's advert) are among
  * those frames. */
-static bool apply_scenery(const SceneryWads *wads, uint8_t *sheet, size_t len,
-                          WoNativeCounts *counts, WoError *error) {
+static bool apply_scenery(const SceneryWads *wads, const char *atlas, const char *track,
+                          uint8_t *sheet, size_t len, WoNativeCounts *counts,
+                          const RegionObserver *observer, WoError *error) {
     WoTgaInfo info;
     if (!wo_tga_info(sheet, len, &info, error)) {
         return false;
@@ -683,6 +691,10 @@ static bool apply_scenery(const SceneryWads *wads, uint8_t *sheet, size_t len,
         if (left < 0 || left + image.width > info.width || y + image.height > info.height) {
             ok = wo_fail(error, WO_ERR_FORMAT, "Scenery texture %zu lies outside the sheet: %s", i,
                          wads->game);
+        } else if (observer) {
+            WoSheetRegion region = {atlas, left, y, image.width, image.height, WO_REGION_SCENERY,
+                                    track, (int64_t)i, 0, NULL, 0, &image};
+            ok = observer->visit(observer->context, &region, error);
         } else {
             ok = wo_tga_patch(sheet, len, &image, left, y, image.width, image.height, true,
                               error);
@@ -788,8 +800,59 @@ static bool decode_operation(WoSheetBuilder *builder, const WoJson *src, bool ps
                            wo_json_str(src, "entry", ""), ps1, frame, pixels, error);
 }
 
-static bool apply_operation(WoSheetBuilder *builder, const WoJson *op, uint8_t *sheet, size_t len,
-                            WoNativeCounts *counts, WoError *error) {
+/* The PlayStation disc's name for the archive an operation takes a frame
+ * (or a road's tiles) from: the imported file itself, or the PC's copy
+ * where the plan says the two are the same byte for byte. NULL for a
+ * picture only the PC has. */
+static const char *disc_archive(const WoJson *plan, const WoJson *src, char *buffer, size_t size) {
+    if (wo_json_has(src, "ps1")) {
+        return wo_json_str(src, "ps1", "");
+    }
+    const char *path = wo_json_str(src, "path", NULL);
+    if (!path) {
+        /* An entry of a track archive: "TRACK02/TRACK.WAD", "sky.cmp" is "TRACK02/SKY.CMP". */
+        const char *wad = wo_json_str(src, "wad", "");
+        const char *slash = strrchr(wad, '/');
+        int written = slash ? snprintf(buffer, size, "%.*s/%s", (int)(slash - wad), wad,
+                                       wo_json_str(src, "entry", ""))
+                            : -1;
+        if (written < 0 || (size_t)written >= size) {
+            return NULL;
+        }
+        for (char *c = buffer; *c; c++) {
+            *c = (char)((*c >= 'a' && *c <= 'z') ? *c - 32 : *c);
+        }
+        path = buffer;
+    }
+    return reused_from_pc(plan, path) ? path : NULL;
+}
+
+static bool show_operation(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
+                           const WoJson *src, int64_t x, int64_t y, const WoNativeImage *pixels,
+                           const RegionObserver *observer, WoError *error) {
+    char archive[96];
+    uint16_t tiles[WO_TEXSRC_ROAD_TILES];
+    WoSheetRegion region = {atlas, x, y, pixels->width, pixels->height, WO_REGION_FRAME,
+                            disc_archive(plan, src, archive, sizeof(archive)), 0, 0, NULL, 0, pixels};
+    if (wo_json_has(src, "material")) {
+        region.source = WO_REGION_ROAD;
+        if (!op_int(src, "material", &region.number, error) ||
+            !op_int(src, "level", &region.level, error) ||
+            !wo_texsrc_road_tiles(builder->sources, wo_json_str(src, "wad", ""),
+                                  wo_json_str(src, "table", ""), region.number, region.level,
+                                  tiles, &region.tile_count, error)) {
+            return false;
+        }
+        region.tiles = tiles;
+    } else if (!op_int(src, "frame", &region.number, error)) {
+        return false;
+    }
+    return observer->visit(observer->context, &region, error);
+}
+
+static bool apply_operation(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
+                            const WoJson *op, uint8_t *sheet, size_t len, WoNativeCounts *counts,
+                            const RegionObserver *observer, WoError *error) {
     const WoJson *src = wo_json_get(op, "source");
     if (!wo_json_is(src, WO_JSON_OBJECT)) {
         return wo_fail(error, WO_ERR_FORMAT, "A texture selection operation has no source.");
@@ -823,7 +886,14 @@ static bool apply_operation(WoSheetBuilder *builder, const WoJson *op, uint8_t *
      * blended, where flagged black must stay invisible. */
     const char *name = ps1 ? wo_json_str(src, "ps1", "") : wo_json_str(src, "entry", "");
     bool scenery = wo_str_iends_with(name, "scene.cmp");
-    bool ok = wo_tga_patch(sheet, len, &pixels, x, y, width, height, scenery, error);
+    bool ok;
+    if (!observer) {
+        ok = wo_tga_patch(sheet, len, &pixels, x, y, width, height, scenery, error);
+    } else if (width != (int64_t)pixels.width || height != (int64_t)pixels.height) {
+        ok = wo_fail(error, WO_ERR_FORMAT, "Native texture placement is out of bounds.");
+    } else {
+        ok = show_operation(builder, plan, atlas, src, x, y, &pixels, observer, error);
+    }
     wo_native_image_free(&pixels);
     if (!ok) {
         wo_error_context(error, "%s: ", wo_json_str(op, "label", "texture region"));
@@ -837,8 +907,9 @@ static bool apply_operation(WoSheetBuilder *builder, const WoJson *op, uint8_t *
     return true;
 }
 
-bool wo_sheet_builder_apply(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
-                            uint8_t *sheet, size_t len, WoNativeCounts *counts, WoError *error) {
+static bool apply_operations(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
+                             uint8_t *sheet, size_t len, WoNativeCounts *counts,
+                             const RegionObserver *observer, WoError *error) {
     const WoJson *operations = wo_json_get(plan, "operations");
     for (size_t i = 0; i < wo_json_length(operations); i++) {
         const WoJson *op = wo_json_at(operations, i);
@@ -850,11 +921,40 @@ bool wo_sheet_builder_apply(WoSheetBuilder *builder, const WoJson *plan, const c
             !patch_file_is(builder->game_root, plan_patch(plan, patch), "patched_sha256")) {
             continue; /* made for corrected game data, which this is not */
         }
-        if (!apply_operation(builder, op, sheet, len, counts, error)) {
+        if (!apply_operation(builder, plan, atlas, op, sheet, len, counts, observer, error)) {
             return false;
         }
     }
     return true;
+}
+
+bool wo_sheet_builder_apply(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
+                            uint8_t *sheet, size_t len, WoNativeCounts *counts, WoError *error) {
+    return apply_operations(builder, plan, atlas, sheet, len, counts, NULL, error);
+}
+
+/* The operations, then the scenery archive in place: pasted, or shown to
+ * the observer. */
+static bool compose_sheet(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
+                          uint8_t *sheet, size_t len, WoNativeCounts *counts,
+                          const RegionObserver *observer, WoError *error) {
+    bool ok = apply_operations(builder, plan, atlas, sheet, len, counts, observer, error);
+    const WoJson *scenery = ok ? plan_scenery(plan, atlas) : NULL;
+    if (scenery) {
+        SceneryWads wads;
+        ok = scenery_wads(builder->game_root, scenery, &wads, error);
+        if (ok && scenery_in_place(&wads)) {
+            ok = apply_scenery(&wads, atlas, wo_json_str(scenery, "track", ""), sheet, len, counts,
+                               observer, error);
+        }
+        scenery_wads_free(&wads);
+    }
+    return ok;
+}
+
+bool wo_sheet_builder_compose(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
+                              uint8_t *sheet, size_t len, WoNativeCounts *counts, WoError *error) {
+    return compose_sheet(builder, plan, atlas, sheet, len, counts, NULL, error);
 }
 
 /* --- Installation ------------------------------------------------------------------- */
@@ -957,17 +1057,8 @@ static bool build_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJ
                 wo_log_text("native_sheet_unrecognised", atlas);
             }
         }
-        ok = ok && (!known || wo_sheet_builder_apply(builder, plan, atlas, bytes.data, bytes.len,
-                                                     counts, error));
-        const WoJson *scenery = ok && known ? plan_scenery(plan, atlas) : NULL;
-        if (scenery) {
-            SceneryWads wads;
-            ok = scenery_wads(p->game, scenery, &wads, error);
-            if (ok && scenery_in_place(&wads)) {
-                ok = apply_scenery(&wads, bytes.data, bytes.len, counts, error);
-            }
-            scenery_wads_free(&wads);
-        }
+        ok = ok && (!known || compose_sheet(builder, plan, atlas, bytes.data, bytes.len, counts,
+                                            NULL, error));
         ok = ok && wo_write_file_atomic(target, bytes.data, bytes.len, error) &&
              wo_sha256_mem(bytes.data, bytes.len, hash, error);
         if (ok) {
@@ -1109,6 +1200,71 @@ bool wo_natives_install(const WoNativeOptions *options, WoJson **receipt, WoErro
         wo_json_free(*receipt);
         *receipt = NULL;
     }
+    native_paths_free(&p);
+    return ok;
+}
+
+/* --- What the sheets show --------------------------------------------------------------- */
+
+static bool is_hi_res(const char *atlas) {
+    for (const char *c = atlas; *c; c++) {
+        if (wo_str_istarts_with(c, "/hi-res/")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* The same steps as build_sheet, on the pristine copy a build starts from. */
+static bool show_sheet(WoSheetBuilder *builder, const NativePaths *p, const WoJson *plan,
+                       const char *atlas, const RegionObserver *observer, WoError *error) {
+    char *target = wo_path_child(p->sd, atlas, error);
+    char *pristine = target ? wo_path_child(p->original, atlas, error) : NULL;
+    if (!pristine) {
+        wo_free(target);
+        return false;
+    }
+    bool ok = true;
+    if (wo_is_file(target) && wo_is_file(pristine)) {
+        WoBuf bytes = {0};
+        char hash[WO_SHA256_HEX_SIZE];
+        WoNativeCounts counts = {0, 0, 0};
+        const char *expected = expected_sheet(plan, atlas);
+        ok = wo_read_file(pristine, SHEET_MAX_BYTES, &bytes, error) &&
+             wo_sha256_mem(bytes.data, bytes.len, hash, error);
+        /* A sheet the plan was not made for is installed as found. */
+        if (ok && (!expected || wo_digest_eq(hash, expected))) {
+            ok = compose_sheet(builder, plan, atlas, bytes.data, bytes.len, &counts, observer,
+                               error);
+        }
+        wo_buf_free(&bytes);
+    }
+    wo_free(pristine);
+    wo_free(target);
+    return ok;
+}
+
+bool wo_natives_regions(const char *game_root, const WoJson *plan, WoSheetRegionFn visit,
+                        void *context, WoError *error) {
+    NativePaths p;
+    if (!native_paths(game_root, &p, error)) {
+        return false;
+    }
+    WoStrList atlases = {0};
+    RegionObserver observer = {visit, context};
+    WoSheetBuilder *builder = NULL;
+    bool ok = plan_atlases(plan, &atlases, error);
+    if (ok) {
+        builder = wo_sheet_builder_new(p.game, p.sd, p.ps1, error);
+        ok = builder != NULL;
+    }
+    for (size_t i = 0; ok && i < atlases.count; i++) {
+        if (is_hi_res(atlases.items[i])) {
+            ok = show_sheet(builder, &p, plan, atlases.items[i], &observer, error);
+        }
+    }
+    wo_sheet_builder_free(builder);
+    wo_strlist_free(&atlases);
     native_paths_free(&p);
     return ok;
 }

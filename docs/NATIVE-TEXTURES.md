@@ -193,4 +193,48 @@ picture as the one the model named `wfall` is drawn with, which holds for the
 PlayStation's archive and the PC's. The page keeps whatever size its other
 replacements give it, with each texel of the waterfall enlarged to match. A
 replacement PNG for the waterfall is painted over, so do not author one, and
-anything that rewrites the sheets (debanding) has no effect on it.
+its debanded picture (below) is painted over likewise.
+
+## Debanded textures
+
+The PlayStation's textures have 16 or 256 colours, and a gradient shows as
+bands. `manifests/deband-selection.json` records, for every texture frame of
+the disc, whether to keep it as it is (`original`) or deband it at one of two
+strengths (`v1` smoother, `v2` with light and dark details kept). It is the
+file the comparison page of `tools/Deband-Ps1Textures.py` exports, unchanged:
+to change the choices, export again and replace it.
+
+When the sheets are built (Setup's install, and Play's check when anything
+the result depends on has changed), `src/core/wo_deband.c` debands every
+chosen picture that the Hi-res sheets show, writes each as a PNG into
+`assets/sd/` and lists where each belongs in `wobble/textures/sd-regions.bin`
+(the form of `hd-regions.bin`). A sheet holds 15-bit colour, too few levels
+for a smooth ramp, so the result cannot go into the sheet: the runtime lays
+the PNGs over the sheet's page when it loads, before any HD region. Only
+colours are taken, and only where the sheet shows a texel, so cut-outs and
+the see-through black of effects stay the sheet's. A page that has a PNG of
+its own in `assets/hd/` is left alone. The layer is loaded with the HD
+textures and follows their setting.
+
+- What a sheet shows is what its build pasted last: the map's operations,
+  then the frames of the PlayStation scenery archive in place. A picture
+  partly covered by a later one is not debanded.
+- A frame takes its choice by name (`TRACK13/SCENE.CMP#0016`), whether it
+  was read from the imported disc or from the PC's byte-identical file. The
+  PNG has the name the comparison page gives it (`track13-scene-cmp-16.png`).
+- A road is its 32-pixel tiles put together. It is debanded as one picture
+  (`track13-road-0-128.png`), each tile at the strength chosen for it, so a
+  gradient that crosses tiles gets one ramp.
+- Scenery frames whose borders meet in the track's model are debanded with
+  a margin of their neighbours, as the comparison page's pictures were.
+- Pictures only the PC has (its own boards, the interface) have no choice
+  and stay as they are.
+
+The filter is the maintainer tool's own, `tools/deband/filter.c`, built into
+Setup and Play. Its four-sample stage takes its samples where FFmpeg's
+`deband` does, so without FFmpeg it gives what the comparison page showed:
+against the reviewed pictures the installer's differ by 0.9 levels of 255 on
+average, the same as a second FFmpeg run, the difference being the dither.
+Debanding the 560-odd pictures takes about five seconds. The step is skipped
+while the choices, the filter's revision and the sheets are what the layer in
+place was made from (`wobble/textures/deband.json`).

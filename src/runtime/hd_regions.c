@@ -6,6 +6,13 @@ typedef struct HdRegion {WCHAR png[128];char native[32];UINT page,x,y,width,heig
 static BYTE *hd_region_index_memory;
 static HdRegion *hd_regions;
 static UINT hd_region_count;
+/* A second index of the same form: the debanded pictures the installer made
+ * of the sheets' own (assets\sd, textures\sd-regions.bin). Each has its
+ * sheet picture's size and lies under any replacement. Where one is missing
+ * the sheet's texels show. */
+static BYTE *sd_region_index_memory;
+static HdRegion *sd_regions;
+static UINT sd_region_count;
 static BOOL hd_region_name_valid(const WCHAR *name,UINT capacity,BOOL png) {
     UINT n=0;while(n<capacity && name[n]){
         WCHAR c=name[n];if(!((c>=L'a' && c<=L'z') || (c>=L'A' && c<=L'Z') || (c>=L'0' && c<=L'9') || c==L'-' || c==L'.'))return FALSE;
@@ -31,22 +38,26 @@ static BOOL hd_region_index_valid(const BYTE *data,UINT length) {
     }
     return TRUE;
 }
-static void hd_load_region_index(void) {
-    if(hd_region_index_memory)VirtualFree(hd_region_index_memory,0,MEM_RELEASE);
-    hd_region_index_memory=0;hd_regions=0;hd_region_count=0;
+static void hd_load_index(const WCHAR *name,BYTE **memory,HdRegion **regions,UINT *count,const char *loaded,const char *invalid) {
+    if(*memory)VirtualFree(*memory,0,MEM_RELEASE);
+    *memory=0;*regions=0;*count=0;
     WCHAR path[MAX_PATH];path[0]=0;
-    if(!hd_append(path,MAX_PATH,ui_hd_game_root) || !hd_append(path,MAX_PATH,L"textures\\hd-regions.bin"))return;
+    if(!hd_append(path,MAX_PATH,ui_hd_game_root) || !hd_append(path,MAX_PATH,name))return;
     HANDLE file=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);if(file==INVALID_HANDLE_VALUE)return;
     LARGE_INTEGER size;BYTE *data=0;DWORD read;
     if(!GetFileSizeEx(file,&size) || size.QuadPart<12 || size.QuadPart>12+16384*sizeof(HdRegion))goto done;
     data=VirtualAlloc(0,(UINT)size.QuadPart,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
     if(!data || !ReadFile(file,data,(DWORD)size.QuadPart,&read,0) || read!=(DWORD)size.QuadPart || !hd_region_index_valid(data,read)){
-        if(data)VirtualFree(data,0,MEM_RELEASE);data=0;wo_render_event("hd_region_index_invalid",0);goto done;
+        if(data)VirtualFree(data,0,MEM_RELEASE);data=0;wo_render_event(invalid,0);goto done;
     }
-    hd_region_index_memory=data;hd_region_count=*(UINT *)(data+8);hd_regions=(HdRegion *)(data+12);
-    wo_render_event("hd_region_index_loaded",hd_region_count);
+    *memory=data;*count=*(UINT *)(data+8);*regions=(HdRegion *)(data+12);
+    wo_render_event(loaded,*count);
 done:
     CloseHandle(file);
+}
+static void hd_load_region_index(void) {
+    hd_load_index(L"textures\\hd-regions.bin",&hd_region_index_memory,&hd_regions,&hd_region_count,"hd_region_index_loaded","hd_region_index_invalid");
+    hd_load_index(L"textures\\sd-regions.bin",&sd_region_index_memory,&sd_regions,&sd_region_count,"sd_region_index_loaded","sd_region_index_invalid");
 }
 static BOOL hd_world_name(const char *filename) {
     return !startup_name(filename,"hud2.tga") && !startup_name(filename,"hud.tga") &&
@@ -125,8 +136,24 @@ static void hd_region_paste(BYTE *base,UINT size,const HdRegion *region,const BY
     }
     if(outline)VirtualFree(outline,0,MEM_RELEASE);
 }
-static BYTE *hd_compose_regions(const char *filename,UINT page,UINT pages,BYTE *base,UINT *size) {
-    UINT wanted=base?*size:256,matched=0;WCHAR path[MAX_PATH];
+/* A debanded picture changes colours only: the sheet decides which texels
+ * show, and on a page larger than the sheet each texel fills its block. */
+static void sd_region_paste(BYTE *base,UINT size,const HdRegion *region,const BYTE *image) {
+    UINT scale=size/256,left=region->x*scale,top=region->y*scale;
+    for(UINT y=0;y<region->height*scale;++y)for(UINT x=0;x<region->width*scale;++x){
+        BYTE *dst=base+((top+y)*size+left+x)*4;const BYTE *src=image+((y/scale)*region->width+x/scale)*4;
+        if(dst[3] && src[3])copy(dst,src,3);
+    }
+}
+static BOOL sd_region_file(const HdRegion *region,const char *filename,UINT page,WCHAR *path) {
+    path[0]=0;
+    return region->page==page && startup_name(filename,region->native) && hd_append(path,MAX_PATH,ui_sd_directory) &&
+        hd_append(path,MAX_PATH,region->png) && hd_exists(path);
+}
+static BYTE *hd_compose_listed(const char *filename,UINT page,UINT pages,BYTE *base,UINT *size) {
+    /* A replacement for the whole page leaves nothing of the sheet to deband. */
+    BOOL whole=base!=0;
+    UINT wanted=base?*size:256,matched=0,smoothed=0;WCHAR path[MAX_PATH];
     for(UINT i=0;i<hd_region_count;++i){
         const HdRegion *region=hd_regions+i;
         if(region->page!=page || !startup_name(filename,region->native) || !hd_path(path,region->png) || !hd_exists(path))continue;
@@ -135,7 +162,8 @@ static BYTE *hd_compose_regions(const char *filename,UINT page,UINT pages,BYTE *
         if(!scale){wo_render_event("hd_region_invalid_dimensions",i);continue;}
         if(scale*256>wanted)wanted=scale*256;++matched;
     }
-    if(!matched)return base;
+    for(UINT i=0;!whole && i<sd_region_count;++i)if(sd_region_file(sd_regions+i,filename,page,path))++smoothed;
+    if(!matched && !smoothed)return base;
     if(!base)base=hd_native_page(filename,page,pages,wanted);
     else if(*size!=wanted){
         BYTE *grown=VirtualAlloc(0,wanted*wanted*4,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);if(!grown)return base;
@@ -143,6 +171,13 @@ static BYTE *hd_compose_regions(const char *filename,UINT page,UINT pages,BYTE *
         VirtualFree(base,0,MEM_RELEASE);base=grown;
     }
     if(!base)return 0;*size=wanted;
+    for(UINT i=0;smoothed && i<sd_region_count;++i){
+        const HdRegion *region=sd_regions+i;
+        if(!sd_region_file(region,filename,page,path))continue;
+        UINT w=0,h=0;BYTE *image=read_art_png(path,&w,&h);if(!image)continue;
+        if(w==region->width && h==region->height)sd_region_paste(base,wanted,region,image);
+        VirtualFree(image,0,MEM_RELEASE);
+    }
     for(UINT i=0;i<hd_region_count;++i){
         const HdRegion *region=hd_regions+i;
         if(region->page!=page || !startup_name(filename,region->native) || !hd_path(path,region->png) || !hd_exists(path))continue;
@@ -150,5 +185,16 @@ static BYTE *hd_compose_regions(const char *filename,UINT page,UINT pages,BYTE *
         if(hd_region_scale(region,w,h))hd_region_paste(base,wanted,region,image,w,h);
         VirtualFree(image,0,MEM_RELEASE);
     }
-    wo_render_event("hd_regions_composed",matched);return base;
+    if(matched)wo_render_event("hd_regions_composed",matched);
+    if(smoothed)wo_render_event("sd_regions_composed",smoothed);
+    return base;
+}
+static BYTE *hd_compose_regions(const char *filename,UINT page,UINT pages,BYTE *base,UINT *size) {
+    BOOL listed=FALSE;
+    for(UINT i=0;!listed && i<hd_region_count;++i)listed=hd_regions[i].page==page && startup_name(filename,hd_regions[i].native);
+    for(UINT i=0;!listed && i<sd_region_count;++i)listed=sd_regions[i].page==page && startup_name(filename,sd_regions[i].native);
+    if(!listed)return base;
+    ArtPngHold hold;art_png_hold(&hold);
+    base=hd_compose_listed(filename,page,pages,base,size);
+    art_png_release(&hold);return base;
 }

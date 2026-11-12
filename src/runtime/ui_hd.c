@@ -10,7 +10,7 @@ static UiHdPage ui_hd_opaque_pages[UI_HD_PAGE_COUNT];
 static UiHdPage ui_hd_logo;
 #define UI_HD_LOGO_TAG 0x574f4c47u
 static UiNativeLoadFn old_ui_native_load;
-static WCHAR ui_hd_directory[MAX_PATH];
+static WCHAR ui_hd_directory[MAX_PATH],ui_sd_directory[MAX_PATH];
 #include "ui_hd_assets.c"
 #include "palette_cycle.c"
 static DWORD ui_hd_original_key=TRUE,ui_hd_original_test,ui_hd_original_ref,ui_hd_original_func=8,ui_hd_original_address=1;
@@ -460,6 +460,8 @@ static void initialize_ui_hd(const WCHAR *root) {
     UINT n=0;while(root[n] && n<MAX_PATH-40) {ui_hd_directory[n]=root[n];++n;}
     if(root[n])return;
     for(UINT i=0;i<=n;++i)ui_hd_game_root[i]=root[i];
+    for(UINT i=0;i<n;++i)ui_sd_directory[i]=root[i];
+    const WCHAR *smooth=L"..\\assets\\sd\\";for(UINT i=n;(ui_sd_directory[i]=*smooth++);++i) {}
     const WCHAR *suffix=L"..\\assets\\hd\\";while((*((WCHAR *)ui_hd_directory+n++)=*suffix++)) {}
     /* Replaced pages are released after the next present (ui_hd_retire),
      * which only the refresh hooks see: without them, native art stays. */

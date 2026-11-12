@@ -4,6 +4,7 @@
 #define WO_INSTALL_H
 
 #include "core/wo_base.h"
+#include "core/wo_hashcache.h"
 #include "core/wo_json.h"
 #include "core/wo_mod.h"
 
@@ -17,5 +18,12 @@ bool wo_pc_file_receipt(const WoMod *mod, const char *game_root, WoJson **out, W
 /* Copy the mod runtime (DLLs, controller host, video player, DDrawCompat
  * settings template, shaders) from runtime/ into game_root. */
 bool wo_install_runtime(const WoMod *mod, const char *game_root, WoError *error);
+
+/* Deband the textures game_root's sheets show into the mod's assets/sd, as
+ * manifests/deband-selection.json has them chosen (wo_deband.h).
+ * native_receipt is what wo_natives_install returned for those sheets. The
+ * game plays without the result, so a failure is logged, not returned. */
+void wo_install_debanded(const WoMod *mod, const char *game_root, const WoJson *plan,
+                         const WoJson *native_receipt, WoHashCache *cache);
 
 #endif

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "core/wo_deband.h"
 #include "core/wo_fs.h"
 #include "core/wo_hash.h"
 #include "core/wo_hdtex.h"
@@ -329,6 +330,24 @@ static bool swap_in(const WoMod *mod, const char *stage, WoError *error) {
 static bool install_locked(const WoMod *mod, const WoConfig *config, bool preserve_configuration,
                            WoProgress *progress, WoError *error);
 
+void wo_install_debanded(const WoMod *mod, const char *game_root, const WoJson *plan,
+                         const WoJson *native_receipt, WoHashCache *cache) {
+    WoError error = {0};
+    char *selection = wo_mod_path(mod, "manifests/deband-selection.json", &error);
+    char *output = selection ? wo_mod_path(mod, "assets/sd", &error) : NULL;
+    bool ok = output != NULL;
+    if (ok) {
+        WoDebandOptions options = {game_root, output, selection, plan, native_receipt, false, cache};
+        WoDebandResult result;
+        ok = wo_deband_install(&options, &result, &error);
+    }
+    if (!ok) {
+        wo_log_text("textures_not_debanded", error.message);
+    }
+    wo_free(output);
+    wo_free(selection);
+}
+
 bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configuration,
                 WoProgress *progress, WoError *error) {
     WoModLock lock;
@@ -412,6 +431,10 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
         WoJson *receipt = NULL;
         ok = wo_natives_install(&options, &receipt, error);
         ps1_textures = wo_json_bool(receipt, "ps1_textures", false);
+        if (ok) {
+            wo_progress(progress, WO_STAGE_TEXTURES, 32, "Smoothing the colour bands of the textures");
+            wo_install_debanded(mod, stage, plan, receipt, NULL);
+        }
         wo_json_free(receipt);
     }
     if (ok) {

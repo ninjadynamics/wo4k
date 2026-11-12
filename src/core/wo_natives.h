@@ -29,6 +29,7 @@
 #include "core/wo_base.h"
 #include "core/wo_hashcache.h"
 #include "core/wo_json.h"
+#include "core/wo_texfmt.h"
 
 #define WO_PS1_EDITION "WipEout 2097 Europe SLES-00327"
 
@@ -85,6 +86,10 @@ void wo_sheet_builder_free(WoSheetBuilder *builder);
  * pristine RGB555 TGA held in memory. Counts are added to counts. */
 bool wo_sheet_builder_apply(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
                             uint8_t *sheet, size_t len, WoNativeCounts *counts, WoError *error);
+/* Everything a build pastes on the sheet: those operations, then the frames
+ * of the PlayStation scenery archive in place for it. */
+bool wo_sheet_builder_compose(WoSheetBuilder *builder, const WoJson *plan, const char *atlas,
+                              uint8_t *sheet, size_t len, WoNativeCounts *counts, WoError *error);
 
 typedef struct WoNativeOptions {
     const char *game_root;
@@ -130,6 +135,42 @@ bool wo_scenery_covers(const WoScenery *scenery, const char *native, int64_t pag
  * wo_free). None when the name has no decodable source. */
 bool wo_scenery_places(WoScenery *scenery, const char *png, WoSceneryPlace **places,
                        size_t *count, WoError *error);
+
+/* --- What the sheets show -----------------------------------------------------------
+ * Every picture a build pastes on the plan's Hi-res sheets (the ones the
+ * game loads), in the order it is pasted: the operations in effect on a
+ * sheet, then the frames of the PlayStation scenery archive in place for
+ * it. Where two overlap, the later one is what the sheet shows. Nothing is
+ * written. */
+typedef enum WoRegionSource {
+    WO_REGION_FRAME,  /* frame `number` of an archive */
+    WO_REGION_ROAD,   /* road material `number` at size `level`, composed of `tiles` */
+    WO_REGION_SCENERY /* frame `number` of the scenery archive in place for a track */
+} WoRegionSource;
+
+typedef struct WoSheetRegion {
+    const char *atlas; /* the sheet, as the plan names it */
+    int64_t x;
+    int64_t y;
+    int64_t width;
+    int64_t height;
+    WoRegionSource source;
+    /* FRAME and ROAD: the archive (for a road, its tile library) by its
+     * path on the PlayStation disc, "COMMON/RESCU.CMP", whether read from
+     * the imported disc or from the PC's byte-identical copy; NULL for a
+     * picture only the PC has. SCENERY: the track, "TRACK13". */
+    const char *file;
+    int64_t number;
+    int64_t level;
+    const uint16_t *tiles; /* ROAD: the library frames, row by row */
+    size_t tile_count;
+    const WoNativeImage *picture;
+} WoSheetRegion;
+
+typedef bool (*WoSheetRegionFn)(void *context, const WoSheetRegion *region, WoError *error);
+
+bool wo_natives_regions(const char *game_root, const WoJson *plan, WoSheetRegionFn visit,
+                        void *context, WoError *error);
 
 /* Build every sheet in the plan and write textures/selection.json. Each
  * sheet is built in memory and then replaces the old one atomically.

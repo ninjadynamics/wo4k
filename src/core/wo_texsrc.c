@@ -254,10 +254,10 @@ bool wo_texsrc_frame(WoTexSources *sources, const char *path, const char *wad,
     return true;
 }
 
-bool wo_texsrc_road(WoTexSources *sources, const char *wad, const char *library,
-                    const char *table, int64_t material, int64_t level, WoNativeImage *out,
-                    WoError *error) {
-    memset(out, 0, sizeof(*out));
+bool wo_texsrc_road_tiles(WoTexSources *sources, const char *wad, const char *table,
+                          int64_t material, int64_t level, uint16_t tiles[WO_TEXSRC_ROAD_TILES],
+                          size_t *count, WoError *error) {
+    *count = 0;
     if (level != 128 && level != 64 && level != 32) {
         return wo_fail(error, WO_ERR_FORMAT, "Invalid road texture size %lld.", (long long)level);
     }
@@ -270,15 +270,32 @@ bool wo_texsrc_road(WoTexSources *sources, const char *wad, const char *library,
         return wo_fail(error, WO_ERR_FORMAT, "Invalid road layout entry %lld in %s.",
                        (long long)material, text(table));
     }
+    size_t side = (size_t)level / ROAD_TILE;
+    size_t start = (size_t)material * ROAD_RECORD + (level == 128 ? 0 : level == 64 ? 32 : 40);
+    for (size_t i = 0; i < side * side; i++) {
+        tiles[i] = (uint16_t)(((unsigned)refs[start + i * 2] << 8) | refs[start + i * 2 + 1]);
+    }
+    *count = side * side;
+    return true;
+}
+
+bool wo_texsrc_road(WoTexSources *sources, const char *wad, const char *library,
+                    const char *table, int64_t material, int64_t level, WoNativeImage *out,
+                    WoError *error) {
+    memset(out, 0, sizeof(*out));
+    uint16_t tiles[WO_TEXSRC_ROAD_TILES];
+    size_t count = 0;
+    if (!wo_texsrc_road_tiles(sources, wad, table, material, level, tiles, &count, error)) {
+        return false;
+    }
     size_t size = (size_t)level;
     size_t side = size / ROAD_TILE;
-    size_t start = (size_t)material * ROAD_RECORD + (size == 128 ? 0 : size == 64 ? 32 : 40);
     uint16_t *pixels = wo_alloc_array(size * size, sizeof(uint16_t), error);
     if (!pixels) {
         return false;
     }
-    for (size_t i = 0; i < side * side; i++) {
-        unsigned tile = ((unsigned)refs[start + i * 2] << 8) | refs[start + i * 2 + 1];
+    for (size_t i = 0; i < count; i++) {
+        unsigned tile = tiles[i];
         WoNativeImage piece;
         if (!wo_texsrc_frame(sources, NULL, wad, library, false, tile, &piece, error)) {
             wo_free(pixels);

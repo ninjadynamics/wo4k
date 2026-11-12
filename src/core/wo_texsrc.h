@@ -43,4 +43,11 @@ bool wo_texsrc_road(WoTexSources *sources, const char *wad, const char *library,
                     const char *table, int64_t material, int64_t level, WoNativeImage *out,
                     WoError *error);
 
+#define WO_TEXSRC_ROAD_TILES 16
+/* The library frames that make up the material at that size, row by row:
+ * *count is 16, 4 or 1. */
+bool wo_texsrc_road_tiles(WoTexSources *sources, const char *wad, const char *table,
+                          int64_t material, int64_t level, uint16_t tiles[WO_TEXSRC_ROAD_TILES],
+                          size_t *count, WoError *error);
+
 #endif

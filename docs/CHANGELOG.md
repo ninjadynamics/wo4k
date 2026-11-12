@@ -53,6 +53,15 @@
   PlayStation's model gives every pylon the same name, so the trains stood
   still. Where the ends are not named, WO4K now measures the line between
   the two pylons furthest apart.
+- Smooth the colour bands of the PlayStation's textures. Its textures have
+  16 or 256 colours, so a gradient shows as bands. Setup, and Play once
+  after this update, now debands the textures the game shows (scenery,
+  road, ships, shared and effect textures) on your own PC from your own
+  game files, each at the strength chosen for it: most smoothed, a few
+  with their details protected, and 119 left exactly as they are. The game
+  lays the result over its texture sheets in full colour, under any HD
+  texture. It takes about five seconds, once, and follows the HD textures
+  setting.
 - Let Valparaiso's waterfall fall. On the PlayStation the game moves twelve
   of the waterfall picture's sixteen colours along by one place at every
   step, so that bands of white water run down it. The PC game kept that

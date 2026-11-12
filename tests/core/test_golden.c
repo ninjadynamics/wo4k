@@ -259,8 +259,13 @@ static void test_hd_regions_match(void) {
     if (!wo_is_file(installed)) {
         skip("no wobble/textures/hd-regions.bin");
     } else {
-        CHECK_OK(wo_read_json("manifests/hd-textures.json", 16 << 20, &catalog, &error), &error);
-        WoHdOptions options = {catalog, "assets/hd", "assets/hd", game, NULL, NULL};
+        /* With the plan: placements on sheets relaid for the PlayStation's
+         * scenery are found by their pictures, as Play finds them. */
+        WoJson *plan = NULL;
+        CHECK_OK(wo_read_json("manifests/hd-textures.json", 16 << 20, &catalog, &error) &&
+                     wo_read_json("manifests/texture-selection.json", 32 << 20, &plan, &error),
+                 &error);
+        WoHdOptions options = {catalog, "assets/hd", "assets/hd", game, NULL, plan};
         WoHdRegionIndex index;
         WoHdResult result;
         CHECK_OK(wo_hd_build_index(&options, &index, &result, &error), &error);
@@ -276,6 +281,7 @@ static void test_hd_regions_match(void) {
         wo_buf_free(&built);
         wo_hd_regions_free(&index);
         wo_hd_result_free(&result);
+        wo_json_free(plan);
     }
     wo_json_free(catalog);
     wo_free(installed);
@@ -323,8 +329,8 @@ static void test_native_sheets_match(void) {
         WoBuf sheet = {0};
         char built[WO_SHA256_HEX_SIZE];
         CHECK_OK(pristine && wo_read_file(pristine, 64 << 20, &sheet, &error) &&
-                     wo_sheet_builder_apply(builder, plan, atlas, sheet.data, sheet.len, &counts,
-                                            &error) &&
+                     wo_sheet_builder_compose(builder, plan, atlas, sheet.data, sheet.len, &counts,
+                                              &error) &&
                      wo_sha256_mem(sheet.data, sheet.len, built, &error),
                  &error);
         if (sheet.len && wo_digest_eq(built, hash)) {

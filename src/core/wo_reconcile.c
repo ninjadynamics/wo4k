@@ -465,6 +465,9 @@ static bool ensure_native_textures(const WoMod *mod, const WoConfig *config, con
         options.cache = cache;
         set_stage(progress, WO_STAGE_TEXTURES);
         ok = wo_natives_install(&options, &native_receipt, error);
+        if (ok) {
+            wo_install_debanded(mod, mod->game, plan, native_receipt, cache);
+        }
     }
     *ps1_textures = wo_json_bool(native_receipt, "ps1_textures", false);
     if (ok && source[0]) {

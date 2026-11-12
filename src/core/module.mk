@@ -2,8 +2,10 @@
 # layer (*_win.c). Every program and test links build/lib/libwocore.a.
 
 CORE_SOURCES := $(sort $(wildcard src/core/*.c))
+# The debanding filter is the maintainer tool's own (tools/deband/filter.c);
+# wo_deband.c runs it on the player's machine.
 CORE_OBJECTS := $(patsubst %.c,$(BUILD)/obj/%.o,$(CORE_SOURCES)) \
-	$(BUILD)/obj/third_party/miniz/miniz.o
+	$(BUILD)/obj/third_party/miniz/miniz.o $(BUILD)/obj/tools/deband/filter.o
 CORE_LIB := $(BUILD)/lib/libwocore.a
 DEPFILES += $(CORE_OBJECTS:.o=.d)
 HELP_TARGETS += core

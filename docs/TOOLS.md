@@ -85,16 +85,21 @@ tools\deband\deband.exe -z assets\hd
 
 `-h` shows the available options. Use `-o` with a separate output directory to
 retain the source images. FFmpeg is preferred for debanding when installed,
-with a native C fallback; trimming needs no FFmpeg. Debanded PNG output is
+with a native C fallback; trimming needs no FFmpeg. The filter itself
+(`tools/deband/filter.c`) is also built into Setup and Play. Debanded PNG output is
 trimmed automatically. See [the tool's README](../tools/deband/README.md) and
 [the local notes](../tools/deband/LOCAL.md). The executable and processed
 artwork remain ignored, and this maintainer tool is excluded from game
 releases.
 
 `tools/Deband-Ps1Textures.py --disc <PlayStation ZIP or .bin>` exports every
-texture frame on a PlayStation disc to `assets/sd/` (see-through texels
-transparent), debands the set into `assets/sd-debanded/` and builds a
+texture frame on a PlayStation disc to `assets/sd-original/` (see-through
+texels transparent), debands the set into `assets/sd-debanded/` and builds a
 left/right comparison page in `exports/ps1-deband-comparison/`. Scenery
 frames whose borders meet in the track models are debanded with a margin of
 their neighbours, so a gradient crossing two frames gets one ramp. Both
-folders are generated and ignored.
+folders are generated and ignored. The page exports the choices as JSON:
+saved as `manifests/deband-selection.json`, they are what Setup and Play
+deband the game's textures by (see
+[the texture notes](NATIVE-TEXTURES.md#debanded-textures)). `assets/sd/` is
+that step's output, not this tool's.

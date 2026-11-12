@@ -154,3 +154,92 @@ static void test_hd_region_assets(void){
     hd_region_paste(keyed_page,256,&painted,paint,4,1);
     if(under[3] || under[7]!=255)ExitProcess(251);
 }
+/* The installer's debanded pictures change colours only: where the sheet
+ * shows a texel the picture's colour is taken, over the whole block the
+ * texel fills on a larger page; where the sheet is keyed, or the picture
+ * see-through, the sheet's own stays. */
+static void test_sd_regions(void){
+    static BYTE page[512*512*4],picture[2*4];
+    static HdRegion region;region.x=10;region.y=20;region.width=2;region.height=1;
+    for(UINT y=40;y<42;++y)for(UINT x=20;x<22;++x){BYTE *p=page+(y*512+x)*4;p[0]=1;p[1]=2;p[2]=3;p[3]=255;}
+    picture[0]=50;picture[1]=60;picture[2]=70;picture[3]=255;
+    picture[4]=80;picture[5]=90;picture[6]=100;picture[7]=255;
+    sd_region_paste(page,512,&region,picture);
+    for(UINT y=40;y<42;++y)for(UINT x=20;x<22;++x){
+        const BYTE *p=page+(y*512+x)*4;if(p[0]!=50 || p[1]!=60 || p[2]!=70 || p[3]!=255)ExitProcess(310);
+    }
+    /* The second texel is keyed on the sheet; beside and below nothing is touched. */
+    for(UINT y=40;y<43;++y)for(UINT x=22;x<25;++x)if(*(DWORD *)(page+(y*512+x)*4))ExitProcess(311);
+    if(*(DWORD *)(page+(42*512+20)*4) || *(DWORD *)(page+(39*512+20)*4) || *(DWORD *)(page+(40*512+19)*4))ExitProcess(311);
+    picture[3]=0;picture[0]=9;
+    sd_region_paste(page,512,&region,picture);
+    if(page[(40*512+20)*4]!=50 || page[(40*512+20)*4+3]!=255)ExitProcess(312);
+}
+/* The layer as installed here: every page the installer's index names is
+ * composed, and each debanded picture on it shows exactly so, under any HD
+ * replacement and over nothing else. */
+static BOOL sd_test_overlaid(const char *filename,const HdRegion *r){
+    WCHAR path[MAX_PATH];
+    for(UINT k=0;k<hd_region_count;++k){
+        const HdRegion *h=hd_regions+k;
+        if(h->page==r->page && startup_name(filename,h->native) && h->x<r->x+r->width && r->x<h->x+h->width &&
+           h->y<r->y+r->height && r->y<h->y+h->height && hd_path(path,h->png) && hd_exists(path))return TRUE;
+    }
+    return FALSE;
+}
+static void test_sd_region_assets(void){
+    WCHAR enabled[2],art[MAX_PATH],root[MAX_PATH],smooth[MAX_PATH];
+    if(!GetEnvironmentVariableW(L"WO_TEST_HD_REGION_ASSETS",enabled,2))return;
+    if(!GetEnvironmentVariableW(L"WO_TEST_FRAME_ART_ROOT",art,MAX_PATH) || !GetEnvironmentVariableW(L"WO_TEST_GAME_ROOT",root,MAX_PATH))ExitProcess(314);
+    ui_hd_directory[0]=ui_hd_game_root[0]=ui_sd_directory[0]=0;
+    if(!hd_append(ui_hd_directory,MAX_PATH,art) || !hd_append(ui_hd_directory,MAX_PATH,L"\\") ||
+       !hd_append(ui_hd_game_root,MAX_PATH,root) || !hd_append(ui_hd_game_root,MAX_PATH,L"\\"))ExitProcess(314);
+    /* Beside the HD artwork, unless the test is pointed elsewhere. */
+    if(GetEnvironmentVariableW(L"WO_TEST_SD_ART_ROOT",smooth,MAX_PATH)){
+        if(!hd_append(ui_sd_directory,MAX_PATH,smooth) || !hd_append(ui_sd_directory,MAX_PATH,L"\\"))ExitProcess(314);
+    }else if(!hd_append(ui_sd_directory,MAX_PATH,art) || !hd_append(ui_sd_directory,MAX_PATH,L"\\..\\sd\\"))ExitProcess(314);
+    hd_load_region_index();if(!sd_region_count)return;
+    UINT pages_checked=0,pictures=0,changed=0;
+    for(UINT i=0;i<sd_region_count;++i){
+        const HdRegion *first=sd_regions+i;BOOL seen=FALSE;
+        for(UINT j=0;j<i;++j)if(sd_regions[j].page==first->page && equal((const BYTE *)sd_regions[j].native,(const BYTE *)first->native,32))seen=TRUE;
+        if(seen)continue;
+        static char filename[80]="Pics\\Hi-res\\";UINT at=12;
+        const char *p=first->native;while((*((char *)filename+at++)=*p++)){}
+        WCHAR sheet[MAX_PATH],name[32];sheet[0]=0;
+        for(UINT j=0;j<32;++j)name[j]=(BYTE)first->native[j];
+        if(!hd_append(sheet,MAX_PATH,ui_hd_game_root) || !hd_append(sheet,MAX_PATH,L"textures\\sd\\Pics\\Hi-res\\") || !hd_append(sheet,MAX_PATH,name))ExitProcess(315);
+        HANDLE file=CreateFileW(sheet,GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+        BYTE header[18];DWORD read=0;
+        if(file==INVALID_HANDLE_VALUE || !ReadFile(file,header,18,&read,0) || read!=18)ExitProcess(315);CloseHandle(file);
+        UINT pages=*(WORD *)(header+12)/256,size=0;
+        WCHAR whole[MAX_PATH];BOOL strip=FALSE;
+        if(hd_find(filename,first->page,whole,&strip))continue; /* a replacement for the whole page */
+        BYTE *page=hd_asset_pixels(filename,first->page,pages,&size);
+        BYTE *native=page?hd_native_page(filename,first->page,pages,size):0;
+        if(!native){
+            /* No page is made only where none of its pictures is there. */
+            WCHAR path[MAX_PATH];
+            for(UINT j=i;j<sd_region_count;++j)if(sd_region_file(sd_regions+j,filename,first->page,path))ExitProcess(316);
+            continue;
+        }
+        UINT scale=size/256;
+        for(UINT j=i;j<sd_region_count;++j){
+            const HdRegion *r=sd_regions+j;WCHAR path[MAX_PATH];
+            if(r->page!=first->page || !equal((const BYTE *)r->native,(const BYTE *)first->native,32) || sd_test_overlaid(filename,r))continue;
+            UINT w=0,h=0;BYTE *image=sd_region_file(r,filename,first->page,path)?read_art_png(path,&w,&h):0;
+            if(image && (w!=r->width || h!=r->height))ExitProcess(317);
+            for(UINT y=0;y<r->height*scale;++y)for(UINT x=0;x<r->width*scale;++x){
+                UINT where=((r->y*scale+y)*size+r->x*scale+x)*4;
+                const BYTE *shown=page+where,*sheet_texel=native+where,*smooth_texel=image?image+((y/scale)*w+x/scale)*4:0;
+                const BYTE *wanted=smooth_texel && sheet_texel[3] && smooth_texel[3]?smooth_texel:sheet_texel;
+                if(shown[0]!=wanted[0] || shown[1]!=wanted[1] || shown[2]!=wanted[2] || shown[3]!=sheet_texel[3])ExitProcess(318);
+                if(wanted!=sheet_texel && !equal(wanted,sheet_texel,3))++changed;
+            }
+            if(image){VirtualFree(image,0,MEM_RELEASE);++pictures;}
+        }
+        VirtualFree(native,0,MEM_RELEASE);VirtualFree(page,0,MEM_RELEASE);++pages_checked;
+    }
+    /* A layer that changes nothing would pass everything above. */
+    if(pages_checked && pictures && !changed)ExitProcess(319);
+}

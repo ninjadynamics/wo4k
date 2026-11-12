@@ -303,7 +303,7 @@ def main():
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--disc', type=Path, required=True, help='PlayStation disc: ZIP or data-track .bin')
-    parser.add_argument('--output', type=Path, default=root / 'assets/sd')
+    parser.add_argument('--output', type=Path, default=root / 'assets/sd-original')
     parser.add_argument('--debanded', type=Path, default=root / 'assets/sd-debanded')
     parser.add_argument('--page', type=Path, default=root / 'exports/ps1-deband-comparison')
     parser.add_argument('--deband', nargs=argparse.REMAINDER, default=[],

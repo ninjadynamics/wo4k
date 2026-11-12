@@ -39,4 +39,5 @@ __pycache__/
 *.py[cod]
 
 assets/sd/
+assets/sd-original/
 assets/sd-debanded/

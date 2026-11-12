@@ -463,6 +463,8 @@ void __stdcall test_entry(void){
         if(seconds<1 || seconds>25 || !ui_last_time.QuadPart)ExitProcess(40);
     }
     test_hd_region_assets();
+    test_sd_regions();
+    test_sd_region_assets();
     test_screenshot(image);
     test_projected_shadow_motion(image);
     ExitProcess(0);
