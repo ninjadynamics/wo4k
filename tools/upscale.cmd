@@ -67,8 +67,18 @@ if exist "%output%\*.png" (
 )
 echo.
 echo Upscaling %input% with %name% at %scale%x ...
-"%upscayl%" -i "%input%" -o "%output%" -s %scale% -m "%models%" -n %name% -f png
-set "result=%errorlevel%"
+rem One picture at a time: given the whole folder, Upscayl ran out of memory
+rem and wrote the larger pictures blank.
+set "result=0"
+set done=0
+for %%f in ("%input%\*.png") do (
+    "%upscayl%" -i "%%f" -o "%output%\%%~nxf" -s %scale% -m "%models%" -n %name% -f png >nul 2>&1
+    if errorlevel 1 (echo failed: %%~nxf& set "result=1")
+    set /a done+=1
+    set /a rest=done %% 25
+    if !rest!==0 echo   !done! done
+)
+echo %done% pictures.
 
 rem The waterfall is animated from its palette; a still picture of it would
 rem only be painted over.
