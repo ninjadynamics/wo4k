@@ -64,25 +64,17 @@ static BOOL wo_startup_keep_code_executable(BYTE *image){
  * the game then wrote through the null pointer it got. Reserve 8 MB instead:
  * the block is allocated once and its size is passed again at each of the
  * four places that empty it. The allocator skips free blocks of 0x800000
- * bytes or more, so the arena stays just below that.
- *
- * A second pool of 0.6 MB lives for the whole session and is never emptied.
- * With the larger scenery it ran short after a few races (Gare d'Europa,
- * Talon's Reach, Gare d'Europa again drew the track with pieces missing).
- * It is sized from its allocation, so only that grows, to 4 MB. */
+ * bytes or more, so the arena stays just below that. */
 #define WO_ARENA_BYTES 0x7e0000u
-#define WO_POOL_BYTES 0x400000u
 static BOOL wo_startup_grow_arena(BYTE *image){
-    static const DWORD reserve=0x2eb97,pool=0x2eb7a,resets[]={0x2ebb9,0x29ba0,0x2bf96,0x3324a};
+    static const DWORD reserve=0x2eb97,resets[]={0x2ebb9,0x29ba0,0x2bf96,0x3324a};
     if(image[reserve-1]!=0x68 || *(DWORD *)(image+reserve)!=0x1ce800)return FALSE;
-    if(image[pool-1]!=0x68 || *(DWORD *)(image+pool)!=0x95000)return FALSE;
     for(UINT i=0;i<sizeof(resets)/sizeof(resets[0]);++i)
         if(image[resets[i]-1]!=0x68 || *(DWORD *)(image+resets[i])!=0x1c2000)return FALSE;
-    for(UINT i=0;i<=sizeof(resets)/sizeof(resets[0])+1;++i){
-        UINT count=sizeof(resets)/sizeof(resets[0]);
-        BYTE *at=image+(i==0?reserve:i<=count?resets[i-1]:pool);DWORD old,ignored;
+    for(UINT i=0;i<=sizeof(resets)/sizeof(resets[0]);++i){
+        BYTE *at=image+(i?resets[i-1]:reserve);DWORD old,ignored;
         if(!VirtualProtect(at,4,PAGE_EXECUTE_READWRITE,&old))return FALSE;
-        *(DWORD *)at=i==0?WO_ARENA_BYTES+0x10000:i<=count?WO_ARENA_BYTES:WO_POOL_BYTES;
+        *(DWORD *)at=i?WO_ARENA_BYTES:WO_ARENA_BYTES+0x10000;
         FlushInstructionCache(GetCurrentProcess(),at,4);
         VirtualProtect(at,4,old,&ignored);
     }
