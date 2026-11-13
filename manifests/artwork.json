@@ -270,29 +270,5 @@
     "sha256": "0cdf6593e24d2c65b482cf8ba1dfd6fa7d70fbe76f750a91a9bc7365f2d20b18",
     "license": "MIT for mod contributions",
     "provenance": "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
-  },
-  {
-    "file": "assets/auth/track20-scene-cmp-30.png",
-    "width": 128,
-    "height": 64,
-    "sha256": "5e16a97ce3f1c1fb17c1762a4537568682cbc2f452f5ef6b316e04b440e655c9",
-    "license": "MIT for mod contributions",
-    "provenance": "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
-  },
-  {
-    "file": "assets/auth/track20-scene-cmp-31.png",
-    "width": 128,
-    "height": 64,
-    "sha256": "8dbac028eed088bf35d0e4476f0e0bfa6852717676f8bab613e3bc5cbee728c0",
-    "license": "MIT for mod contributions",
-    "provenance": "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
-  },
-  {
-    "file": "assets/auth/track20-scene-cmp-32.png",
-    "width": 128,
-    "height": 64,
-    "sha256": "3fea1cebad3219fa19d4e6af134f1ea64e23405047655c422d5398593a14759c",
-    "license": "MIT for mod contributions",
-    "provenance": "Contributor-enhanced artwork based on user-supplied original WipEout artwork; original creators retain attribution."
   }
 ]
