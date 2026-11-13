@@ -1,6 +1,6 @@
 ﻿# Beta release changes
 
-## Unreleased
+## 0.2.0-beta.11
 
 - Setup: a "Show FPS counter" box and an "Adjust shadows / highlights" dialog with
   two sliders and a preview of a race as the settings light it. Both change
