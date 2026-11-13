@@ -141,9 +141,9 @@ static BOOL palette_cycle_find(const BYTE *archive,UINT length,WORD *palette) {
     }
     VirtualFree(pictures,0,MEM_RELEASE);return found;
 }
-static BYTE *palette_cycle_archive(UINT track,UINT *length) {
-    WCHAR path[MAX_PATH],name[]=L"TRACK00\\TRACK.WAD";path[0]=0;
-    name[5]=(WCHAR)(L'0'+track/10%10);name[6]=(WCHAR)(L'0'+track%10);
+/* A file of the game's folder, whole. */
+static BYTE *hd_game_file(const WCHAR *name,UINT *length) {
+    WCHAR path[MAX_PATH];path[0]=0;*length=0;
     if(!hd_append(path,MAX_PATH,ui_hd_game_root) || !hd_append(path,MAX_PATH,name))return 0;
     HANDLE file=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);if(file==INVALID_HANDLE_VALUE)return 0;
     LARGE_INTEGER size;BYTE *data=0;DWORD read=0;
@@ -153,6 +153,11 @@ static BYTE *palette_cycle_archive(UINT track,UINT *length) {
         VirtualFree(data,0,MEM_RELEASE);data=0;
     }
     CloseHandle(file);*length=read;return data;
+}
+static BYTE *palette_cycle_archive(UINT track,UINT *length) {
+    WCHAR name[]=L"TRACK00\\TRACK.WAD";
+    name[5]=(WCHAR)(L'0'+track/10%10);name[6]=(WCHAR)(L'0'+track%10);
+    return hd_game_file(name,length);
 }
 /* The game reads the palette here, on the one track that has it, before it
  * loads the track's sheet. */

@@ -16,7 +16,7 @@
 #include "core/wo_texsrc.h"
 
 /* Bump when the filter or anything else here changes what is written. */
-#define DEBAND_REVISION 1
+#define DEBAND_REVISION 2
 #define SELECTION_MAX_BYTES (32u * 1024u * 1024u)
 #define RECEIPT_MAX_BYTES (4u * 1024u * 1024u)
 #define ARCHIVE_MAX_BYTES (64u * 1024u * 1024u)
@@ -414,6 +414,7 @@ typedef struct Track {
     size_t count;
     WoDebandJoin *joins;
     WoNativeImage advert; /* first frame of the track's advert file, if it has one */
+    WoNativeImage slogan; /* its second, which the boards show in turn with the first */
 } Track;
 
 typedef struct Tracks {
@@ -431,6 +432,7 @@ static void tracks_free(Tracks *tracks) {
         wo_free(track->frames);
         wo_free(track->joins);
         wo_native_image_free(&track->advert);
+        wo_native_image_free(&track->slogan);
     }
     wo_free(tracks->items);
     memset(tracks, 0, sizeof(*tracks));
@@ -543,6 +545,10 @@ static bool tracks_get(Tracks *tracks, const char *game_root, const WoJson *plan
             if (ok && count) {
                 track->advert = frames[0];
                 memset(&frames[0], 0, sizeof(frames[0]));
+            }
+            if (ok && count > 1) {
+                track->slogan = frames[1];
+                memset(&frames[1], 0, sizeof(frames[1]));
             }
             for (size_t f = 0; f < count; f++) {
                 wo_native_image_free(&frames[f]);
@@ -932,6 +938,23 @@ static bool same_picture(const Region *region, const WoNativeImage *image) {
                    (size_t)region->width * region->height * sizeof(uint16_t));
 }
 
+/* The second picture of a track's advert file. It is on no sheet: the game
+ * paints it over the first by turns, and looks for it by its name. */
+static bool deband_slogan(Work *work, const Track *track, const char *archive, WoError *error) {
+    const Choice *choice =
+        track->slogan.pixels ? choices_find(&work->choices, archive, 1) : NULL;
+    if (!choice || choice->level == LEVEL_ORIGINAL || !valid_name(choice->file) ||
+        was_written(work, choice->file)) {
+        return true;
+    }
+    Region picture;
+    memset(&picture, 0, sizeof(picture));
+    picture.width = track->slogan.width;
+    picture.height = track->slogan.height;
+    picture.pixels = track->slogan.pixels;
+    return deband_frame(work, &picture, choice, NULL, 1, error);
+}
+
 /* The PNG that belongs on a region, written if it has not been yet; *name
  * is empty when the region keeps the sheet's texels. */
 static bool region_picture(Work *work, const Region *region, char *name, size_t name_size,
@@ -963,6 +986,9 @@ static bool region_picture(Work *work, const Region *region, char *name, size_t 
                 if (wo_str_ieq(wo_json_str(entry, "track", ""), track->name)) {
                     archive = wo_json_str(wo_json_get(entry, "boards"), "adverts", "");
                 }
+            }
+            if (archive[0] && !deband_slogan(work, track, archive, error)) {
+                return false;
             }
             frame = 0;
             track = NULL;

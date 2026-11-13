@@ -131,7 +131,8 @@ static void test_palette_cycle_assets(BYTE *image){
     if(!equal(native,painted,256*256*4))ExitProcess(301);
     VirtualFree(native,0,MEM_RELEASE);VirtualFree(painted,0,MEM_RELEASE);
 }
-static void test_palette_cycle(BYTE *image){
+/* Kept out of the caller: its frame has no room for these paths. */
+static void __attribute__((noinline)) test_palette_cycle(BYTE *image){
     static BYTE archive[1024];WORD palette[16];
     PaletteCycle saved=palette_cycle;
     /* The picture is the one the model named "wfall" is drawn with, not the
