@@ -81,6 +81,9 @@
   authored PNG where there is one, else the one in `assets/hd/`, else its
   debanded texture. Every debanded picture's filename is accepted there,
   including the 75 scenery textures only the PlayStation has.
+- Brighter scenery by default: a new installation starts with shadows
+  lifted to 200% and highlights at 250% (+ / - and Page Up / Page Down in a race; kept in
+  `Wipeout2097.ini`). An existing installation keeps its own values.
 - Make the Red Bull boards change as they do on the PlayStation. There the
   boards show the logo and the words "ENERGY DRINK" by turns, two thirds of
   a second each. The PC game still calls the routine that did it, but it
