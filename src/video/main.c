@@ -89,6 +89,10 @@ typedef struct VideoAttempt {
     bool failed;
     bool window_lost;
     LONG frames; /* --frames: frames handed to the game */
+    bool quality; /* the renderer's own count, where it keeps one */
+    int frames_drawn;
+    int frames_dropped;
+    int average_rate_x100;
     char result[256];
     double elapsed_seconds;
 } VideoAttempt;
@@ -223,6 +227,11 @@ static void video_log_closed(VideoApp *app, const VideoAttempt *attempt)
     json_member_fixed(&json, "elapsed_seconds", attempt->elapsed_seconds, 2);
     if (app->options.frames) {
         json_member_uint(&json, "frames", (uint64_t)attempt->frames);
+    }
+    if (attempt->quality) {
+        json_member_uint(&json, "frames_drawn", (uint64_t)attempt->frames_drawn);
+        json_member_uint(&json, "frames_dropped", (uint64_t)attempt->frames_dropped);
+        json_member_fixed(&json, "average_frame_rate", attempt->average_rate_x100 / 100.0, 2);
     }
     json_object_end(&json);
     video_log_event(&app->log, "video_closed",
@@ -546,6 +555,12 @@ static void video_play(VideoApp *app, const wchar_t *path,
     attempt->elapsed_seconds = (double)(GetTickCount64() - started) / 1000.0;
     if (backend != NULL && backend->frames_published != NULL) {
         attempt->frames = *backend->frames_published;
+    }
+    if (backend != NULL && backend->quality) {
+        attempt->quality = true;
+        attempt->frames_drawn = backend->frames_drawn;
+        attempt->frames_dropped = backend->frames_dropped;
+        attempt->average_rate_x100 = backend->average_rate_x100;
     }
     video_window_set_backend(&app->window, NULL);
     if (backend != NULL) {

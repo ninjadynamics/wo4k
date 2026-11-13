@@ -51,6 +51,13 @@ struct VideoBackend {
     char reason[192];
     /* --frames: frames handed to the game so far; NULL otherwise. */
     const volatile LONG *frames_published;
+    /* What the renderer reports of its own work, where it does: frames
+     * drawn and dropped so far, and a hundred times its average frame rate.
+     * A movie the PC cannot keep up with shows here. */
+    bool quality;
+    int frames_drawn;
+    int frames_dropped;
+    int average_rate_x100;
 };
 
 /* Records a failure; the first reason wins. */

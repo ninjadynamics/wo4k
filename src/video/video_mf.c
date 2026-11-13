@@ -11,8 +11,14 @@
 #include <mferror.h>
 #include <mfidl.h>
 
+#include <dshow.h>
+
 #include "video/video_evr.h"
 #include "video/video_frames.h"
+
+/* IQualProp: the renderer's own count of frames drawn and dropped. */
+static const GUID mf_iid_quality = {0x1bd0ecb0, 0xf8e2, 0x11ce,
+    {0xaa, 0xc6, 0x00, 0x20, 0xaf, 0x0b, 0x99, 0xa3}};
 
 typedef HRESULT (WINAPI *MfStartupFn)(ULONG version, DWORD flags);
 typedef HRESULT (WINAPI *MfShutdownFn)(void);
@@ -50,6 +56,7 @@ typedef struct MfPlayer {
     IMFMediaSource *source;
     IMFMediaSession *session;
     IMFVideoDisplayControl *display;
+    IQualProp *quality; /* NULL where the renderer keeps no count */
     IMFPresentationClock *clock;
     IMFSimpleAudioVolume *volume; /* muted while prerolling */
     /* --frames: a source reader hands frames to the game; the session, if
@@ -308,6 +315,10 @@ static void mf_release(MfPlayer *player)
         IMFPresentationClock_Release(player->clock);
         player->clock = NULL;
     }
+    if (player->quality != NULL) {
+        player->quality->lpVtbl->Release(player->quality);
+        player->quality = NULL;
+    }
     if (player->display != NULL) {
         IMFVideoDisplayControl_Release(player->display);
         player->display = NULL;
@@ -341,6 +352,10 @@ static void mf_topology_ready(MfPlayer *player)
         return;
     }
     video_evr_prepare(player->display);
+    if (FAILED(mf_api.get_service((IUnknown *)player->session, &MR_VIDEO_RENDER_SERVICE,
+            &mf_iid_quality, (void **)&player->quality))) {
+        player->quality = NULL;
+    }
     if (player->base.state == VIDEO_STATE_OPENING) {
         player->base.state = VIDEO_STATE_READY;
     }
@@ -477,6 +492,20 @@ static void mf_poll(VideoBackend *backend)
     }
     if (player->session == NULL) {
         return;
+    }
+    if (player->quality != NULL && backend->state == VIDEO_STATE_PLAYING) {
+        int drawn = 0;
+        int dropped = 0;
+        int rate = 0;
+        if (SUCCEEDED(player->quality->lpVtbl->get_FramesDrawn(player->quality, &drawn)) &&
+            SUCCEEDED(player->quality->lpVtbl->get_FramesDroppedInRenderer(player->quality,
+                &dropped)) &&
+            SUCCEEDED(player->quality->lpVtbl->get_AvgFrameRate(player->quality, &rate))) {
+            backend->quality = true;
+            backend->frames_drawn = drawn;
+            backend->frames_dropped = dropped;
+            backend->average_rate_x100 = rate;
+        }
     }
     for (;;) {
         IMFMediaEvent *event = NULL;
