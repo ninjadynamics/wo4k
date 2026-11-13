@@ -31,7 +31,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     int64_t y = (int8_t)data[size - 2];
     int64_t w = data[size - 3] & 7u;
     int64_t h = data[size - 4] & 7u;
-    bool patched = wo_tga_patch(copy, size, &image, x, y, w, h, &error);
+    bool opaque_black = (data[size - 3] & 8u) != 0;
+    bool patched = wo_tga_patch(copy, size, &image, x, y, w, h, opaque_black, &error);
     FUZZ_ASSERT(!patched || (valid && w == 4 && h == 4 && x >= 0 && y >= 0));
     wo_free(copy);
     return 0;
