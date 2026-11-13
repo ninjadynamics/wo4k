@@ -245,8 +245,21 @@ def main():
     corrected, patches = layout_corrections(plan['operations'])
     # With the PlayStation disc imported its track archives replace the PC
     # ones, and these sheets are laid out as the archive's TIM headers say.
-    # Not Talon's Reach: its model is the same on both, and the PlayStation
-    # layout puts its smoke texture where the PC game keeps its own effects.
+    # On Talon's Reach the PC game's own code expects two things of the
+    # sheet, and two of the PlayStation's textures are given other places
+    # for them ("moves": a texture's number and its place in video memory):
+    # - The smoke routine takes the smoke models' texture to be on the
+    #   sheet's ninth page, where the PC archive has it, and readies the
+    #   pages the smoke is drawn from only when it finds it there. The
+    #   PlayStation keeps that texture on the sixth, and the game then draws
+    #   from pages it never readied. It goes back to the PC's place.
+    # - The board routine shows the picture at the place of TH.TIM, the lucky
+    #   cat on the PC's sheet. The PlayStation has a scenery texture there,
+    #   which moves to free room beside the one on the ninth page.
+    # - The board routine changes only where on a page the boards' panels
+    #   look; the page stays the one their placeholder texture is on. The PC
+    #   archive has the placeholder inside the cat's picture, and so it is
+    #   here: it marks the page and is not pasted over the cat.
     # Trackside boards the PC scenery never had take, in turn, the pictures
     # listed here: the track's own scenery textures (scene.cmp numbers) or
     # the PlayStation's advert, the first picture of the track's advert file.
@@ -260,6 +273,9 @@ def main():
         'TRACK20': ['scene:11', 'scene:28', 'scene:30', 'scene:31', 'scene:32', 'advert'],  # Feisar Euro, FEED ME, HOTEL, Spudys, Docs
     }
 
+    moves = {'TRACK01': [{'texture': 35, 'x': 884, 'y': 198}, {'texture': 14, 'x': 864, 'y': 0},
+                         {'texture': 11, 'x': 804, 'y': 16, 'paste': False}]}
+
     def boards(track):
         entry = {'adverts': f'TEXTURES/{greek[int(track[5:])]}RED.CMP'}
         if track in board_pictures:
@@ -267,8 +283,9 @@ def main():
         return entry
 
     scenery = [{'track': track, 'boards': boards(track),
+                **({'moves': moves[track]} if track in moves else {}),
                 'atlases': [name for name in used if Path(name).stem.upper() == f'NRACE{number:02d}']}
-               for number, track in enumerate(race_order, 1) if track != 'TRACK01']
+               for number, track in enumerate(race_order, 1)]
     plan = {**{k: v for k, v in plan.items() if k != 'operations'},
             'scenery': scenery,
             'patches': patches,

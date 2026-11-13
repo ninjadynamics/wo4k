@@ -35,8 +35,26 @@ models are the later build, and the PC game places scenery textures where the
 archive's own TIM headers say. Their sheets are then laid out as PlayStation
 video memory (sheet page 0 is VRAM x 320), and HD region placements on those
 sheets are found again by picture rather than by PC coordinates. Talon's
-Reach is left out: its model is identical, and the PlayStation layout puts
-its smoke texture where the PC game keeps effects of its own, which crashes.
+Reach, whose model is the same on both, takes the disc's archive with three
+of its textures in other places (the plan's `moves`, a texture's number and
+its place in video memory), because the PC game's own code for that track
+expects three things of the sheet:
+
+- Its smoke routine takes the smoke models' texture to be on the sheet's
+  ninth page, where the PC archive has it, and readies the two pages the
+  smoke is drawn from only when it finds it there. The PlayStation keeps
+  that texture on the sixth page; the game then draws from pages it never
+  readied, and stops. The texture goes back to the PC's place.
+- Its board routine shows whatever is at the place of `TH.TIM`, which on
+  the PC's sheet is the lucky cat. The PlayStation has a scenery texture
+  there; it moves to free room on the ninth page, and the cat stays.
+- That routine changes only where on a page the boards' panels look. The
+  page stays the one their tiny placeholder texture is on: the cat's page
+  in the PC archive, where the placeholder lies inside the cat's picture,
+  and another in the PlayStation's, where the boards showed pipes. The
+  placeholder goes to the PC's place and is not pasted into the sheet
+  (`"paste": false`).
+
 The runtime enlarges the game's 1.8 MB race arena, which Gare d'Europa's
 PlayStation model overflows.
 
@@ -60,6 +78,19 @@ panels. `wo_boards.c` fills them in:
   Red Bull logo; the disc names these files after Greek letters whose
   place in the alphabet is the track's number). A quarter of the picture
   goes on each panel, as the game's own board routine lays one out.
+
+The PlayStation's routine shows the advert file's two pictures by turns,
+the logo and a slogan, changing every twentieth frame; the PC's shows one
+and never changes. The runtime does it on the texture page
+(`src/runtime/board_adverts.c`): where the track's archive holds the logo,
+its place on the page is painted with the slogan, stretched to that place
+as the panels stretch it over the board, and with the logo again, twenty
+simulation steps each. The logo is whatever the composed page shows. The
+slogan is `textures-<letter>red-cmp-1.png` from `assets/auth/` or
+`assets/hd/` if there is one, else the disc's picture with its debanded
+colours (the installer debands it with the rest, though it is on no sheet).
+Talon's Reach has no board with the logo: there the PC game's own board
+routine shows the lucky cat, still.
 
 A picture the PlayStation scenery textures do not include is added after
 them: the advert where its own header places it, which the PlayStation

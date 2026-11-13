@@ -48,4 +48,20 @@ bool wo_boards_keep(const uint8_t *ps1, size_t ps1_len, const uint8_t *pc, size_
                     const uint8_t *adverts, size_t adverts_len, const int *pictures,
                     size_t picture_count, WoBuf *out, size_t *kept, WoError *error);
 
+/* A scenery texture's new place in video memory, in words as its header
+ * has it. */
+typedef struct WoBoardMove {
+    size_t texture;
+    uint32_t x;
+    uint32_t y;
+} WoBoardMove;
+
+/* Give scenery textures of an archive other places: the PC game's code for
+ * Talon's Reach expects things of the sheet that the PlayStation layout
+ * does not keep (see the plan's "moves"). *out is the archive with those
+ * textures' headers changed; with no moves, the archive as it is. A move
+ * the archive has no texture for fails. */
+bool wo_boards_move(const uint8_t *archive, size_t len, const WoBoardMove *moves, size_t count,
+                    WoBuf *out, WoError *error);
+
 #endif

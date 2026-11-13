@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "revision": 8,
+  "revision": 10,
   "edition": "WipEout 2097 Europe SLES-00327",
   "policy": "Fixed project-time selection: PS1 unless native bytes are identical; keep PC-only assets and authored HD UI.",
   "archives": [
@@ -498,6 +498,34 @@
     }
   ],
   "scenery": [
+    {
+      "track": "TRACK01",
+      "boards": {
+        "adverts": "TEXTURES/ALPHARED.CMP"
+      },
+      "moves": [
+        {
+          "texture": 35,
+          "x": 884,
+          "y": 198
+        },
+        {
+          "texture": 14,
+          "x": 864,
+          "y": 0
+        },
+        {
+          "texture": 11,
+          "x": 804,
+          "y": 16,
+          "paste": false
+        }
+      ],
+      "atlases": [
+        "Pics/HI-RES/NRACE01.TGA",
+        "Pics/LO-RES/NRACE01.TGA"
+      ]
+    },
     {
       "track": "TRACK08",
       "boards": {

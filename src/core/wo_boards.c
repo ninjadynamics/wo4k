@@ -696,6 +696,63 @@ static bool keep_boards(Boards *b, const uint8_t *ps1, size_t ps1_len, const uin
     return true;
 }
 
+bool wo_boards_move(const uint8_t *archive, size_t len, const WoBoardMove *moves, size_t count,
+                    WoBuf *out, WoError *error) {
+    out->len = 0;
+    if (!count) {
+        return wo_buf_append(out, archive, len, error);
+    }
+    Scene scene;
+    if (!scene_open(archive, len, &scene, error)) {
+        return false;
+    }
+    const WoCmp *frames = &scene.frames;
+    WoBuf *tims = scene.known ? wo_alloc_array(frames->count ? frames->count : 1, sizeof(*tims), error)
+                              : NULL;
+    const uint8_t **entries = tims ? wo_alloc_array(frames->count ? frames->count : 1,
+                                                    sizeof(*entries), error)
+                                   : NULL;
+    size_t *sizes = entries ? wo_alloc_array(frames->count ? frames->count : 1, sizeof(size_t), error)
+                            : NULL;
+    bool ok = sizes != NULL;
+    if (!scene.known) {
+        ok = wo_fail(error, WO_ERR_FORMAT, "The track archive's scenery could not be read.");
+    }
+    if (tims) {
+        memset(tims, 0, (frames->count ? frames->count : 1) * sizeof(*tims));
+    }
+    for (size_t i = 0; ok && i < frames->count; i++) {
+        entries[i] = frames->data + frames->offsets[i];
+        sizes[i] = frames->sizes[i];
+    }
+    for (size_t i = 0; ok && i < count; i++) {
+        size_t texture = moves[i].texture;
+        if (texture >= frames->count || tims[texture].len) {
+            ok = wo_fail(error, WO_ERR_FORMAT, "The track archive has no scenery texture %zu to move.",
+                         texture);
+            break;
+        }
+        ok = wo_buf_append(&tims[texture], entries[texture], sizes[texture], error) &&
+             wo_tim_move(tims[texture].data, tims[texture].len, moves[i].x, moves[i].y, error);
+        entries[texture] = tims[texture].data;
+    }
+    WoBuf textures = {0};
+    WoBuf models = {0};
+    ok = ok && wo_cmp_encode(entries, sizes, frames->count, &textures, error) &&
+         wo_buf_append(&models, scene.prm, scene.models->size, error) &&
+         write_archive(archive, &scene, &models, &textures, out, error);
+    wo_buf_free(&models);
+    wo_buf_free(&textures);
+    for (size_t i = 0; tims && i < frames->count; i++) {
+        wo_buf_free(&tims[i]);
+    }
+    wo_free(sizes);
+    wo_free((void *)entries);
+    wo_free(tims);
+    scene_free(&scene);
+    return ok;
+}
+
 bool wo_boards_keep(const uint8_t *ps1, size_t ps1_len, const uint8_t *pc, size_t pc_len,
                     const uint8_t *adverts, size_t adverts_len, const int *pictures,
                     size_t picture_count, WoBuf *out, size_t *kept, WoError *error) {

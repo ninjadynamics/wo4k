@@ -3,11 +3,17 @@
 ## Unreleased
 
 - Use the PlayStation's scenery. The PC release shipped an earlier build of
-  the trackside models and textures; with a PlayStation disc selected, seven
-  tracks now load the PlayStation's track archives, with their sheets laid
-  out the PlayStation way and HD textures following. Talon's Reach, whose
-  model is the same on both, keeps the PC archive. The game's memory arena
-  is enlarged from 1.8 MB to 8 MB, which the larger models need.
+  the trackside models and textures; with a PlayStation disc selected, the
+  eight tracks now load the PlayStation's track archives, with their sheets
+  laid out the PlayStation way and HD textures following. The game's memory
+  arena is enlarged from 1.8 MB to 8 MB, which the larger models need. On
+  Talon's Reach, whose model is the same on both, three textures keep other
+  places than the PlayStation's: the PC game's smoke routine looks for the
+  smoke's texture on one page of the track's sheet and stops the game if it
+  is elsewhere, and its board routine reads the lucky cat from a page and a
+  place that the PlayStation uses for other things. A few of that track's textures
+  change with the archive, among them the purple WipEout billboard, which
+  becomes the PlayStation's FSOL one.
 - Accept the USA and Japan PlayStation discs for original artwork, not only
   the European one. Their texture and track files are identical.
 - Remove the yellow-green lines on Odessa Keys' blue buildings (the clock
@@ -75,6 +81,14 @@
   authored PNG where there is one, else the one in `assets/hd/`, else its
   debanded texture. Every debanded picture's filename is accepted there,
   including the 75 scenery textures only the PlayStation has.
+- Make the Red Bull boards change as they do on the PlayStation. There the
+  boards show the logo and the words "ENERGY DRINK" by turns, two thirds of
+  a second each. The PC game still calls the routine that did it, but it
+  shows one picture and never changes it. On Valparaiso and Phenitia Park,
+  whose boards show the logo, WO4K now paints the second picture of the
+  disc's advert over the logo and the logo back again, at the PlayStation's
+  pace. Play makes the debanded form of the second picture once on its next
+  launch.
 - Let Valparaiso's waterfall fall. On the PlayStation the game moves twelve
   of the waterfall picture's sixteen colours along by one place at every
   step, so that bands of white water run down it. The PC game kept that

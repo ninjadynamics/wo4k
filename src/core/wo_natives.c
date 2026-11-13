@@ -489,7 +489,9 @@ typedef struct RegionObserver {
  * kept under textures/native-source. Its frames are left in the sheet where
  * the PlayStation ones do not cover them: the PC archive repeats textures
  * the game also loads from the shared archives (the start gantry), which
- * the PlayStation models still use at those places. */
+ * the PlayStation models still use at those places. An entry's "moves"
+ * give textures of the PlayStation archive other places, where the PC
+ * game's code for the track expects something of the sheet (wo_boards.h). */
 #define SCENERY_VRAM_X 320
 
 static bool file_is(const char *path, const char *expected);
@@ -519,6 +521,9 @@ typedef struct SceneryWads {
     char *adverts; /* the PlayStation's board pictures for the track, or NULL */
     int pictures[SCENERY_BOARD_PICTURES]; /* see wo_boards_keep */
     size_t picture_count;
+    WoBoardMove moves[SCENERY_BOARD_PICTURES]; /* see wo_boards_move */
+    bool unpasted[SCENERY_BOARD_PICTURES];     /* a move whose texture the sheet does not show */
+    size_t move_count;
 } SceneryWads;
 
 static void scenery_wads_free(SceneryWads *wads) {
@@ -563,6 +568,18 @@ static bool scenery_wads(const char *game_root, const WoJson *entry, SceneryWads
         }
         wads->pictures[wads->picture_count++] = number;
     }
+    /* "moves": scenery textures that need another place than the
+     * PlayStation's, each {"texture", "x", "y"} as a TIM header has them.
+     * With "paste": false the texture only marks a place: the sheet keeps
+     * what it has there. */
+    const WoJson *moves = wo_json_get(entry, "moves");
+    for (size_t i = 0; i < wo_json_length(moves) && i < SCENERY_BOARD_PICTURES; i++) {
+        const WoJson *move = wo_json_at(moves, i);
+        wads->unpasted[wads->move_count] = !wo_json_bool(move, "paste", true);
+        wads->moves[wads->move_count++] =
+            (WoBoardMove){(size_t)wo_json_int(move, "texture", -1),
+                          (uint32_t)wo_json_int(move, "x", 0), (uint32_t)wo_json_int(move, "y", 0)};
+    }
     wo_free(pc);
     wo_free(ps1);
     wo_free(relative);
@@ -581,13 +598,16 @@ static bool scenery_wanted(const SceneryWads *wads, WoBuf *out, WoError *error) 
     WoBuf ps1 = {0};
     WoBuf pc = {0};
     WoBuf adverts = {0};
+    WoBuf boarded = {0};
     bool ok = wo_read_file(wads->ps1, WO_TEXSRC_MAX_FILE_BYTES, &ps1, error) &&
               (!wo_is_file(wads->pc) ||
                wo_read_file(wads->pc, WO_TEXSRC_MAX_FILE_BYTES, &pc, error)) &&
               (!wads->adverts || !wo_is_file(wads->adverts) ||
                wo_read_file(wads->adverts, WO_TEXSRC_MAX_FILE_BYTES, &adverts, error)) &&
               wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, adverts.data, adverts.len,
-                             wads->pictures, wads->picture_count, out, NULL, error);
+                             wads->pictures, wads->picture_count, &boarded, NULL, error) &&
+              wo_boards_move(boarded.data, boarded.len, wads->moves, wads->move_count, out, error);
+    wo_buf_free(&boarded);
     wo_buf_free(&adverts);
     wo_buf_free(&pc);
     wo_buf_free(&ps1);
@@ -675,6 +695,13 @@ static bool apply_scenery(const SceneryWads *wads, const char *atlas, const char
     bool ok = load_scene_frames(wads->game, &frames, error);
     for (size_t i = 0; ok && i < frames.count; i++) {
         if (!frames.sizes[i]) {
+            continue;
+        }
+        bool unpasted = false;
+        for (size_t m = 0; m < wads->move_count; m++) {
+            unpasted = unpasted || (wads->unpasted[m] && wads->moves[m].texture == i);
+        }
+        if (unpasted) {
             continue;
         }
         const uint8_t *tim = frames.data + frames.offsets[i];
@@ -1399,7 +1426,12 @@ bool wo_scenery_open(const char *game_root, const WoJson *plan, WoScenery **out,
             WoCmp frames;
             ok = load_scene_frames(wads.game, &frames, error);
             for (size_t f = 0; ok && f < frames.count; f++) {
-                if (frames.sizes[f]) {
+                /* A texture the sheet does not show covers nothing. */
+                bool unpasted = false;
+                for (size_t m = 0; m < wads.move_count; m++) {
+                    unpasted = unpasted || (wads.unpasted[m] && wads.moves[m].texture == f);
+                }
+                if (frames.sizes[f] && !unpasted) {
                     ok = scenery_note(scenery, native, frames.data + frames.offsets[f],
                                       frames.sizes[f], true, error);
                 }

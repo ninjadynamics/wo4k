@@ -517,6 +517,54 @@ static void test_boards(void) {
              &error);
     CHECK(kept == 0 && made.len == ps1.len && memcmp(made.data, ps1.data, ps1.len) == 0);
 
+    /* A texture given another place: its header says so, and the models and
+     * the other textures are as they were. Without moves the archive stays;
+     * a move of a texture the archive lacks, or the same one twice, fails. */
+    {
+        static const WoBoardMove moves[] = {{1, 320 + 12, 30}, {1, 320, 0}, {3, 320, 0}};
+        WoWad moved_wad = {0};
+        WoWad ps1_wad = {0};
+        WoCmp moved = {0};
+        WoCmp original = {0};
+        size_t moved_size = 0;
+        size_t original_size = 0;
+        CHECK_OK(wo_boards_move(ps1.data, ps1.len, moves, 0, &made, &error), &error);
+        CHECK(made.len == ps1.len && memcmp(made.data, ps1.data, ps1.len) == 0);
+        CHECK_OK(wo_boards_move(ps1.data, ps1.len, moves, 1, &made, &error), &error);
+        const uint8_t *moved_prm = scene_of(&made, &moved_wad, &moved, &moved_size);
+        const uint8_t *original_prm = scene_of(&ps1, &ps1_wad, &original, &original_size);
+        CHECK(moved_size == original_size && memcmp(moved_prm, original_prm, moved_size) == 0);
+        CHECK(moved.count == 3);
+        for (size_t i = 0; i < 3 && moved.count == 3; i++) {
+            uint32_t x = 0;
+            uint32_t y = 0;
+            uint32_t per_word = 0;
+            WoNativeImage now;
+            WoNativeImage before;
+            CHECK_OK(wo_tim_origin(moved.data + moved.offsets[i], moved.sizes[i], &x, &y, &per_word,
+                                   &error),
+                     &error);
+            CHECK(x == (i == 1 ? 332u : 320u + ps1_frames[i][1]));
+            CHECK(y == (i == 1 ? 30u : ps1_frames[i][2]));
+            CHECK_OK(wo_tim_decode(moved.data + moved.offsets[i], moved.sizes[i], &now, &error),
+                     &error);
+            CHECK_OK(wo_tim_decode(original.data + original.offsets[i], original.sizes[i], &before,
+                                   &error),
+                     &error);
+            CHECK(now.width == before.width && now.height == before.height &&
+                  memcmp(now.pixels, before.pixels,
+                         (size_t)now.width * now.height * sizeof(uint16_t)) == 0);
+            wo_native_image_free(&before);
+            wo_native_image_free(&now);
+        }
+        CHECK(!wo_boards_move(ps1.data, ps1.len, moves, 2, &made, NULL));
+        CHECK(!wo_boards_move(ps1.data, ps1.len, moves + 2, 1, &made, NULL));
+        wo_cmp_free(&original);
+        wo_cmp_free(&moved);
+        wo_wad_free(&ps1_wad);
+        wo_wad_free(&moved_wad);
+    }
+
     /* One of the track's own textures on both boards: no texture is added,
      * and each panel shows a quarter of the 4x2 picture. */
     static const int sign[] = {1};
