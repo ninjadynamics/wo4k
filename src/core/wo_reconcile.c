@@ -502,6 +502,21 @@ static bool repair(const WoMod *mod, const WoConfig *config, const WoJson *recei
     }
     bool ok = true;
     set_stage(progress, WO_STAGE_GAME_SOURCE);
+    if (receipt && !wo_json_bool(receipt, "playstation_required", false)) {
+        /* Made before both games were required: installed again from the
+         * two themselves, not from what the old installation kept. */
+        bool game = args.game_source[0] && wo_exists(args.game_source) &&
+                    !wo_str_ieq(args.game_source, mod->game);
+        bool playstation = args.psx_source[0] && wo_exists(args.psx_source);
+        if (!game || !playstation) {
+            wo_config_free(&args);
+            wo_free(old_game);
+            return wo_fail(error, WO_ERR_NOT_FOUND,
+                           WO_SOURCES_REQUIRED_MESSAGE " Select %s in Setup, then choose Install.",
+                           !game && !playstation ? "both" : !game ? "the PC version"
+                                                                  : "the PlayStation disc image");
+        }
+    }
     if (!args.game_source[0] || !wo_exists(args.game_source)) {
         if (healthy && (!old_game || !old_game[0] || wo_str_ieq(old_game, args.game_source))) {
             /* Repair from the installed copy itself. */
@@ -598,6 +613,13 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
     WoJson *plan = NULL;
     ok = ok && load_manifests(mod, &files, &patches, &plan, error);
     wo_laps_mark(laps, "config_ms");
+    if (ok && receipt && !force_repair && !wo_json_bool(receipt, "playstation_required", false)) {
+        /* Only Setup's Install makes such an installation again: the player
+         * has to choose the two sources first. */
+        ok = wo_fail(error, WO_ERR_NOT_FOUND,
+                     WO_SOURCES_REQUIRED_MESSAGE
+                     " Open Setup, select both and choose Install to reinstall the game.");
+    }
     wo_progress(progress, WO_STAGE_GENERAL, 5, "Checking the configured installation...");
     bool healthy = ok && pc_installation_healthy(mod, receipt, files, patches, plan, cache);
     wo_laps_mark(laps, "check_ms");

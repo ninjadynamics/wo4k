@@ -70,6 +70,18 @@ void wo_discover_sources(const WoMod *mod, unsigned max_seconds, volatile long *
 void wo_discovery_free(WoDiscovery *found);
 
 /* --- Installation ----------------------------------------------------------------- */
+/* The mod is installed from two games: the PC version and a PlayStation
+ * disc. Earlier releases needed only the first. */
+#define WO_SOURCES_REQUIRED_MESSAGE                                                    \
+    "WO4K now requires both the PC version of WipEout XL and a PlayStation ISO of the " \
+    "game (the European version is recommended)."
+
+/* True for an installation made by a release that did not yet require both:
+ * it has to be installed again from the two, once. An installation made
+ * since records that it was (the receipt's "playstation_required"), so
+ * later updates never ask again. False where nothing is installed. */
+bool wo_is_update(const WoMod *mod);
+
 /* Fresh installation (or full rebuild) from config; saves config on success. */
 bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configuration,
                 WoProgress *progress, WoError *error);

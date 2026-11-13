@@ -24,6 +24,10 @@ static char *copy(const char *text) {
 char *wo_user_message(WoStage stage, const WoError *error) {
     WoErrorKind kind = error ? error->kind : WO_ERR_INTERNAL;
     const char *detail = error ? error->message : "";
+    /* Already in plain words, whatever was being done. */
+    if (strncmp(detail, WO_SOURCES_REQUIRED_MESSAGE, strlen(WO_SOURCES_REQUIRED_MESSAGE)) == 0) {
+        return copy(detail);
+    }
     /* Conditions that mean the same thing whatever was being done. */
     switch (kind) {
     case WO_ERR_SHARING:
@@ -69,9 +73,8 @@ char *wo_user_message(WoStage stage, const WoError *error) {
         return copy("The original Windows game source could not be found or verified. Choose the "
                     "PC game ZIP, disc or folder and run Install / repair.");
     case WO_STAGE_PS1_SOURCE:
-        return copy("The PlayStation artwork source could not be read. Choose an original "
-                    "WipEout 2097 / XL PlayStation disc, or clear the optional PlayStation "
-                    "source.");
+        return copy("The PlayStation source could not be read. Choose an original WipEout "
+                    "2097 / XL PlayStation disc image and run Install / repair.");
     case WO_STAGE_SOUNDTRACK:
         return copy("The selected soundtrack is missing or incomplete. Restore its disc or music "
                     "folder, or choose No music in Setup.");

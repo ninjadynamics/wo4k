@@ -31,7 +31,7 @@ Git. Ready-to-use ZIP packages and their SHA-256 checksums belong in
   Menus, HUD and blended materials retain their original colors/transparency.
 - HD fonts, HUD, notice and title artwork, with original SD assets retained.
 - Restore full-colour road materials from original tiles already in the PC
-  data. An optional PS1 disc adds original texture/sprite sources;
+  data. The PlayStation disc supplies the track scenery and texture/sprite sources;
   selection follows a fixed, project-audited map with byte-identical PC reuse.
 - SDL3 gamepad support, including DualSense over USB or Bluetooth.
 - PC music plus an optional PlayStation soundtrack, switchable during play.
@@ -41,13 +41,17 @@ Git. Ready-to-use ZIP packages and their SHA-256 checksums belong in
 
 ## Requirements
 
-**Windows 10/11 x64** and your own supported **Windows PC game files** are
-required. Supply one PC ZIP/disc image, or the small **11 MB PC version**.
-Setup extracts any PC music included with that source automatically.
+**Windows 10/11 x64** and your own copies of **both games** are required:
+the **PC version** of WipEout XL / 2097 (the retail disc) and a **PlayStation
+disc image** of the game (Europe SLES-00327 recommended; USA SCUS-94351 and
+Japan SIPS-60010 work too). The PC version is the game itself; the PlayStation
+disc supplies the track scenery, the textures and its soundtrack. Setup
+extracts any PC music included with the PC source automatically.
 
-Music is optional. The small version can run with sound effects only, or with
-an optional PlayStation soundtrack. The PS1 disc (Europe SLES-00327, USA
-SCUS-94351 or Japan SIPS-60010) also supplies original artwork. A data-only ISO works for artwork without music;
+An installation made by a release that needed only the PC version has to be
+made again once: Setup says so when it opens and asks for both sources.
+
+Music is optional. A data-only PlayStation ISO works without its music;
 PS1 data cannot replace the Windows executable. There is no separate PC
 soundtrack field. See [native texture selection](docs/NATIVE-TEXTURES.md).
 
@@ -68,7 +72,7 @@ unsupported binaries are rejected before an installation is committed.
    use the animated ✨ button to search again. No match leaves a field silently
    empty. Hover over settings
    labels for explanations.
-3. Select the PC game source once. Optionally add a PlayStation game source,
+3. Select the PC game source and the PlayStation game source,
    then choose available PC/PlayStation music or **No music**.
 4. Choose **Audio output** (Mono, Stereo or Dolby Surround),
    **Install HD artwork** and **Improve audio quality** as desired,
@@ -77,7 +81,7 @@ unsupported binaries are rejected before an installation is committed.
    is bypassed; WO4K renders at your display's resolution and aspect ratio.
 
 After installation, Setup hides the source selectors and shows **Update**,
-**Repair** and **Play**. **Repair** reveals the saved PC/optional PlayStation
+**Repair** and **Play**. **Repair** reveals the saved PC and PlayStation
 sources for the current session. **Repair** becomes a yellow **Cancel**, and
 **Play** becomes **Install**. Review the paths and click **Install** to rebuild
 the installation, or **Cancel** to discard edits and return to Play.

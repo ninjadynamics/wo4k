@@ -62,6 +62,13 @@
   lays the result over its texture sheets in full colour, under any HD
   texture. It takes about five seconds, once, and follows the HD textures
   setting.
+- Require both games. WO4K is now installed from the PC version of WipEout
+  XL and a PlayStation disc image of the game (the European version is
+  recommended; USA and Japan work too): the PlayStation disc supplies the
+  track scenery, the textures and its soundtrack. An installation made by
+  an earlier release has to be made again once: Setup says so when it
+  opens and asks for both, and Play sends you to Setup until that is done.
+  Saved games and settings are kept. Later updates do not ask again.
 - Give upscaled textures a folder of their own. The authored artwork that
   comes with the mod moves from `assets/hd/` to `assets/auth/`, and
   `assets/hd/` is now for whole sets of upscaled textures: the game uses the

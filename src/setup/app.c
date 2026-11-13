@@ -84,6 +84,9 @@ typedef struct App {
     bool game_verified;
     bool game_not_retail;
     bool psx_verified;
+    bool psx_data;   /* the PlayStation source has the game's data, not only its music */
+    bool is_update;  /* installed before both games were required: see wo_is_update */
+    bool was_update; /* that was so when Setup opened */
     bool source_error;
     bool restoring;
     float psx_drop_y; /* drops at or below this go to the PlayStation field */
@@ -239,6 +242,17 @@ static void show_config(const WoConfig *config) {
 
 /* --- Messages ---------------------------------------------------------------------- */
 
+/* A first installation, and the one after both games became required,
+ * are made from the two sources themselves. A later repair may use what
+ * the installation kept of them. */
+static bool sources_needed(void) {
+    return !app.has_installation || app.is_update;
+}
+
+static bool sources_ready(void) {
+    return app.game_verified && app.psx_verified && app.psx_data;
+}
+
 static const char *source_message(void) {
     char *game = trimmed(app.game.text);
     char *psx = trimmed(app.psx.text);
@@ -270,14 +284,18 @@ static const char *source_message(void) {
             message = app.installed_ready
                           ? "The installed game is ready. Its PlayStation source is unavailable; "
                             "locate it to restore missing artwork or music."
-                          : "The PlayStation source is missing. Choose its current location, or "
-                            "clear the optional field.";
+                          : "The PlayStation source is missing. Choose the current location of "
+                            "your PlayStation disc image.";
         } else {
             message = "The PlayStation source could not be verified. Select an original WipEout "
-                      "2097 / XL disc or a complete extracted soundtrack folder.";
+                      "2097 / XL PlayStation disc image.";
         }
     } else if (!psx || !psx[0]) {
-        message = "Add the PlayStation version for original artwork and its soundtrack.";
+        message = "Add the PlayStation version too: its disc supplies the track scenery, the "
+                  "textures and its soundtrack. The European version is recommended.";
+    } else if (!app.psx_data && sources_needed()) {
+        message = "This PlayStation source has the soundtrack only. Select an image of the whole "
+                  "disc.";
     } else {
         message = "Ready to launch, all systems go!";
     }
@@ -291,13 +309,17 @@ static void update_source_message(void) {
     bool psx_empty = !psx || !psx[0];
     wo_free(psx);
     const char *message;
+    bool ready = sources_needed() ? sources_ready()
+                                  : app.game_verified && (psx_empty || app.psx_verified);
     if (app.has_installation && !app.repair_mode && !app.source_error && !app.issue[0]) {
         message = app.installed_ready ? "Ready to launch, all systems go!"
                                       : "Checking the installed game...";
-    } else if (!app.source_error && !app.issue[0] && app.game_verified &&
-               (psx_empty || app.psx_verified)) {
-        message = app.has_installation ? "Sources are ready. Choose Install to repair the game."
-                                       : "Sources are ready. Choose Install to set up the game.";
+    } else if (!app.source_error && !app.issue[0] && ready) {
+        message = app.is_update          ? "Sources are ready. Choose Install to reinstall the game."
+                  : app.has_installation ? "Sources are ready. Choose Install to repair the game."
+                                         : "Sources are ready. Choose Install to set up the game.";
+    } else if (app.is_update && !app.source_error && !app.issue[0]) {
+        message = WO_SOURCES_REQUIRED_MESSAGE " Select both below, then choose Install.";
     } else {
         message = source_message();
     }
@@ -308,6 +330,7 @@ static void update_source_message(void) {
 
 static void update_layout_state(void) {
     app.has_installation = mod_file_exists("wobble/installation.json");
+    app.is_update = wo_is_update(&app.mod);
 }
 
 static bool show_sources(void) {
@@ -364,6 +387,7 @@ static void apply_probe(const JobEvent *event) {
     app.game_not_retail = event->game_info.not_retail;
     bool pc_available = event->game_info.pc_music || mod_file_exists("wobble/music/pc/tracks.ini");
     app.psx_verified = psx_present && event->psx_info.psx;
+    app.psx_data = app.psx_verified && event->psx_info.psx_data;
     bool psx_audio = (app.psx_verified && event->psx_info.psx_music) ||
                      mod_file_exists("wobble/music/psx/tracks.ini");
     app.soundtrack_enabled[0] = pc_available;
@@ -430,6 +454,10 @@ static void start_installation(void) {
     wo_free(game);
     if (empty) {
         set_status("Choose your Windows game source to continue.");
+        return;
+    }
+    if (sources_needed() && !sources_ready()) {
+        set_status("Select the PC game and a PlayStation disc image to continue.");
         return;
     }
     app.source_error = false;
@@ -544,6 +572,11 @@ static void handle_job_done(JobEvent *event) {
     if (event->success) {
         app.progress = 1;
         request_probe(0);
+        if (app.was_update && !app.is_update) {
+            /* Installed again from both: back to the ordinary window. */
+            app.was_update = false;
+            app.repair_mode = false;
+        }
         if (app.repair_mode) {
             wo_config_free(&app.repair_snapshot);
             wo_config_load(&app.mod, &app.repair_snapshot, NULL);
@@ -735,15 +768,15 @@ static void draw_frame(void) {
                    SCAN_GAME);
         app.psx_drop_y = y + field_h + ui_px(6);
         y += field_h + ui_px(13);
-        draw_label("PLAYSTATION GAME \xC2\xB7 OPTIONAL", left, y, content, C_CAPS, UI_FONT_CAPS,
-                   "Adds original PlayStation artwork from the WipEout 2097 / XL disc (Europe, "
-                   "USA or Japan), plus its soundtrack when CD audio is included. A data-only "
-                   "image supplies artwork without music.");
+        draw_label("PLAYSTATION GAME", left, y, content, C_CAPS, UI_FONT_CAPS,
+                   "Required: a disc image of WipEout 2097 / XL for PlayStation (Europe "
+                   "recommended; USA and Japan work too). It supplies the track scenery and "
+                   "textures, plus its soundtrack when CD audio is included.");
         y += ui_line_height(UI_FONT_CAPS) + ui_px(5);
         source_row(W_PSX_FIELD, W_PSX_BROWSE, W_PSX_MAGIC, &app.psx, left, y, content, field_h,
                    spin,
-                   "Optional PlayStation disc for original artwork and any included CD "
-                   "audio, or an extracted music folder.",
+                   "PlayStation disc image for the track scenery, textures and any included "
+                   "CD audio.",
                    SCAN_PSX);
         y += field_h + ui_px(14);
     }
@@ -872,7 +905,9 @@ static void draw_frame(void) {
                                   : installed     ? UI_BUTTON_NORMAL
                                                   : UI_BUTTON_PRIMARY;
     Rectangle install = {right - install_w, button_y, install_w, button_h};
-    if (ui_button(W_INSTALL, install, install_label, install_style, app.state == GUI_IDLE)) {
+    /* An installation that must be made again has nothing to go back to. */
+    if (ui_button(W_INSTALL, install, install_label, install_style,
+                  app.state == GUI_IDLE && !(app.repair_mode && app.is_update))) {
         if (app.repair_mode) {
             cancel_repair();
         } else if (installed) {
@@ -921,7 +956,17 @@ static void trace_to_log(int level, const char *text, va_list args) {
 
 static void startup(void) {
     app.started = true;
-    if (app.options.after_update) {
+    if (app.is_update) {
+        /* Nothing is checked or repaired from what the old installation
+         * kept: the player chooses both sources, then Install. */
+        app.was_update = true;
+        open_repair();
+        win32_message(GetWindowHandle(), "WO4K Setup",
+                      WO_SOURCES_REQUIRED_MESSAGE
+                      "\n\nSelect both in Setup, then choose Install to reinstall the game. "
+                      "Your saved games and settings are kept.",
+                      false);
+    } else if (app.options.after_update) {
         start_busy_job(JOB_REPAIR, GUI_BUSY,
                        "Finishing the update: running Install / repair for the saved configuration...",
                        NULL);

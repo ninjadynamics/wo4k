@@ -288,6 +288,8 @@ static WoJson *build_receipt(const WoMod *mod, const char *stage, const WoConfig
               wo_json_put_bool(receipt, "pc_music_available", pc_available) &&
               wo_json_put_bool(receipt, "playstation_available", psx_available) &&
               wo_json_put_bool(receipt, "playstation_textures", ps1_textures) &&
+              /* Made from both games: see wo_is_update. */
+              wo_json_put_bool(receipt, "playstation_required", true) &&
               wo_json_put_bool(receipt, "hd_textures", saved->hd_textures) &&
               wo_json_put_bool(receipt, "clean_audio", saved->clean_audio) &&
               wo_json_put_str(receipt, "executable_sha256", wo_json_str(patches, "output_sha256", "")) &&
@@ -346,6 +348,14 @@ void wo_install_debanded(const WoMod *mod, const char *game_root, const WoJson *
     }
     wo_free(output);
     wo_free(selection);
+}
+
+bool wo_is_update(const WoMod *mod) {
+    WoJson *receipt = NULL;
+    bool update = wo_receipt_load(mod, &receipt, NULL) && receipt &&
+                  !wo_json_bool(receipt, "playstation_required", false);
+    wo_json_free(receipt);
+    return update;
 }
 
 bool wo_install(const WoMod *mod, const WoConfig *config, bool preserve_configuration,
@@ -431,6 +441,12 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
         WoJson *receipt = NULL;
         ok = wo_natives_install(&options, &receipt, error);
         ps1_textures = wo_json_bool(receipt, "ps1_textures", false);
+        if (ok && !ps1_textures) {
+            /* No disc given, or one with music only, and none imported before. */
+            ok = wo_fail(error, WO_ERR_NOT_FOUND,
+                         WO_SOURCES_REQUIRED_MESSAGE
+                         " Select a PlayStation disc image of WipEout 2097 / XL in Setup.");
+        }
         if (ok) {
             wo_progress(progress, WO_STAGE_TEXTURES, 32, "Smoothing the colour bands of the textures");
             wo_install_debanded(mod, stage, plan, receipt, NULL);

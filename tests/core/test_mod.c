@@ -3,6 +3,7 @@
 
 #include "core/wo_fs.h"
 #include "core/wo_mod.h"
+#include "core/wo_ops.h"
 #include "wo_test.h"
 
 static void write_text(const char *root, const char *relative, const char *text) {
@@ -109,6 +110,29 @@ static void test_rejects_bad_state(void) {
     write_text(dir, ".state/setup.json", "{\"format\":1,\"GameSource\":\"../outside\"}");
     CHECK_FAILS(wo_config_load(&mod, &config, &error), &error, WO_ERR_UNSAFE);
     wo_mod_free(&mod);
+}
+
+/* An installation made before both games were required is one to make
+ * again; one made since, and no installation, are not. The sentence that
+ * says so reaches the player as it is, whatever was being done. */
+static void test_is_update(void) {
+    const char *dir = wo_test_dir("mod-is-update");
+    if (!dir) {
+        return;
+    }
+    WoMod mod;
+    WoError error = {0};
+    CHECK_OK(wo_mod_init(&mod, dir, &error), &error);
+    CHECK(!wo_is_update(&mod));
+    write_text(dir, "wobble/installation.json", "{\"version\":\"0.2.0-beta.9\",\"playstation_textures\":true}");
+    CHECK(wo_is_update(&mod));
+    write_text(dir, "wobble/installation.json", "{\"version\":\"x\",\"playstation_required\":true}");
+    CHECK(!wo_is_update(&mod));
+    wo_mod_free(&mod);
+    wo_fail(&error, WO_ERR_NOT_FOUND, WO_SOURCES_REQUIRED_MESSAGE " Open Setup.");
+    char *shown = wo_user_message(WO_STAGE_GAME_SOURCE, &error);
+    CHECK_STR(shown, WO_SOURCES_REQUIRED_MESSAGE " Open Setup.");
+    wo_free(shown);
 }
 
 static void test_work_dirs(void) {
@@ -241,5 +265,6 @@ int main(void) {
     RUN(test_save_round_trip_and_revision);
     RUN(test_rejects_bad_state);
     RUN(test_work_dirs);
+    RUN(test_is_update);
     return wo_test_finish();
 }
