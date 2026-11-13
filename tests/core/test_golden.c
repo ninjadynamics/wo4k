@@ -201,6 +201,25 @@ static char *find_descriptor(const char *source, int depth) {
 
 /* --- Sound effects ---------------------------------------------------------------- */
 
+static bool fixture_hash(const char *text, const char *name, char out[WO_SHA256_HEX_SIZE]) {
+    size_t name_len = strlen(name);
+    for (const char *line = text; line && *line;) {
+        const char *end = strchr(line, '\n');
+        size_t len = end ? (size_t)(end - line) : strlen(line);
+        if (len >= name_len + 65 && line[name_len] == ' ' &&
+            wo_str_istarts_with(line, name)) { /* the two lists differ in case */
+            memcpy(out, line + name_len + 1, 64);
+            out[64] = 0;
+            return wo_is_hex_digest(out);
+        }
+        line = end ? end + 1 : NULL;
+    }
+    return false;
+}
+
+/* wobble/audio/source holds the effects as the game was installed with
+ * them: those of the retail disc, or of the older distribution the mod once
+ * accepted. audio-clean.exe's output is recorded for both. */
 static void test_audio_clean_matches_exe(void) {
     if (!golden_root) {
         skip("no golden installation");
@@ -208,11 +227,15 @@ static void test_audio_clean_matches_exe(void) {
     }
     char *source = under(golden_root, "wobble/audio/source");
     char *expected_text = NULL;
+    char *disc_text = NULL;
     WoError error = {0};
     if (!wo_is_dir(source) ||
         !wo_read_text(wo_test_fixture("golden/audio-clean-exe.txt"), 1 << 20, &expected_text,
+                      &error) ||
+        !wo_read_text(wo_test_fixture("golden/audio-clean-exe-disc.txt"), 1 << 20, &disc_text,
                       &error)) {
         skip("no wobble/audio/source");
+        wo_free(expected_text);
         wo_free(source);
         return;
     }
@@ -231,7 +254,9 @@ static void test_audio_clean_matches_exe(void) {
                      wo_audio_clean(input.data, input.len, path, &output, &error) &&
                      wo_sha256_mem(output, input.len, hash, &error),
                  &error);
-        if (output && !wo_digest_eq(hash, space + 1)) {
+        char disc[WO_SHA256_HEX_SIZE];
+        if (output && !wo_digest_eq(hash, space + 1) &&
+            !(fixture_hash(disc_text, line, disc) && wo_digest_eq(hash, disc))) {
             wo_test_fail(__FILE__, __LINE__, line, "differs from audio-clean.exe");
         }
         compared++;
@@ -241,6 +266,7 @@ static void test_audio_clean_matches_exe(void) {
     }
     printf("  (%zu effects bit-identical to audio-clean.exe)\n", compared);
     CHECK(compared == 39);
+    wo_free(disc_text);
     wo_free(expected_text);
     wo_free(source);
 }
@@ -478,22 +504,6 @@ static bool listed(const WoJson *array, const char *hash) {
 }
 
 /* The hash recorded for name in a "NAME HASH" fixture, or false. */
-static bool fixture_hash(const char *text, const char *name, char out[WO_SHA256_HEX_SIZE]) {
-    size_t name_len = strlen(name);
-    for (const char *line = text; line && *line;) {
-        const char *end = strchr(line, '\n');
-        size_t len = end ? (size_t)(end - line) : strlen(line);
-        if (len >= name_len + 65 && line[name_len] == ' ' &&
-            strncmp(line, name, name_len) == 0) {
-            memcpy(out, line + name_len + 1, 64);
-            out[64] = 0;
-            return wo_is_hex_digest(out);
-        }
-        line = end ? end + 1 : NULL;
-    }
-    return false;
-}
-
 /* The disc's effects are the manifest's sources and clean exactly as the
  * former audio-clean.exe did; its executable patches to the manifest's
  * output. */
@@ -675,7 +685,7 @@ static void test_ps1_disc(void) {
     if (dir && installed && wo_is_dir(installed)) {
         compare_ps1_import(dir, installed, &same, &total);
         printf("  (%zu of %zu imported PlayStation files identical to ps1-source)\n", same, total);
-        CHECK(same == total && total == 145); /* 137 texture files and 8 track archives */
+        CHECK(same == total && total == 146); /* 137 texture files and 9 track archives */
     }
     wo_json_free(plan);
     wo_free(descriptor);
