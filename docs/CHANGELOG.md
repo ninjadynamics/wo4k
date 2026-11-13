@@ -1,6 +1,6 @@
 ﻿# Beta release changes
 
-## Unreleased
+## 0.2.0-beta.10
 
 - Use the PlayStation's scenery. The PC release shipped an earlier build of
   the trackside models and textures; with a PlayStation disc selected, the
