@@ -37,8 +37,11 @@ static bool memory_supported(const WoJson *manifest, const void *data, size_t le
     return wo_sha256_mem(data, len, digest, NULL) && wo_supported_executable(manifest, digest);
 }
 
-static size_t count_audio_tracks(const char *text) {
+/* The audio tracks a CUE sheet lists; *data is whether it lists a data
+ * track as well, as the sheet of a whole disc does. */
+static size_t count_audio_tracks(const char *text, bool *data) {
     size_t count = 0;
+    *data = false;
     const char *line = text;
     while (*line) {
         const char *s = line;
@@ -61,6 +64,8 @@ static size_t count_audio_tracks(const char *text) {
             }
             if (spaced && digits && spaced_again && wo_str_istarts_with(s, "AUDIO")) {
                 count++;
+            } else if (spaced && digits && spaced_again && wo_str_istarts_with(s, "MODE")) {
+                *data = true;
             }
         }
         line += strcspn(line, "\n");
@@ -107,6 +112,15 @@ static void probe_folder(const char *full, const WoJson *manifest, const WoJson 
         set_path(&info->psx_path, folder);
     }
     wo_free(folder);
+    /* A disc image somewhere in the folder. */
+    WoPs1Disc disc;
+    bool found = false;
+    if (wo_ps1_find_disc(full, &disc, &found, NULL) && found) {
+        info->psx = true;
+        info->psx_data = true;
+        set_path(&info->psx_path, full);
+        wo_ps1_disc_free(&disc);
+    }
 }
 
 static void probe_zip(const char *full, const WoJson *manifest, const WoJson *plan,
@@ -139,10 +153,14 @@ static void probe_zip(const char *full, const WoJson *manifest, const WoJson *pl
         }
         if (wo_str_iends_with(name, ".cue") && entry->size < PROBE_DESCRIPTOR_MAX &&
             wo_zip_read(zip, i, PROBE_DESCRIPTOR_MAX, &data, NULL)) {
-            size_t audio = count_audio_tracks((const char *)data.data);
+            /* The image is not unpacked to look inside it: a sheet with the
+             * PlayStation's eleven songs and a data track is the whole disc. */
+            bool data_track = false;
+            size_t audio = count_audio_tracks((const char *)data.data, &data_track);
             if (audio == 11) {
                 info->psx = true;
                 info->psx_music = true;
+                info->psx_data = info->psx_data || data_track;
                 set_path(&info->psx_path, full);
             } else if (audio == 9) {
                 info->pc_music = true;

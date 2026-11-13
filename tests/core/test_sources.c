@@ -124,6 +124,11 @@ static void test_real_sources(void) {
     if (config.psx_source[0] && wo_exists(config.psx_source)) {
         wo_source_probe(&mod, config.psx_source, &info);
         CHECK(info.psx && info.psx_music);
+        /* A ZIP of the PlayStation game is its disc image, data and all:
+         * Setup installs from nothing less. */
+        if (wo_str_iends_with(config.psx_source, ".zip")) {
+            CHECK(info.psx_data);
+        }
         wo_source_info_free(&info);
     }
     WoJson *manifest = NULL;
