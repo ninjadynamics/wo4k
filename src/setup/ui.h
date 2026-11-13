@@ -69,6 +69,12 @@ bool ui_image_button(int id, Rectangle r, const Texture2D *image, bool enabled);
 bool ui_text_field(int id, Rectangle r, UiTextField *field, bool enabled);
 void ui_text_field_set(UiTextField *field, const char *text);
 bool ui_checkbox(int id, Rectangle r, const char *label, bool *value, bool enabled);
+/* A horizontal slider over minimum..maximum in whole steps; returns true
+ * when the value changed. Left and Right move it by one step. */
+bool ui_slider(int id, Rectangle r, int minimum, int maximum, int step, int *value, bool enabled);
+/* While true, widgets are drawn but take no mouse, keyboard or focus and
+ * show no tooltip: what lies behind a dialog drawn after them. */
+void ui_behind(bool behind);
 /* Returns true when the selection changed. Disabled items cannot be chosen. */
 bool ui_dropdown(int id, Rectangle r, const char *const *items, const bool *item_enabled,
                  int count, int *selected, bool enabled);

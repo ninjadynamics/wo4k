@@ -343,6 +343,7 @@ static int __cdecl __attribute__((noinline)) refresh_clock(int unused) {
     LARGE_INTEGER now;QueryPerformanceCounter(&now);
     double delta=(double)(now.QuadPart-refresh_last_time.QuadPart)/(double)refresh_frequency.QuadPart;
     refresh_last_time=now;
+    if(scene_light_capture)delta=0; /* held still: no step is scheduled */
     /* The loop has consumed the steps scheduled LAST time. Its completed
      * poses therefore belong to the previous clock phase. Advancing the clock
      * now schedules NEXT iteration's physics; applying that new remainder to
@@ -436,7 +437,7 @@ static void initialize_refresh(const WCHAR *settings) {
             *(DWORD *)(game+0x2ab92)=1;VirtualProtect(game+0x2ab92,4,protection,&ignored);
         }
     }
-    refresh_show_fps=GetPrivateProfileIntW(L"Render",L"ShowFPS",1,settings)!=0;
+    refresh_show_fps=GetPrivateProfileIntW(L"Render",L"ShowFPS",0,settings)!=0;
     initialize_race_ui(settings);
     FlushInstructionCache(GetCurrentProcess(),game+0x2ab92,4);
     FlushInstructionCache(GetCurrentProcess(),game+0x2bca9,4);

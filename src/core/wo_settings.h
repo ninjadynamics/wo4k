@@ -61,6 +61,14 @@ WoFullscreen wo_settings_get_fullscreen(const char *ddraw_ini);
 bool wo_settings_set_fullscreen(const char *ddraw_ini, WoFullscreen mode, WoError *error);
 int wo_settings_get_sound_mode(const char *game_ini);
 bool wo_settings_set_sound_mode(const char *game_ini, int mode, WoError *error);
+/* A whole number from the game INI's [Render] section: whether the frame
+ * rate is shown (ShowFPS, 0 or 1) and how the scenery is lit
+ * (ShadowLiftPercent and HighlightsPercent, 0 to 300). A missing file or key,
+ * or a value that is no number within the limit, gives the fallback. */
+#define WO_RENDER_PERCENT_MAX 300
+int wo_settings_get_render(const char *game_ini, const char *key, int limit, int fallback);
+bool wo_settings_set_render(const char *game_ini, const char *key, int limit, int value,
+                            WoError *error);
 /* Select the soundtrack bank; None also mutes music, and leaving None
  * restores MusicVolume=100. */
 bool wo_settings_apply_soundtrack(const char *game_ini, WoSoundtrack soundtrack, bool was_none,

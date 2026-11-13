@@ -1,5 +1,18 @@
 ﻿# Beta release changes
 
+## Unreleased
+
+- Setup: a "Show FPS counter" box and an "Adjust shadows / highlights" dialog with
+  two sliders and a preview of a race as the settings light it. Both change
+  the installed game's own settings, the ones its keys change in a race
+  (the ` key for the frame rate, + / - and Page Up / Page Down for the
+  lighting).
+- The frame rate is no longer shown by default. An existing installation
+  keeps its own setting.
+- The movie player's log now records how many frames the renderer drew and
+  dropped and its average frame rate, so a movie the PC cannot keep up with
+  can be told from one that plays as it should.
+
 ## 0.2.0-beta.10
 
 - Use the PlayStation's scenery. The PC release shipped an earlier build of

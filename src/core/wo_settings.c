@@ -1,6 +1,7 @@
 #include "core/wo_settings.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "core/wo_fs.h"
@@ -468,6 +469,40 @@ bool wo_settings_set_sound_mode(const char *game_ini, int mode, WoError *error) 
     }
     char value[2] = {(char)('0' + mode), 0};
     bool ok = wo_ini_set(&ini, "Audio", "SoundMode", value, "=", error) &&
+              wo_ini_save(game_ini, &ini, error);
+    wo_ini_free(&ini);
+    return ok;
+}
+
+int wo_settings_get_render(const char *game_ini, const char *key, int limit, int fallback) {
+    WoIni ini;
+    if (!wo_ini_load(game_ini, &ini, NULL)) {
+        return fallback;
+    }
+    char *text = wo_ini_get(&ini, "Render", key, NULL);
+    int value = 0;
+    bool number = text && text[0];
+    for (const char *c = text; number && *c; c++) {
+        number = *c >= '0' && *c <= '9' && value <= limit;
+        value = value * 10 + (*c - '0');
+    }
+    wo_free(text);
+    wo_ini_free(&ini);
+    return number && value <= limit ? value : fallback;
+}
+
+bool wo_settings_set_render(const char *game_ini, const char *key, int limit, int value,
+                            WoError *error) {
+    if (value < 0 || value > limit) {
+        return wo_fail(error, WO_ERR_UNSUPPORTED, "Invalid %s setting %d.", key, value);
+    }
+    WoIni ini;
+    if (!wo_ini_load(game_ini, &ini, error)) {
+        return false;
+    }
+    char text[16];
+    snprintf(text, sizeof(text), "%d", value);
+    bool ok = wo_ini_set(&ini, "Render", key, text, "=", error) &&
               wo_ini_save(game_ini, &ini, error);
     wo_ini_free(&ini);
     return ok;

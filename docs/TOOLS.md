@@ -104,3 +104,14 @@ saved as `manifests/deband-selection.json`, they are what Setup and Play
 deband the game's textures by (see
 [the texture notes](NATIVE-TEXTURES.md#debanded-textures)). `assets/sd/` is
 that step's output, not this tool's.
+
+## Maintainer lighting preview
+
+Setup's "Adjust shadows / highlights" dialog previews the settings on three
+pictures in `assets/ui/` (`light-preview-bare.png`, `-full.png` and
+`-light.png`). To make them, run `tools\capture-light-preview.cmd`, race, and
+press F9 at the view to show: the scene holds still while three screenshots
+are taken (lit as the game lights it, fully lit, and unlit), then the race
+runs on. `python tools/Build-LightPreview.py` turns the three newest
+screenshots into the pictures. F9 does this only when the game is started
+through that script.

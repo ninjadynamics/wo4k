@@ -46,6 +46,40 @@ static void test_fullscreen(void) {
     wo_free(missing);
 }
 
+/* The frame-rate and lighting settings Setup shows: read with a fallback,
+ * written in place, the game's other settings untouched. */
+static void test_render_settings(void) {
+    const char *dir = wo_test_dir("settings-render");
+    if (!dir) {
+        return;
+    }
+    WoError error = {0};
+    char *path = write_temp(dir, "game.ini",
+                            "[Render]\nShowFPS=1\nShadowLiftPercent=200\nHighlightsPercent=abc\n"
+                            "[Audio]\nShowFPS=0\n");
+    CHECK(wo_settings_get_render(path, "ShowFPS", 1, 0) == 1);
+    CHECK(wo_settings_get_render(path, "ShadowLiftPercent", WO_RENDER_PERCENT_MAX, 0) == 200);
+    CHECK(wo_settings_get_render(path, "HighlightsPercent", WO_RENDER_PERCENT_MAX, 100) == 100);
+    CHECK(wo_settings_get_render(path, "Missing", 1, 1) == 1);
+    CHECK(wo_settings_get_render("no-such-file.ini", "ShowFPS", 1, 0) == 0);
+    CHECK_OK(wo_settings_set_render(path, "ShowFPS", 1, 0, &error), &error);
+    CHECK_OK(wo_settings_set_render(path, "HighlightsPercent", WO_RENDER_PERCENT_MAX, 250, &error),
+             &error);
+    CHECK_FAILS(wo_settings_set_render(path, "ShadowLiftPercent", WO_RENDER_PERCENT_MAX, 301,
+                                       &error),
+                &error, WO_ERR_UNSUPPORTED);
+    char *text = NULL;
+    CHECK_OK(wo_read_text(path, 1 << 16, &text, &error), &error);
+    CHECK_STR(text, "[Render]\r\nShowFPS=0\r\nShadowLiftPercent=200\r\nHighlightsPercent=250\r\n"
+                    "[Audio]\r\nShowFPS=0\r\n");
+    /* A value beyond the limit in the file is not believed. */
+    char *wild = write_temp(dir, "wild.ini", "[Render]\nShadowLiftPercent=99999999999\n");
+    CHECK(wo_settings_get_render(wild, "ShadowLiftPercent", WO_RENDER_PERCENT_MAX, 7) == 7);
+    wo_free(wild);
+    wo_free(text);
+    wo_free(path);
+}
+
 static void test_sound_mode(void) {
     const char *dir = wo_test_dir("settings-sound");
     if (!dir) {
@@ -201,6 +235,7 @@ static void test_snapshot(void) {
 int main(void) {
     RUN(test_fullscreen);
     RUN(test_sound_mode);
+    RUN(test_render_settings);
     RUN(test_soundtrack);
     RUN(test_merge_defaults);
     RUN(test_alt_tab_template);

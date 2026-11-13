@@ -46,6 +46,13 @@ enum WidgetId {
     W_FULLSCREEN,
     W_HD,
     W_CLEAN,
+    W_FPS,
+    W_LIGHT,
+    W_LIGHT_SHADOWS,
+    W_LIGHT_HIGHLIGHTS,
+    W_LIGHT_ORIGINAL,
+    W_LIGHT_CANCEL,
+    W_LIGHT_SAVE,
     W_UPDATE,
     W_INSTALL,
     W_PLAY
@@ -59,6 +66,28 @@ static const char *const audio_items[] = {"Mono", "Stereo", "Dolby Surround"};
 static const int audio_modes[] = {1, 2, 5};
 static const char *const fullscreen_items[] = {"Borderless", "Exclusive"};
 static const char *const browse_items[] = {"Select file\xE2\x80\xA6", "Select folder\xE2\x80\xA6"};
+
+/* The dialog for the scenery's lighting. Its preview is made from three
+ * pictures of one moment of a race (tools/Build-LightPreview.py): what the
+ * settings never touch, the scene fully lit, and how brightly the game
+ * lights each part of it. */
+typedef struct LightDialog {
+    bool open;
+    int shadows; /* as the sliders have them */
+    int highlights;
+    int shown_shadows; /* as the preview shows them; -1: not drawn yet */
+    int shown_highlights;
+    bool loaded; /* the pictures were looked for */
+    Image bare;
+    Image full;
+    Image light;
+    Image result;
+    Texture2D texture;
+} LightDialog;
+
+#define LIGHT_STEP 5
+#define LIGHT_ORIGINAL_SHADOWS 0
+#define LIGHT_ORIGINAL_HIGHLIGHTS 100
 
 typedef struct App {
     WoMod mod;
@@ -76,6 +105,10 @@ typedef struct App {
     int fullscreen;
     bool hd;
     bool clean;
+    bool show_fps; /* these three are the game's own settings, read from its INI */
+    int shadows;
+    int highlights;
+    LightDialog light;
 
     GuiState state;
     bool has_installation;
@@ -328,9 +361,37 @@ static void update_source_message(void) {
 
 /* --- State ------------------------------------------------------------------------- */
 
+/* The game's display settings: the installed game's, which its own keys
+ * change too, or the ones a new installation starts with. */
+static char *render_settings_file(bool *installed) {
+    char *ini = mod_file("wobble/Wipeout2097.ini");
+    *installed = ini && wo_is_file(ini);
+    if (*installed) {
+        return ini;
+    }
+    wo_free(ini);
+    return mod_file("runtime/Wipeout2097.ini");
+}
+
+static void load_render_settings(void) {
+    bool installed = false;
+    char *ini = render_settings_file(&installed);
+    if (ini) {
+        app.show_fps = wo_settings_get_render(ini, "ShowFPS", 1, 0) != 0;
+        app.shadows = wo_settings_get_render(ini, "ShadowLiftPercent", WO_RENDER_PERCENT_MAX,
+                                             LIGHT_ORIGINAL_SHADOWS);
+        app.highlights = wo_settings_get_render(ini, "HighlightsPercent", WO_RENDER_PERCENT_MAX,
+                                                LIGHT_ORIGINAL_HIGHLIGHTS);
+    }
+    wo_free(ini);
+}
+
 static void update_layout_state(void) {
     app.has_installation = mod_file_exists("wobble/installation.json");
     app.is_update = wo_is_update(&app.mod);
+    if (!app.light.open) {
+        load_render_settings();
+    }
 }
 
 static bool show_sources(void) {
@@ -665,6 +726,247 @@ static void option_row(int id, const char *label, const char *tooltip, const cha
     *changed = ui_dropdown(id, combo, items, enabled_items, count, value, !locked());
 }
 
+/* --- Adjust shadows / highlights --------------------------------------------------- */
+
+/* A picture of the preview as bytes of red, green and blue (and alpha). */
+static bool light_image(const char *name, Image *out) {
+    memset(out, 0, sizeof(*out));
+    char *relative = wo_format(NULL, "assets/ui/%s", name);
+    char *path = relative ? mod_file(relative) : NULL;
+    WoBuf bytes = {0};
+    if (path && wo_read_file(path, 16u << 20, &bytes, NULL) && bytes.len < INT32_MAX) {
+        *out = LoadImageFromMemory(".png", bytes.data, (int)bytes.len);
+    }
+    wo_buf_free(&bytes);
+    wo_free(path);
+    wo_free(relative);
+    bool usable = out->data && out->width > 0 && out->height > 0 &&
+                  (out->format == PIXELFORMAT_UNCOMPRESSED_R8G8B8 ||
+                   out->format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    if (!usable && out->data) {
+        UnloadImage(*out);
+        memset(out, 0, sizeof(*out));
+    }
+    return usable;
+}
+
+static void light_unload(void) {
+    LightDialog *light = &app.light;
+    if (light->texture.id) {
+        UnloadTexture(light->texture);
+    }
+    Image *images[] = {&light->bare, &light->full, &light->light, &light->result};
+    for (size_t i = 0; i < WO_COUNT(images); i++) {
+        if (images[i]->data) {
+            UnloadImage(*images[i]);
+        }
+    }
+    memset(light, 0, sizeof(*light));
+}
+
+static void light_load(void) {
+    LightDialog *light = &app.light;
+    if (light->loaded) {
+        return;
+    }
+    light->loaded = true;
+    bool ok = light_image("light-preview-bare.png", &light->bare) &&
+              light_image("light-preview-full.png", &light->full) &&
+              light_image("light-preview-light.png", &light->light) &&
+              light->full.width == light->bare.width && light->full.height == light->bare.height &&
+              light->light.width == light->bare.width && light->light.height == light->bare.height;
+    if (ok) {
+        light->result = GenImageColor(light->bare.width, light->bare.height, BLACK);
+        ok = light->result.data && light->result.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+    }
+    if (ok) {
+        light->texture = LoadTextureFromImage(light->result);
+        SetTextureFilter(light->texture, TEXTURE_FILTER_BILINEAR);
+        ok = light->texture.id != 0;
+    }
+    if (!ok) {
+        bool open = light->open;
+        light_unload();
+        light->loaded = true;
+        light->open = open;
+    }
+}
+
+static const unsigned char *light_pixel(const Image *image, int index) {
+    int bytes = image->format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 ? 4 : 3;
+    return (const unsigned char *)image->data + (size_t)index * (size_t)bytes;
+}
+
+/* The game's curve (src/runtime/scene_lighting.c): shadows are lifted by
+ * s*x*(1-x)^2, then what lies above the midpoint is scaled about it. The
+ * game applies it to the brightest of a light's three colours and scales
+ * the others with it, so a coloured light keeps its hue. */
+static float light_gain(float level, float shadows, float highlights) {
+    if (level <= 0) {
+        return 1;
+    }
+    const float middle = 128.0f / 255.0f;
+    float lit = level + shadows * level * (1 - level) * (1 - level);
+    if (lit > middle) {
+        lit = middle + (lit - middle) * highlights;
+    }
+    return (lit > 1 ? 1 : lit) / level;
+}
+
+static void light_render(void) {
+    LightDialog *light = &app.light;
+    if (!light->texture.id ||
+        (light->shown_shadows == light->shadows && light->shown_highlights == light->highlights)) {
+        return;
+    }
+    light->shown_shadows = light->shadows;
+    light->shown_highlights = light->highlights;
+    float shadows = (float)light->shadows / 100.0f;
+    float highlights = (float)light->highlights / 100.0f;
+    unsigned char *out = light->result.data;
+    int count = light->result.width * light->result.height;
+    for (int i = 0; i < count; i++) {
+        const unsigned char *bare = light_pixel(&light->bare, i);
+        const unsigned char *full = light_pixel(&light->full, i);
+        const unsigned char *code = light_pixel(&light->light, i);
+        /* The light's level is stored as its square root, for the dark end. */
+        float level[3];
+        float peak = 0;
+        for (int c = 0; c < 3; c++) {
+            level[c] = (float)code[c] / 255.0f;
+            level[c] *= level[c];
+            peak = level[c] > peak ? level[c] : peak;
+        }
+        float gain = light_gain(peak, shadows, highlights);
+        for (int c = 0; c < 3; c++) {
+            float lit = (float)(full[c] > bare[c] ? full[c] - bare[c] : 0) * level[c] * gain;
+            float value = (float)bare[c] + lit + 0.5f;
+            out[i * 4 + c] = (unsigned char)(value > 255 ? 255 : value);
+        }
+        out[i * 4 + 3] = 255;
+    }
+    UpdateTexture(light->texture, light->result.data);
+}
+
+static void light_open(void) {
+    load_render_settings();
+    light_load();
+    app.light.open = true;
+    app.light.shadows = app.shadows / LIGHT_STEP * LIGHT_STEP;
+    app.light.highlights = app.highlights / LIGHT_STEP * LIGHT_STEP;
+    app.light.shown_shadows = -1;
+    ui_set_focus(W_LIGHT_SHADOWS);
+}
+
+static void light_save(void) {
+    bool installed = false;
+    char *ini = render_settings_file(&installed);
+    WoError error = {0};
+    if (ini && installed &&
+        wo_settings_set_render(ini, "ShadowLiftPercent", WO_RENDER_PERCENT_MAX, app.light.shadows,
+                               &error) &&
+        wo_settings_set_render(ini, "HighlightsPercent", WO_RENDER_PERCENT_MAX,
+                               app.light.highlights, &error)) {
+        set_status("Shadows and highlights saved for the next launch.");
+    } else {
+        wo_log_failure("Saving the lighting settings", &error);
+        set_status("The lighting settings could not be saved.");
+    }
+    wo_free(ini);
+    app.light.open = false;
+    load_render_settings();
+}
+
+static void light_slider(int id, const char *label, const char *tooltip, int *value, float x,
+                         float y, float width) {
+    float row = ui_px(24);
+    float label_w = ui_px(90);
+    float number_w = ui_px(48);
+    float text_y = y + (row - ui_line_height(UI_FONT_BODY)) / 2;
+    ui_text(UI_FONT_BODY, label, x, text_y, C_OPTION);
+    ui_tooltip((Rectangle){x, y, label_w, row}, tooltip);
+    Rectangle slider = {x + label_w, y, width - label_w - number_w, row};
+    ui_slider(id, slider, 0, WO_RENDER_PERCENT_MAX, LIGHT_STEP, value, true);
+    char number[16];
+    snprintf(number, sizeof(number), "%d%%", *value);
+    ui_text(UI_FONT_BODY, number, x + width - ui_text_width(UI_FONT_BODY, number), text_y, C_OPTION);
+}
+
+/* Drawn over the window, which takes no input meanwhile. */
+static void draw_light_dialog(float width, float height) {
+    LightDialog *light = &app.light;
+    DrawRectangle(0, 0, (int)width, (int)height, (Color){0x05, 0x08, 0x0E, 190});
+    float pad = ui_px(20);
+    float title_h = ui_line_height(UI_FONT_SUBTITLE);
+    float row = ui_px(24);
+    float button_h = ui_px(30);
+    const char *keys = "In a race, + and - change the shadows and Page Up and Page Down "
+                       "the highlights.";
+    float panel_w = fminf(ui_px(560), width - ui_px(24));
+    float inner = panel_w - pad * 2;
+    float keys_h = ui_text_wrapped(UI_FONT_BODY, keys, 0, 0, inner, BLANK, false);
+    float below = ui_px(12) + row * 2 + ui_px(6) + ui_px(8) + keys_h + ui_px(16) + button_h + pad;
+    float above = pad + title_h + ui_px(12);
+    /* The picture is as large as the window allows, in its own proportions. */
+    float picture_w = inner;
+    float picture_h = light->texture.id
+                          ? picture_w * (float)light->texture.height / (float)light->texture.width
+                          : ui_line_height(UI_FONT_BODY) + ui_px(24);
+    float room = height - ui_px(24) - above - below;
+    if (light->texture.id && picture_h > room && room > ui_px(60)) {
+        picture_h = room;
+        picture_w = picture_h * (float)light->texture.width / (float)light->texture.height;
+    }
+    float panel_h = above + picture_h + below;
+    Rectangle panel = {(width - panel_w) / 2, fmaxf(ui_px(8), (height - panel_h) / 2), panel_w,
+                       panel_h};
+    ui_round_rect(panel, ui_px(10), C_HINT_BOX);
+    ui_round_border(panel, ui_px(10), fmaxf(1, ui_px(1)), C_QUIET);
+    float x = panel.x + pad;
+    float y = panel.y + pad;
+    ui_text(UI_FONT_SUBTITLE, "Adjust shadows / highlights", x, y, C_OPTION);
+    y += title_h + ui_px(12);
+    if (light->texture.id) {
+        light_render();
+        Rectangle source = {0, 0, (float)light->texture.width, (float)light->texture.height};
+        Rectangle target = {x + (inner - picture_w) / 2, y, picture_w, picture_h};
+        DrawTexturePro(light->texture, source, target, (Vector2){0, 0}, 0, WHITE);
+        ui_tooltip(target, "Valparaiso as these settings light it. The sky, the ships' effects "
+                           "and the display are not affected.");
+    } else {
+        ui_text(UI_FONT_BODY, "The preview picture is not available.", x, y + ui_px(12), C_QUIET);
+    }
+    y += picture_h + ui_px(12);
+    light_slider(W_LIGHT_SHADOWS, "Shadows",
+                 "Brighten the dark parts of the scenery. 0% is the game's own lighting.",
+                 &light->shadows, x, y, inner);
+    y += row + ui_px(6);
+    light_slider(W_LIGHT_HIGHLIGHTS, "Highlights",
+                 "Strengthen or soften the bright parts of the scenery. 100% is the game's own "
+                 "lighting.",
+                 &light->highlights, x, y, inner);
+    y += row + ui_px(8);
+    ui_text_wrapped(UI_FONT_BODY, keys, x, y, inner, C_QUIET, true);
+    y += keys_h + ui_px(16);
+    float gap = ui_px(9);
+    float button_w = ui_px(100);
+    Rectangle original = {x, y, ui_px(120), button_h};
+    if (ui_button(W_LIGHT_ORIGINAL, original, "Original", UI_BUTTON_NORMAL, true)) {
+        light->shadows = LIGHT_ORIGINAL_SHADOWS;
+        light->highlights = LIGHT_ORIGINAL_HIGHLIGHTS;
+    }
+    ui_tooltip(original, "The game's own lighting: shadows 0%, highlights 100%.");
+    Rectangle save = {x + inner - button_w, y, button_w, button_h};
+    Rectangle cancel = {save.x - gap - button_w, y, button_w, button_h};
+    if (ui_button(W_LIGHT_CANCEL, cancel, "Cancel", UI_BUTTON_NORMAL, true) ||
+        IsKeyPressed(KEY_ESCAPE)) {
+        light->open = false;
+    }
+    if (ui_button(W_LIGHT_SAVE, save, "Save", UI_BUTTON_PRIMARY, true)) {
+        light_save();
+    }
+}
+
 static float window_min_width(void) {
     return fmaxf(ui_px(760), ui_px(64 + 360 + 180 + 24 + 16) + (float)app.ninja.width);
 }
@@ -677,8 +979,8 @@ static void apply_window_size(void) {
     app.layout_sources = (int)sources;
     /* The fullscreen row takes 42 units when it is offered. */
     float row = WO_EXCLUSIVE_FULLSCREEN_OFFERED ? 0 : 42;
-    float min_height = ui_px((sources ? 730 : 580) - row);
-    float height = ui_px((sources ? 750 : 600) - row);
+    float min_height = ui_px((sources ? 756 : 606) - row);
+    float height = ui_px((sources ? 776 : 626) - row);
     int area_x;
     int area_y;
     int area_w;
@@ -702,6 +1004,12 @@ static void draw_frame(void) {
     float s = ui_scale();
     float width = (float)GetScreenWidth();
     float height = (float)GetScreenHeight();
+    /* A job that began meanwhile closes the dialog. */
+    if (app.light.open && locked()) {
+        app.light.open = false;
+    }
+    bool dialog = app.light.open;
+    ui_behind(dialog);
     float left = ui_px(32);
     float content = width - ui_px(64);
     float spin = (float)fmod(GetTime() * 360.0 / 1.4, 360.0);
@@ -756,15 +1064,13 @@ static void draw_frame(void) {
     float field_h = ui_line_height(UI_FONT_FIELD) + ui_px(20);
     if (show_sources()) {
         draw_label("WINDOWS GAME", left, y, content, C_CAPS, UI_FONT_CAPS,
-                   "Required: PC ZIP/disc image or the small 11 MB PC version. Included PC music is "
-                   "extracted automatically; the small version can play without music or with "
-                   "optional PlayStation music.");
+                   "Required: the retail PC game as a ZIP or disc image. Its music is "
+                   "extracted automatically.");
         y += ui_line_height(UI_FONT_CAPS) + ui_px(5);
         source_row(W_GAME_FIELD, W_GAME_BROWSE, W_GAME_MAGIC, &app.game, left, y, content, field_h,
                    spin,
-                   "PC ZIP/disc image or the small 11 MB PC version. Included PC music is extracted "
-                   "automatically. The small version works without music or with optional "
-                   "PlayStation music.",
+                   "The retail PC game as a ZIP or disc image. Its music is extracted "
+                   "automatically.",
                    SCAN_GAME);
         app.psx_drop_y = y + field_h + ui_px(6);
         y += field_h + ui_px(13);
@@ -849,6 +1155,33 @@ static void draw_frame(void) {
                            ui_px(17)},
                "Reduce noise in your original 22 kHz sound effects while preserving their volume. "
                "Audio is processed locally from your game files.");
+    /* The game's own display settings, once there is a game to keep them. */
+    y += ui_px(17) + ui_px(9);
+    bool game_settings = mod_file_exists("wobble/Wipeout2097.ini") && !locked();
+    Rectangle fps_rect = {left, y, content, ui_px(17)};
+    if (ui_checkbox(W_FPS, fps_rect, "Show FPS counter", &app.show_fps, game_settings)) {
+        char *ini = mod_file("wobble/Wipeout2097.ini");
+        if (ini && wo_settings_set_render(ini, "ShowFPS", 1, app.show_fps ? 1 : 0, NULL)) {
+            set_status("Frame rate display saved for the next launch.");
+        }
+        wo_free(ini);
+    }
+    ui_tooltip((Rectangle){left, y, ui_px(25) + ui_text_width(UI_FONT_BODY, "Show FPS counter"),
+                           ui_px(17)},
+               game_settings ? "Show the frame rate on screen. In the game, the ` key (left of 1) "
+                               "switches it on and off."
+                             : "Show the frame rate on screen: the ` key (left of 1) in the game. "
+                               "Available here once the game is installed.");
+    Rectangle light_button = {left + content - ui_px(210), y - ui_px(7), ui_px(210), ui_px(30)};
+    if (ui_button(W_LIGHT, light_button, "Adjust shadows / highlights\xE2\x80\xA6", UI_BUTTON_NORMAL,
+                  game_settings)) {
+        light_open();
+    }
+    ui_tooltip(light_button,
+               game_settings ? "Brighten the scenery's shadows and adjust its highlights, with a "
+                               "preview."
+                             : "Brighten the scenery's shadows and adjust its highlights. Available "
+                               "once the game is installed.");
 
     /* Footer, laid out from the bottom: buttons aligned with the wordmark. */
     float footer_bottom = height - ui_px(24);
@@ -921,6 +1254,10 @@ static void draw_frame(void) {
     if (ui_button(W_UPDATE, update, app.state == GUI_UPDATING ? "Updating\xE2\x80\xA6" : "Update",
                   UI_BUTTON_NORMAL, app.state == GUI_IDLE && app.release_link != NULL)) {
         start_update();
+    }
+    if (dialog) {
+        ui_behind(false);
+        draw_light_dialog(width, height);
     }
 }
 
@@ -1096,6 +1433,7 @@ int app_run(const char *mod_root, const char *exe_path, const AppOptions *option
         WaitTime(0.05);
         drain_jobs();
     }
+    light_unload();
     UnloadTexture(app.logo);
     UnloadTexture(app.github);
     UnloadTexture(app.ninja);

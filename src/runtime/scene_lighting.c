@@ -7,6 +7,15 @@ static BYTE scene_light_usage[65536];
 static WCHAR scene_light_settings[MAX_PATH];
 static DWORD scene_light_notice_until;
 static BOOL scene_light_notice;
+/* For maintainers, with WO4K_LIGHT_CAPTURE=1 in the environment
+ * (tools\capture-light-preview.cmd): F9 in a race holds the scene still and
+ * takes three screenshots of it: lit as the game lights it, fully lit, and
+ * unlit, which leaves what these settings never touch. Then the race runs
+ * on. Setup's preview of these settings is made from the three
+ * (tools/Build-LightPreview.py). The screenshot code steps through them. */
+enum {SCENE_CAPTURE_OFF,SCENE_CAPTURE_LIT,SCENE_CAPTURE_FULL,SCENE_CAPTURE_BARE,SCENE_CAPTURE_STATES};
+static BOOL scene_light_capture_offered;
+static UINT scene_light_capture;
 
 static BOOL scene_light_racing(void) {
     return installed && refresh_race && *(DWORD *)(game+0x8c98c) && !*(DWORD *)(game+0x8c9d4);
@@ -36,6 +45,11 @@ static void scene_light_number(WCHAR *text,UINT n) {
     while(used)text[at++]=reverse[--used];text[at]=0;
 }
 static BOOL scene_light_key(SHORT key) {
+    if(key==0x43 && scene_light_capture_offered && scene_light_racing()) { /* DirectInput F9. */
+        if(!scene_light_capture)scene_light_capture=SCENE_CAPTURE_LIT;
+        wo_render_event("render_light_capture",scene_light_capture);
+        return TRUE;
+    }
     BOOL highlights=key==0xc9 || key==0xd1; /* DirectInput Page Up / Page Down. */
     int delta=(key==0x0d || key==0x4e || key==0xc9)?5:((key==0x0c || key==0x4a || key==0xd1)?-5:0);
     if(!delta || !scene_light_racing() || *(DWORD *)(game+0x89cb0))return FALSE;
@@ -107,7 +121,8 @@ static BOOL scene_light_classify(const BYTE *input,UINT length,UINT count) {
     return TRUE;
 }
 static void scene_lighting_finish(void) {
-    if((!scene_shadow_lift && scene_highlights==100) || !scene_light_racing())return;
+    if(scene_light_capture==SCENE_CAPTURE_LIT || !scene_light_racing())return;
+    if(!scene_shadow_lift && scene_highlights==100 && !scene_light_capture)return;
     BYTE *buffer=*(BYTE **)(game+0x53f190),*start=*(BYTE **)(game+0x53f1a0),*end=*(BYTE **)(game+0x631d54);
     UINT size=*(UINT *)(game+0xc8610),count=*(UINT *)(game+0x631d50);
     if(!buffer || start<buffer || end<start || end>=buffer+size || count>(UINT)(start-buffer)/32)return;
@@ -115,7 +130,9 @@ static void scene_lighting_finish(void) {
     for(UINT i=0;i<count;++i) {
         BYTE *v=buffer+i*32;DWORD tag=*(DWORD *)(v+12);
         if(scene_light_usage[i]!=1 || tag==TRAIL_VERTEX_TAG || tag==SKY_VERTEX_TAG || tag==SPRITE_VERTEX_TAG)continue;
-        *(DWORD *)(v+16)=scene_light_color(*(DWORD *)(v+16));
+        DWORD colour=*(DWORD *)(v+16);
+        *(DWORD *)(v+16)=scene_light_capture==SCENE_CAPTURE_FULL?colour|0xffffffu:
+            scene_light_capture==SCENE_CAPTURE_BARE?colour&0xff000000u:scene_light_color(colour);
     }
 }
 static void draw_scene_light_status(void) {
@@ -132,6 +149,8 @@ static void draw_scene_light_status(void) {
 static void initialize_scene_lighting(const WCHAR *settings) {
     UINT n=0;while(settings[n] && n<MAX_PATH-1){scene_light_settings[n]=settings[n];++n;}
     scene_light_settings[n]=0;
+    WCHAR capture[4];
+    scene_light_capture_offered=GetEnvironmentVariableW(L"WO4K_LIGHT_CAPTURE",capture,4) && capture[0]==L'1';
     UINT percent=GetPrivateProfileIntW(L"Render",L"ShadowLiftPercent",0,settings);
     UINT highlights=GetPrivateProfileIntW(L"Render",L"HighlightsPercent",100,settings);
     scene_highlights=highlights>300?100:highlights;

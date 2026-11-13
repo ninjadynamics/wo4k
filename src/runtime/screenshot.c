@@ -307,7 +307,22 @@ static void shot_take(void) {
 }
 /* After every present. PrintScreen sends no key-down message; its state is
  * polled, and only acted on while the game is the foreground program. */
+/* The lighting preview's three pictures (scene_lighting.c): each state is
+ * shown for half a second's frames, photographed, and left on screen until
+ * its picture is saved. */
+enum {LIGHT_CAPTURE_SETTLE=30};
+static UINT light_capture_frames,light_capture_taken;
+static void light_capture_poll(void) {
+    if(!scene_light_capture){light_capture_frames=light_capture_taken=0;return;}
+    if(shot_busy){light_capture_frames=0;return;}
+    if(++light_capture_frames<LIGHT_CAPTURE_SETTLE)return;
+    light_capture_frames=0;
+    if(light_capture_taken!=scene_light_capture){shot_take();light_capture_taken=scene_light_capture;return;}
+    scene_light_capture=(scene_light_capture+1)%SCENE_CAPTURE_STATES;
+    wo_render_event("render_light_capture",scene_light_capture);
+}
 static void screenshot_poll(void) {
+    light_capture_poll();
     BOOL down=(GetAsyncKeyState(VK_SNAPSHOT)&0x8000) && (GetAsyncKeyState(VK_SHIFT)&0x8000);
     if(down && !shot_key_down) {
         DWORD foreground=0;GetWindowThreadProcessId(GetForegroundWindow(),&foreground);

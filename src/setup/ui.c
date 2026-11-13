@@ -67,6 +67,7 @@ static struct {
     bool released;
     bool down;
     bool input_blocked; /* a popup consumed this frame's mouse press */
+    bool behind;        /* see ui_behind */
     double now;
 
     int active;
@@ -532,17 +533,22 @@ void ui_begin_frame(void) {
 }
 
 static bool mouse_free(void) {
-    return ui.popup_kind == POPUP_NONE && !ui.input_blocked;
+    return ui.popup_kind == POPUP_NONE && !ui.input_blocked && !ui.behind;
+}
+
+void ui_behind(bool behind) {
+    ui.behind = behind;
 }
 
 static void focusable(int id) {
-    if (ui.focus_count < MAX_FOCUSABLE) {
+    if (!ui.behind && ui.focus_count < MAX_FOCUSABLE) {
         ui.focus_order[ui.focus_count++] = id;
     }
 }
 
 static bool key_for(int id, int key) {
-    return ui.focus == id && !ui.key_consumed && (IsKeyPressed(key) || IsKeyPressedRepeat(key));
+    return ui.focus == id && !ui.key_consumed && !ui.behind &&
+           (IsKeyPressed(key) || IsKeyPressedRepeat(key));
 }
 
 /* Hover/press/click handling shared by clickable widgets. */
@@ -987,6 +993,51 @@ bool ui_checkbox(int id, Rectangle r, const char *label, bool *value, bool enabl
     ui_text(UI_FONT_BODY, label, square.x + box + ui_px(8),
             r.y + (hit.height - ui_line_height(UI_FONT_BODY)) / 2, text);
     return clicked;
+}
+
+bool ui_slider(int id, Rectangle r, int minimum, int maximum, int step, int *value, bool enabled) {
+    float knob = ui_px(14);
+    float track_h = fmaxf(2, ui_px(4));
+    Rectangle track = {r.x + knob / 2, r.y + (r.height - track_h) / 2, r.width - knob, track_h};
+    bool hover;
+    bool pressed;
+    clickable(id, r, enabled, &hover, &pressed);
+    int before = *value;
+    int next = before;
+    /* Dragging follows the mouse wherever it goes until the button is let go. */
+    if (enabled && ui.active == id && ui.down && track.width > 0) {
+        float along = (ui.mouse.x - track.x) / track.width;
+        along = along < 0 ? 0 : along > 1 ? 1 : along;
+        next = minimum + (int)(along * (float)(maximum - minimum) / (float)step + 0.5f) * step;
+    }
+    if (enabled && key_for(id, KEY_RIGHT)) {
+        next += step;
+        ui.key_consumed = true;
+    }
+    if (enabled && key_for(id, KEY_LEFT)) {
+        next -= step;
+        ui.key_consumed = true;
+    }
+    next = next < minimum ? minimum : next > maximum ? maximum : next;
+    *value = next;
+    float along = maximum > minimum ? (float)(next - minimum) / (float)(maximum - minimum) : 0;
+    Color rail = C_PROGRESS_TRACK;
+    Color filled = C_PRIMARY;
+    Color handle = ui.active == id && ui.down ? C_PRESSED : hover ? C_HOVER : C_FIELD_TEXT;
+    if (!enabled) {
+        rail = ui_fade(rail, C_WINDOW, DISABLED_OPACITY);
+        filled = ui_fade(filled, C_WINDOW, DISABLED_OPACITY);
+        handle = ui_fade(handle, C_WINDOW, DISABLED_OPACITY);
+    }
+    ui_round_rect(track, track_h / 2, rail);
+    ui_round_rect((Rectangle){track.x, track.y, track.width * along, track_h}, track_h / 2, filled);
+    Rectangle grip = {track.x + track.width * along - knob / 2, r.y + (r.height - knob) / 2, knob,
+                      knob};
+    ui_round_rect(grip, knob / 2, handle);
+    focus_outline(id, (Rectangle){grip.x - ui_px(2), grip.y - ui_px(2), knob + ui_px(4),
+                                  knob + ui_px(4)},
+                  knob / 2 + ui_px(2));
+    return next != before;
 }
 
 static void open_popup(PopupKind kind, int id, Rectangle anchor, const char *const *items,
