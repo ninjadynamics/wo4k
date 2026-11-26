@@ -387,6 +387,47 @@ static void test_native_sheets_match(void) {
     wo_free(game);
 }
 
+/* --- Debanded pictures and the HD catalogue --------------------------------------------- */
+
+/* A whole set of upscaled textures is made from the debanded pictures and
+ * keeps their names (assets/hd). Play refuses a PNG there that the HD
+ * catalogue does not know, so the catalogue must know every one of them. */
+static void test_debanded_names_are_catalogued(void) {
+    char *folder = golden_root ? under(golden_root, "assets/sd") : NULL;
+    WoDirList list = {0};
+    WoJson *catalogue = NULL;
+    WoError error = {0};
+    if (!folder || !wo_is_dir(folder) || !wo_list_dir(folder, &list, NULL) || !list.count) {
+        skip("no debanded pictures (assets/sd)");
+        wo_dirlist_free(&list);
+        wo_free(folder);
+        return;
+    }
+    CHECK_OK(wo_read_json("manifests/hd-textures.json", 32 << 20, &catalogue, &error), &error);
+    size_t pictures = 0;
+    size_t known = 0;
+    for (size_t i = 0; i < list.count; i++) {
+        const char *name = list.items[i].name;
+        if (list.items[i].is_dir || !wo_str_iends_with(name, ".png")) {
+            continue;
+        }
+        pictures++;
+        bool found = false;
+        for (size_t j = 0; !found && j < wo_json_length(catalogue); j++) {
+            found = wo_str_ieq(wo_json_str(wo_json_at(catalogue, j), "file", ""), name);
+        }
+        if (found) {
+            known++;
+        } else {
+            wo_test_fail(__FILE__, __LINE__, name, "is not in manifests/hd-textures.json");
+        }
+    }
+    printf("  (%zu of %zu debanded pictures are catalogue names)\n", known, pictures);
+    wo_json_free(catalogue);
+    wo_dirlist_free(&list);
+    wo_free(folder);
+}
+
 /* --- SD extraction from the configured game folder ------------------------------------- */
 
 static void test_sd_inventory_matches(void) {
@@ -702,6 +743,7 @@ int main(void) {
     RUN(test_audio_clean_matches_exe);
     RUN(test_hd_regions_match);
     RUN(test_native_sheets_match);
+    RUN(test_debanded_names_are_catalogued);
     RUN(test_sd_inventory_matches);
     RUN(test_pc_disc);
     RUN(test_ps1_disc);
