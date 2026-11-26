@@ -92,6 +92,15 @@ colours (the installer debands it with the rest, though it is on no sheet).
 Talon's Reach has no board with the logo: there the PC game's own board
 routine shows the lucky cat, still.
 
+Boards are then laid out by `manifests/billboard-layout.json`
+(`src/core/wo_billboards.c`): a board's faces are replaced by new ones over
+the same rectangle, showing its picture at its own proportions (or a chosen
+stretch and scale), tiled from the centre, with bars in a colour of the
+picture beside it. Bars show one texel of the picture in that colour, so
+they are lit as the picture is. Sprites take a new width. The pictures do
+not change. The billboard page (`wo4k-build billboards`, see
+[TOOLS.md](TOOLS.md)) is where the choices are made.
+
 A picture the PlayStation scenery textures do not include is added after
 them: the advert where its own header places it, which the PlayStation
 layout keeps clear, and a PC picture where the PC has it if that is clear,

@@ -10,6 +10,9 @@
 
 /* Read a manifest below the mod folder (e.g. "manifests/patches.json"). */
 bool wo_load_manifest(const WoMod *mod, const char *relative, WoJson **out, WoError *error);
+/* manifests/texture-selection.json, with each scenery track's boards of
+ * manifests/billboard-layout.json (when there is one) as its "billboards". */
+bool wo_load_plan(const WoMod *mod, WoJson **out, WoError *error);
 
 /* Hashes of the required Windows game files and original sound effects in
  * game_root, as recorded in the installation receipt ("pc_files"). */

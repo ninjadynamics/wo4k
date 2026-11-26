@@ -54,6 +54,28 @@ static const char *receipt_digest(const WoJson *receipt, const char *relative) {
     return NULL;
 }
 
+/* The scenery tracks' archives are the installer's own: when they were made
+ * again (the boards or their layout changed), the receipt follows them, or
+ * the next launch would take them for damaged and repair the installation. */
+static void refresh_scenery_digests(WoJson *receipt, const WoJson *plan, WoHashCache *cache,
+                                    const char *game) {
+    const WoJson *scenery = wo_json_get(plan, "scenery");
+    WoJson *files = wo_json_get(receipt, "pc_files");
+    for (size_t i = 0; i < wo_json_length(scenery); i++) {
+        char relative[64];
+        snprintf(relative, sizeof(relative), "%s/TRACK.WAD",
+                 wo_json_str(wo_json_at(scenery, i), "track", ""));
+        char digest[WO_SHA256_HEX_SIZE];
+        for (size_t j = 0; j < wo_json_length(files); j++) {
+            WoJson *record = wo_json_at(files, j);
+            if (wo_str_eq(wo_json_str(record, "file", ""), relative) &&
+                file_digest(cache, game, relative, digest)) {
+                wo_json_put_str(record, "sha256", digest);
+            }
+        }
+    }
+}
+
 static bool listed_digest(const WoJson *list, const char *digest) {
     for (size_t i = 0; i < wo_json_length(list); i++) {
         if (wo_digest_eq(wo_json_as_str(wo_json_at(list, i), ""), digest)) {
@@ -582,7 +604,7 @@ static bool load_manifests(const WoMod *mod, WoJson **files, WoJson **patches, W
                            WoError *error) {
     return wo_load_manifest(mod, "manifests/game-files.json", files, error) &&
            wo_load_manifest(mod, "manifests/patches.json", patches, error) &&
-           wo_load_manifest(mod, "manifests/texture-selection.json", plan, error);
+           wo_load_plan(mod, plan, error);
 }
 
 static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *progress,
@@ -692,6 +714,8 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
             WoJson *pc_files = NULL;
             ok = wo_pc_file_receipt(mod, mod->game, &pc_files, error) &&
                  wo_json_put(receipt, "pc_files", pc_files);
+        } else {
+            refresh_scenery_digests(receipt, plan, cache, mod->game);
         }
         ok = ok && wo_receipt_save(mod, receipt, error);
     }
@@ -812,7 +836,7 @@ static bool refresh_assets(const WoMod *mod, WoProgress *progress, WoHashCache *
         char *canonical = wo_mod_path(mod, "assets/auth", error);
         char *upscaled = canonical ? wo_mod_path(mod, "assets/hd", error) : NULL;
         WoJson *plan = NULL;
-        ok = wo_load_manifest(mod, "manifests/texture-selection.json", &plan, error);
+        ok = wo_load_plan(mod, &plan, error);
         WoHdOptions options = {catalog, canonical, canonical, mod->game, cache, plan, upscaled};
         ok = ok && upscaled && wo_hd_install(&options, &art, error);
         wo_json_free(plan);

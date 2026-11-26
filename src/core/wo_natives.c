@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/wo_billboards.h"
 #include "core/wo_boards.h"
 #include "core/wo_disc.h"
 #include "core/wo_fs.h"
@@ -521,6 +522,7 @@ typedef struct SceneryWads {
     char *adverts; /* the PlayStation's board pictures for the track, or NULL */
     int pictures[SCENERY_BOARD_PICTURES]; /* see wo_boards_keep */
     size_t picture_count;
+    const WoJson *billboards; /* the entry's "billboards": see wo_billboards.h */
     WoBoardMove moves[SCENERY_BOARD_PICTURES]; /* see wo_boards_move */
     bool unpasted[SCENERY_BOARD_PICTURES];     /* a move whose texture the sheet does not show */
     size_t move_count;
@@ -568,6 +570,7 @@ static bool scenery_wads(const char *game_root, const WoJson *entry, SceneryWads
         }
         wads->pictures[wads->picture_count++] = number;
     }
+    wads->billboards = wo_json_get(entry, "billboards");
     /* "moves": scenery textures that need another place than the
      * PlayStation's, each {"texture", "x", "y"} as a TIM header has them.
      * With "paste": false the texture only marks a place: the sheet keeps
@@ -606,11 +609,25 @@ static bool scenery_wanted(const SceneryWads *wads, WoBuf *out, WoError *error) 
                wo_read_file(wads->adverts, WO_TEXSRC_MAX_FILE_BYTES, &adverts, error)) &&
               wo_boards_keep(ps1.data, ps1.len, pc.data, pc.len, adverts.data, adverts.len,
                              wads->pictures, wads->picture_count, &boarded, NULL, error) &&
-              wo_boards_move(boarded.data, boarded.len, wads->moves, wads->move_count, out, error);
+              wo_boards_move(boarded.data, boarded.len, wads->moves, wads->move_count, out, error) &&
+              wo_billboards_apply(wads->billboards, out, NULL, error);
     wo_buf_free(&boarded);
     wo_buf_free(&adverts);
     wo_buf_free(&pc);
     wo_buf_free(&ps1);
+    return ok;
+}
+
+bool wo_natives_scenery_unlaid(const char *game_root, const WoJson *entry, WoBuf *out,
+                               WoError *error) {
+    SceneryWads wads;
+    if (!scenery_wads(game_root, entry, &wads, error)) {
+        return false;
+    }
+    wads.billboards = NULL;
+    bool ok = wo_is_file(wads.ps1) ? scenery_wanted(&wads, out, error)
+                                   : wo_fail(error, WO_ERR_NOT_FOUND, "No PlayStation archive.");
+    scenery_wads_free(&wads);
     return ok;
 }
 

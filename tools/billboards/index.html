@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Billboard proportions</title>
+<!-- Made by `wo4k-build billboards` beside its data.js; see src/tools/build_billboards.c. -->
+<style>
+:root{color-scheme:dark;--bg:#111;--panel:#1b1b1b;--line:#333;--text:#ddd;--quiet:#8a8a8a;--accent:#66dbd0;--warn:#f2c94c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px system-ui,sans-serif}
+header{position:sticky;top:0;z-index:2;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center}
+header h1{font-size:15px;margin:0 8px 0 0}
+header label{display:flex;gap:6px;align-items:center;color:var(--quiet)}
+select,input[type=number]{background:#000;color:var(--text);border:1px solid #444;border-radius:4px;padding:4px 6px;font:inherit}
+button{background:#25314a;color:var(--text);border:1px solid #3a4a68;border-radius:4px;padding:5px 10px;font:inherit;cursor:pointer}
+button:hover{background:#ff6633;border-color:#ff6633;color:#fff}
+button.primary{background:var(--accent);border-color:var(--accent);color:#142032;font-weight:600}
+#count{color:var(--quiet);margin-left:auto}
+h2.section{font-size:15px;margin:24px 16px 0;padding-top:16px;border-top:1px solid var(--line)}
+p.section{color:var(--quiet);margin:4px 16px 0;max-width:900px}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;padding:12px 16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.card.changed{border-color:var(--accent)}
+.card.ignored{opacity:.45}
+.title{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.title b{font-size:13px;overflow-wrap:anywhere}
+.title span{color:var(--quiet);font-size:12px;white-space:nowrap}
+.title .x{margin-left:6px;padding:0 7px;line-height:20px;font-size:14px;background:none;border-color:#444;color:var(--quiet)}
+.title .x:hover{background:#c0392b;border-color:#c0392b;color:#fff}
+.card.ignored .title .x{color:var(--accent);border-color:var(--accent)}
+.facts{color:var(--quiet);font-size:12px;line-height:1.5}
+.facts .bad{color:var(--warn)}
+.views{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.views figure{margin:0}
+.views figcaption{font-size:11px;color:var(--quiet);margin-bottom:3px}
+canvas.view{width:100%;display:block;background:#0a0a0a;border-radius:3px}
+.picture{display:flex;gap:8px;align-items:flex-start}
+.picture canvas{width:128px;cursor:crosshair;touch-action:none;image-rendering:pixelated;background:repeating-conic-gradient(#222 0 25%,#2c2c2c 0 50%) 0 0/12px 12px;border-radius:3px;flex:none}
+.picture canvas.picking{cursor:crosshair;outline:2px solid var(--warn)}
+.controls{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row[hidden]{display:none}
+.row{flex-wrap:nowrap}.row.bars-row{flex-wrap:wrap}
+.row>span:first-child{min-width:44px}
+.row input[type=range]{flex:1;min-width:40px}
+.row input[type=number]{width:64px}
+.row input[type=color]{width:32px;height:24px;padding:0;border:1px solid #444;background:none}
+.swatch{width:18px;height:18px;border-radius:3px;border:1px solid #555;background:repeating-conic-gradient(#666 0 25%,#999 0 50%) 0 0/8px 8px}
+.note{font-size:11px;color:var(--quiet)}
+.empty{padding:40px;color:var(--quiet)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Billboard proportions</h1>
+  <label>Track <select id="track"><option value="">All</option></select></label>
+  <label><input type="checkbox" id="likely" checked> Likely billboards only</label>
+  <label><input type="checkbox" id="straight"> Hide boards within ±5%</label>
+  <label><input type="checkbox" id="undecided"> Undecided only</label>
+  <label><input type="checkbox" id="hidden"> Show "not a billboard"</label>
+  <label>Sort <select id="sort">
+    <option value="track">Track</option>
+    <option value="stretch">Most stretched first</option>
+    <option value="squash">Most squashed first</option>
+  </select></label>
+  <span id="count"></span>
+  <span id="made" class="note" title="Run tools\\billboards.cmd again after changing textures"></span>
+  <button id="import">Import JSON…</button>
+  <button id="export" class="primary">Export JSON</button>
+  <input type="file" id="file" accept=".json,application/json" hidden>
+</header>
+<main id="sheet"></main>
+<h2 class="section">Authored textures</h2>
+<p class="section">Boards whose picture is replaced by authored artwork (assets/auth): what players with HD artwork on see. Choices here are kept apart from the ones above.</p>
+<main id="authsheet"></main>
+<script src="data.js"></script>
+<script>
+"use strict";
+const DATA = window.BILLBOARDS;
+const MODES = [
+  ["keep", "Keep as it is"],
+  ["fit", "Fit vertically (bars)"],
+  ["tile", "Tile from the centre"],
+  ["stretch", "Stretch by %"],
+  ["ignore", "Not a billboard"],
+];
+const STORE = "wo4k-billboards-v1";
+document.getElementById("made").textContent = DATA && DATA.made ? "Pictures as of " + DATA.made : "";
+const LIKELY_NAME = /board|redb|bill|sign|screen|advert|lostad|lightbox|poster|banner/i;
+
+if (!DATA) {
+  document.getElementById("sheet").innerHTML =
+    '<p class="empty">data.js is missing: run <code>wo4k-build billboards wobble exports/billboards assets</code>.</p>';
+  throw new Error("no data");
+}
+
+/* --- Pictures ---------------------------------------------------------------------- */
+
+const pictures = {};
+for (const [key, p] of Object.entries(DATA.pictures)) {
+  if (p.authSrc) {
+    const img = new Image();
+    img.src = p.authSrc;
+    pictures[key + "@auth"] = { name: p.authName, source: "auth", width: p.width, height: p.height,
+                                src: p.authSrc, img, pixels: null };
+  }
+  const img = new Image();
+  img.src = p.src;
+  pictures[key] = { ...p, img, pixels: null };
+}
+function pixels(picture) {
+  if (!picture.pixels && picture.img.complete && picture.img.naturalWidth) {
+    const c = document.createElement("canvas");
+    c.width = picture.img.naturalWidth; c.height = picture.img.naturalHeight;
+    const g = c.getContext("2d");
+    g.drawImage(picture.img, 0, 0);
+    picture.pixels = g.getImageData(0, 0, c.width, c.height);
+  }
+  return picture.pixels;
+}
+/* A picture may be larger than its texels (authored HD art): texel u maps to this many pixels. */
+function texelScale(picture) {
+  return picture.img.naturalWidth / picture.width;
+}
+function hex(r, g, b) {
+  return "#" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0")).join("");
+}
+/* The colour of the picture's left and right edges, or null when they are mostly see-through. */
+function edgeColour(board) {
+  const p = pictures[board.picture], px = pixels(p);
+  if (!px) return null;
+  const k = texelScale(p), [u, v, du, dv] = board.uv;
+  const x0 = Math.floor(u * k), x1 = Math.min(px.width - 1, Math.floor((u + du) * k) - 1);
+  const y0 = Math.floor(v * k), y1 = Math.min(px.height - 1, Math.floor((v + dv) * k) - 1);
+  let r = 0, g = 0, b = 0, n = 0, all = 0;
+  for (const x of [x0, x1]) for (let y = y0; y <= y1; y++) {
+    const i = (y * px.width + x) * 4; all++;
+    if (px.data[i + 3] < 128) continue;
+    r += px.data[i]; g += px.data[i + 1]; b += px.data[i + 2]; n++;
+  }
+  return n > all / 2 ? hex(r / n, g / n, b / n) : null;
+}
+
+/* The part of the board's picture that shows: the bounding box of its
+ * solid pixels, in texels; null when every pixel is solid or none is. */
+function visibleRect(b) {
+  if (b.visible !== undefined) return b.visible;
+  const p = pictures[b.picture], px = pixels(p);
+  if (!px) return null;
+  const k = texelScale(p), [u, v, du, dv] = b.uv;
+  const x0 = Math.floor(u * k), y0 = Math.floor(v * k);
+  const x1 = Math.min(px.width, Math.ceil((u + du) * k)), y1 = Math.min(px.height, Math.ceil((v + dv) * k));
+  let l = x1, r = x0 - 1, t = y1, bt = y0 - 1, clear = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    if (px.data[(y * px.width + x) * 4 + 3] < 128) { clear++; continue; }
+    if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > bt) bt = y;
+  }
+  b.clear = clear / Math.max(1, (x1 - x0) * (y1 - y0));
+  if (r < l || (l === x0 && t === y0 && r === x1 - 1 && bt === y1 - 1)) b.visible = null;
+  else b.visible = [l / k, t / k, (r - l + 1) / k, (bt - t + 1) / k];
+  return b.visible;
+}
+
+/* --- Boards and choices ------------------------------------------------------------ */
+
+const boards = DATA.boards.map((b, index) => {
+  const first = b.instances[0];
+  const key = `${b.track}/${b.picture}/${first.objectIndex}/${first.faces.join(".")}`;
+  return { ...b, index, key };
+});
+const usesByPicture = {};
+for (const b of boards) usesByPicture[b.picture] = (usesByPicture[b.picture] || 0) + b.instances.length;
+/* How much of the board [0,1]x[0,1] a face's bounding box covers. */
+function cover(points) {
+  let s0 = 1e9, s1 = -1e9, t0 = 1e9, t1 = -1e9;
+  for (let i = 0; i < points.length; i += 2) {
+    s0 = Math.min(s0, points[i]); s1 = Math.max(s1, points[i]);
+    t0 = Math.min(t0, points[i + 1]); t1 = Math.max(t1, points[i + 1]);
+  }
+  return Math.max(0, Math.min(1, s1) - Math.max(0, s0)) * Math.max(0, Math.min(1, t1) - Math.max(0, t0));
+}
+for (const b of boards) {
+  const [sy, ty] = b.down;
+  b.standing = Math.abs(sy) > 0.7 || Math.abs(ty) > 0.7;
+  b.onSide = Math.abs(sy) > 0.7;
+  b.upsideDown = ty < -0.7;
+  /* A frame or backing: another picture lies in front of most of it. */
+  let covered = 0;
+  for (const f of b.backing) {
+    if (!f.board && f.picture && f.picture !== b.picture && f.depth <= 0.01) covered += cover(f.points);
+  }
+  b.behind = covered > 0.3;
+  const named = b.instances.some(i => LIKELY_NAME.test(i.object));
+  b.likely = !b.behind && (named || (b.standing && usesByPicture[b.picture] <= 3));
+}
+
+/* Duplicates: boards showing the same picture (the same pixels, whatever
+ * archive or track it is in) over the same part of it are one card, and a
+ * choice made there applies to all of them. The card shows the board whose
+ * stretch is the middle one. */
+function makeGroups(list) {
+  const sameImage = new Map();
+  const groupMap = new Map();
+  for (const b of list) {
+    const src = pictures[b.picture].src;
+    if (!sameImage.has(src)) sameImage.set(src, sameImage.size);
+    const id = sameImage.get(src) + "/" + b.uv.join(",");
+    if (!groupMap.has(id)) groupMap.set(id, []);
+    groupMap.get(id).push(b);
+  }
+  return [...groupMap.values()].map(members => {
+    const sorted = [...members].sort((a, z) => a.stretch - z.stretch);
+    const middle = sorted[Math.floor((sorted.length - 1) / 2)];
+    const g = { ...middle, members, key: members[0].key,
+      instances: members.flatMap(m => m.instances),
+      tracks: [...new Set(members.map(m => m.track))],
+      stretchLow: sorted[0].stretch, stretchHigh: sorted[sorted.length - 1].stretch,
+      likely: members.some(m => m.likely), behind: members.every(m => m.behind) };
+    for (const m of members) m.group = g;
+    return g;
+  });
+}
+const groups = makeGroups(boards);
+
+/* The same boards with their authored artwork, where there is some; their
+ * backing shows authored artwork too where it has any. */
+const authBoards = boards.filter(b => pictures[b.picture + "@auth"]).map(b => ({
+  ...b, picture: b.picture + "@auth", key: "auth:" + b.key, auth: true, group: undefined,
+  backing: b.backing.map(f => f.picture && pictures[f.picture + "@auth"] ? { ...f, picture: f.picture + "@auth" } : f),
+}));
+const authGroups = makeGroups(authBoards);
+const allBoards = [...boards, ...authBoards];
+const allGroups = [...groups, ...authGroups];
+
+const choices = {};
+function defaultChoice(b) {
+  return { mode: "keep", bars: null, barsAuto: true, stretch: Math.round(b.stretch * 100), trim: true };
+}
+function choice(b) {
+  const g = b.group || b;
+  return choices[g.key] || (choices[g.key] = defaultChoice(g));
+}
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(choices)); } catch (e) { /* not kept */ }
+}
+try {
+  const kept = JSON.parse(localStorage.getItem(STORE) || "{}");
+  for (const [k, v] of Object.entries(kept)) choices[k] = v;
+} catch (e) { /* nothing kept */ }
+
+/* --- Drawing ----------------------------------------------------------------------- */
+
+const VIEW_W = 320;
+
+/* Draw image triangle (u,v) onto canvas triangle (x,y) with an affine transform. */
+function drawTriangle(g, img, k, uv, xy) {
+  const [u0, v0, u1, v1, u2, v2] = uv.map(t => t * k);
+  const [x0, y0, x1, y1, x2, y2] = xy;
+  const det = (u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0);
+  if (Math.abs(det) < 1e-6) return;
+  const a = ((x1 - x0) * (v2 - v0) - (x2 - x0) * (v1 - v0)) / det;
+  const b = ((y1 - y0) * (v2 - v0) - (y2 - y0) * (v1 - v0)) / det;
+  const c = ((x2 - x0) * (u1 - u0) - (x1 - x0) * (u2 - u0)) / det;
+  const d = ((y2 - y0) * (u1 - u0) - (y1 - y0) * (u2 - u0)) / det;
+  g.save();
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.lineTo(x2, y2); g.closePath(); g.clip();
+  g.transform(a, b, c, d, x0 - a * u0 - c * v0, y0 - b * u0 - d * v0);
+  g.drawImage(img, 0, 0);
+  g.restore();
+}
+
+/* The board's fill for a choice, in the board's rectangle (bx,by,bw,bh). */
+/* The part of the picture fitted, tiled or stretched: the area chosen on
+ * the thumbnail; else the part that shows, with see-through margins
+ * trimmed; else the part the board shows now. In texels. */
+function sourceArea(b, c) {
+  if (c.area) return c.area;
+  const trimmed = c.trim !== false && visibleRect(b);
+  return trimmed || b.uv;
+}
+
+function tileStretch(c) {
+  return c.tileStretch || 100;
+}
+
+function drawBoard(g, b, c, bx, by, bw, bh) {
+  const p = pictures[b.picture], k = texelScale(p);
+  const [u, v, du, dv] = c.mode === "keep" ? b.uv : sourceArea(b, c);
+  const src = [u * k, v * k, du * k, dv * k];
+  g.save();
+  g.beginPath(); g.rect(bx, by, bw, bh); g.clip();
+  /* Stretch and tile can draw the picture smaller than the board's height
+   * (scale), centred, with the bars above and below. */
+  const scaled = c.mode === "stretch" || c.mode === "tile" ? (c.scale || 100) / 100 : 1;
+  const h = bh * scaled, y = by + (bh - h) / 2;
+  const natural = h * du / dv;
+  const bars = () => { if (c.bars) { g.fillStyle = c.bars; g.fillRect(bx, by, bw, bh); } };
+  const centred = w => g.drawImage(p.img, ...src, bx + (bw - w) / 2, y, w, h);
+  if (c.mode === "fit") { bars(); centred(natural); }
+  else if (c.mode === "stretch") { bars(); centred(natural * c.stretch / 100); }
+  else if (c.mode === "tile") {
+    const w = natural * tileStretch(c) / 100;
+    const tiles = c.tiles || 0;
+    bars();
+    if (tiles) {
+      /* That many tiles from the centre; bars complete the board. */
+      const x0 = bx + (bw - tiles * w) / 2;
+      for (let n = 0; n < tiles; n++) g.drawImage(p.img, ...src, x0 + n * w, y, w, h);
+    } else {
+      const x0 = bx + (bw - w) / 2;
+      const n = Math.ceil((bw / 2) / w) + 1;
+      for (let k = -n; k <= n; k++) g.drawImage(p.img, ...src, x0 + k * w, y, w, h);
+    }
+  } else g.drawImage(p.img, ...src, bx, by, bw, bh);
+  g.restore();
+}
+
+let checkerTile = null;
+function checker(g) {
+  if (!checkerTile) {
+    checkerTile = document.createElement("canvas");
+    checkerTile.width = checkerTile.height = 12;
+    const t = checkerTile.getContext("2d");
+    t.fillStyle = "#151515"; t.fillRect(0, 0, 12, 12);
+    t.fillStyle = "#1e1e1e"; t.fillRect(0, 0, 6, 6); t.fillRect(6, 6, 6, 6);
+  }
+  return g.createPattern(checkerTile, "repeat");
+}
+
+function render(canvas, b, c) {
+  const [W, H] = b.size;
+  let smin = 0, smax = 1, tmin = 0, tmax = 1;
+  for (const f of b.backing) for (let i = 0; i < f.points.length; i += 2) {
+    smin = Math.min(smin, f.points[i]); smax = Math.max(smax, f.points[i]);
+    tmin = Math.min(tmin, f.points[i + 1]); tmax = Math.max(tmax, f.points[i + 1]);
+  }
+  /* World units across and down, framed with a margin; never taller than wide by much. */
+  const spanX = (smax - smin) * W, spanY = (tmax - tmin) * H;
+  const pad = 0.06 * Math.max(spanX, spanY);
+  const viewH = Math.max(60, Math.min(VIEW_W * 1.2, VIEW_W * (spanY + 2 * pad) / (spanX + 2 * pad)));
+  const scale = Math.min((VIEW_W) / (spanX + 2 * pad), viewH / (spanY + 2 * pad));
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = VIEW_W * dpr; canvas.height = Math.round(viewH * dpr);
+  canvas.style.aspectRatio = `${VIEW_W} / ${viewH}`;
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.imageSmoothingEnabled = true;
+  /* A checkerboard where nothing is drawn, so see-through parts show as such. */
+  g.fillStyle = checker(g); g.fillRect(0, 0, VIEW_W, viewH);
+  const ox = (VIEW_W - spanX * scale) / 2, oy = (viewH - spanY * scale) / 2;
+  const X = s => ox + (s - smin) * W * scale, Y = t => oy + (t - tmin) * H * scale;
+  /* Farthest first; the board itself where its faces are. */
+  const faces = [...b.backing].sort((a, z) => z.depth - a.depth);
+  let boardDrawn = false;
+  for (const f of faces) {
+    if (f.board) {
+      if (!boardDrawn) drawBoard(g, b, c, X(0), Y(0), W * scale, H * scale);
+      boardDrawn = true;
+      continue;
+    }
+    const pts = [];
+    for (let i = 0; i < f.points.length; i += 2) pts.push(X(f.points[i]), Y(f.points[i + 1]));
+    const p = f.picture && pictures[f.picture];
+    if (p && p.img.complete) {
+      const k = texelScale(p), uv = f.uv;
+      drawTriangle(g, p.img, k, uv.slice(0, 6), pts.slice(0, 6));
+      if (pts.length === 8) drawTriangle(g, p.img, k, [uv[2], uv[3], uv[6], uv[7], uv[4], uv[5]],
+                                         [pts[2], pts[3], pts[6], pts[7], pts[4], pts[5]]);
+    } else {
+      g.fillStyle = f.colour;
+      g.beginPath();
+      /* Quads are stored in Z order: 0, 1, 3, 2 goes round. */
+      const order = pts.length === 8 ? [0, 1, 3, 2] : [0, 1, 2];
+      order.forEach((n, i) => (i ? g.lineTo : g.moveTo).call(g, pts[n * 2], pts[n * 2 + 1]));
+      g.closePath(); g.fill();
+    }
+  }
+  if (!boardDrawn) drawBoard(g, b, c, X(0), Y(0), W * scale, H * scale);
+  g.strokeStyle = "rgba(102,219,208,.35)"; g.lineWidth = 1;
+  g.strokeRect(X(0) + .5, Y(0) + .5, W * scale - 1, H * scale - 1);
+}
+
+/* --- Cards ------------------------------------------------------------------------- */
+
+const sheet = document.getElementById("sheet");
+const cards = new Map();
+
+function percent(x) { return Math.round(x * 100) + "%"; }
+
+function makeCard(b) {
+  const c = choice(b);
+  const p = pictures[b.picture];
+  const el = document.createElement("section");
+  el.className = "card";
+  const objects = [...new Set(b.instances.map(i => i.object.trim()))].join(", ");
+  const boardRatio = b.size[0] / b.size[1], pictureRatio = b.uv[2] / b.uv[3];
+  const off = Math.abs(b.stretch - 1) > 0.05;
+  el.innerHTML = `
+    <div class="title"><b>${b.tracks.map(t => DATA.tracks[t] || t).join(", ")} · ${objects}</b><span>${b.instances.length > 1 ? "×" + b.instances.length : ""}<button class="x" title="Not a billboard">✕</button></span></div>
+    <div class="facts">${p.name || b.picture} (${p.source}) · ${b.uv[2]}×${b.uv[3]} texels<br>
+      board ${boardRatio.toFixed(2)}:1, picture ${pictureRatio.toFixed(2)}:1 ·
+      <span class="${off ? "bad" : ""}">stretched ${b.members.length > 1 && Math.round(b.stretchLow * 100) !== Math.round(b.stretchHigh * 100) ? percent(b.stretchLow).slice(0, -1) + "–" + percent(b.stretchHigh) : percent(b.stretch)} across</span>${b.members.length > 1 ? ` · ${b.members.length} boards alike, shown: the middle one` : ""}${b.skew > 0.1 ? ' · <span class="bad">not rectangular</span>' : ""}${b.onSide ? " · picture on its side" : ""}${b.upsideDown ? " · picture upside down" : ""}${!b.standing ? " · lying flat or tilted" : ""}${b.sprite ? " · a sprite: it always faces the camera" : ""}${b.behind ? " · a backing behind other pictures" : ""}</div>
+    <div class="views"><figure><figcaption>In game now</figcaption><canvas class="view now"></canvas></figure>
+      <figure><figcaption>Chosen</figcaption><canvas class="view chosen"></canvas></figure></div>
+    <div class="picture"><canvas class="thumb" title="The picture; pick a bars colour from it"></canvas>
+      <div class="controls">
+        <select class="mode">${MODES.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select>
+        <div class="row bars-row"><span>Bars</span><span class="swatch"></span>
+          <input type="color" class="colour"><button class="pick">Pick</button><button class="auto">Auto</button>
+          <label class="note"><input type="checkbox" class="clear"> none</label></div>
+        <label class="row note trim-row"><input type="checkbox" class="trim"> Trim see-through margins</label>
+        <div class="row note area-row"><span class="area-text"></span><button class="area-reset">Reset area</button></div>
+        <div class="row scale-row"><span>Scale</span><input type="range" class="scale-range" min="10" max="100" step="1">
+          <input type="number" class="scale" min="1" max="100" step="1"><span>%</span></div>
+        <div class="row tiles-row"><span>Tiles</span>
+          <input type="range" class="tiles-range" min="0" max="12" step="1">
+          <input type="number" class="tiles" min="0" max="64" step="1"></div><div class="note tiles-note">Tiles 0: fill the board</div>
+        <div class="row stretch-row"><span>Stretch</span><input type="range" class="range" min="10" max="400" step="1">
+          <input type="number" class="number" min="1" max="1000" step="1"><span>%</span></div>
+        <div class="note hint"></div>
+      </div></div>`;
+  const q = s => el.querySelector(s);
+  const ui = { el, now: q(".now"), chosen: q(".chosen"), thumb: q(".thumb"), mode: q(".mode"),
+    colour: q(".colour"), swatch: q(".swatch"), clear: q(".clear"), range: q(".range"),
+    number: q(".number"), barsRow: q(".bars-row"), stretchRow: q(".stretch-row"), hint: q(".hint"),
+    tilesNote: q(".tiles-note"), areaReset: q(".area-reset"),
+    tilesRow: q(".tiles-row"), tiles: q(".tiles"), tilesRange: q(".tiles-range"),
+    areaRow: q(".area-row"), areaText: q(".area-text"), scaleRow: q(".scale-row"),
+    scale: q(".scale"), scaleRange: q(".scale-range"),
+    trim: q(".trim"), trimRow: q(".trim-row"), facts: q(".facts") };
+  ui.trim.addEventListener("change", () => { c.trim = ui.trim.checked; changed(b); });
+  ui.range.max = Math.max(400, Math.ceil(b.stretch * 100));
+
+  ui.mode.addEventListener("change", () => { c.mode = ui.mode.value; changed(b); });
+  q(".x").addEventListener("click", () => {
+    c.mode = c.mode === "ignore" ? "keep" : "ignore";
+    changed(b);
+    if (c.mode === "ignore" && !ctl("hidden").checked) layout();
+  });
+  ui.colour.addEventListener("input", () => { c.bars = ui.colour.value; c.barsAuto = false; changed(b); });
+  ui.clear.addEventListener("change", () => { c.bars = ui.clear.checked ? null : (c.bars || "#000000"); c.barsAuto = false; changed(b); });
+  const setStretch = v => { if (c.mode === "tile") c.tileStretch = v; else c.stretch = v; changed(b); };
+  ui.range.addEventListener("input", () => setStretch(+ui.range.value));
+  ui.number.addEventListener("change", () => setStretch(Math.max(1, Math.min(1000, +ui.number.value || 100))));
+  const setScale = v => { c.scale = Math.max(1, Math.min(100, Math.round(v) || 100)); changed(b); };
+  ui.scale.addEventListener("change", () => setScale(+ui.scale.value));
+  ui.scaleRange.addEventListener("input", () => setScale(+ui.scaleRange.value));
+  q(".area-reset").addEventListener("click", () => { c.area = null; changed(b); });
+  /* Drag on the thumbnail to choose the area of the picture to use. */
+  const texelAt = e => {
+    const r = ui.thumb.getBoundingClientRect();
+    return [Math.max(0, Math.min(p.width, (e.clientX - r.left) / r.width * p.width)),
+            Math.max(0, Math.min(p.height, (e.clientY - r.top) / r.height * p.height))];
+  };
+  let drag = null;
+  ui.thumb.addEventListener("pointerdown", e => {
+    if (ui.thumb.classList.contains("picking")) return;
+    drag = texelAt(e);
+    ui.thumb.setPointerCapture(e.pointerId);
+  });
+  ui.thumb.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const [x, y] = texelAt(e);
+    const l = Math.floor(Math.min(drag[0], x)), t = Math.floor(Math.min(drag[1], y));
+    const r = Math.ceil(Math.max(drag[0], x)), bt = Math.ceil(Math.max(drag[1], y));
+    if (r - l >= 1 && bt - t >= 1) {
+      c.area = [l, t, r - l, bt - t];
+      if (c.mode === "keep" || c.mode === "ignore") c.mode = "fit";
+      update(b);
+    }
+  });
+  ui.thumb.addEventListener("pointerup", () => { if (drag) { drag = null; changed(b); } });
+  const setTiles = v => { c.tiles = Math.max(0, Math.min(64, Math.round(v) || 0)); changed(b); };
+  ui.tiles.addEventListener("change", () => setTiles(+ui.tiles.value));
+  ui.tilesRange.addEventListener("input", () => setTiles(+ui.tilesRange.value));
+  q(".auto").addEventListener("click", () => { c.barsAuto = true; c.bars = edgeColour(b); changed(b); });
+  q(".pick").addEventListener("click", () => ui.thumb.classList.toggle("picking"));
+  ui.thumb.addEventListener("click", e => {
+    if (!ui.thumb.classList.contains("picking")) return;
+    const px = pixels(p); if (!px) return;
+    const r = ui.thumb.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / r.width * px.width);
+    const y = Math.floor((e.clientY - r.top) / r.height * px.height);
+    const i = (Math.min(px.height - 1, y) * px.width + Math.min(px.width - 1, x)) * 4;
+    c.bars = hex(px.data[i], px.data[i + 1], px.data[i + 2]); c.barsAuto = false;
+    ui.thumb.classList.remove("picking");
+    changed(b);
+  });
+  cards.set(b.key, ui);
+  return el;
+}
+
+function drawThumb(ui, b) {
+  const p = pictures[b.picture], t = ui.thumb;
+  t.width = p.img.naturalWidth || p.width; t.height = p.img.naturalHeight || p.height;
+  const g = t.getContext("2d");
+  g.clearRect(0, 0, t.width, t.height);
+  g.drawImage(p.img, 0, 0);
+  const k = texelScale(p), [u, v, du, dv] = b.uv;
+  if (u || v || du < p.width || dv < p.height) {
+    g.strokeStyle = "#66dbd0"; g.lineWidth = Math.max(1, k);
+    g.strokeRect(u * k, v * k, du * k, dv * k);
+  }
+  const c = choice(b);
+  if (c.area && c.mode !== "keep" && c.mode !== "ignore") {
+    const [au, av, aw, ah] = c.area;
+    g.strokeStyle = "#ff6633"; g.lineWidth = Math.max(1, k);
+    g.strokeRect(au * k + k / 2, av * k + k / 2, aw * k - k, ah * k - k);
+  }
+}
+
+function update(b) {
+  const ui = cards.get(b.key), c = choice(b);
+  if (!ui) return;
+  /* The bars start as the colour of the picture's edges, once its pixels can be read. */
+  if (c.barsAuto && c.bars === null && c.autoTried !== true && pixels(pictures[b.picture])) {
+    c.bars = edgeColour(b); c.autoTried = true;
+  }
+  ui.mode.value = c.mode;
+  ui.barsRow.hidden = !(c.mode === "fit" || c.mode === "stretch" || (c.mode === "tile" && c.tiles));
+  ui.stretchRow.hidden = c.mode !== "stretch" && c.mode !== "tile";
+  ui.tilesRow.hidden = c.mode !== "tile";
+  ui.tilesNote.hidden = c.mode !== "tile";
+  ui.scaleRow.hidden = c.mode !== "stretch" && c.mode !== "tile";
+  ui.scale.value = c.scale || 100; ui.scaleRange.value = c.scale || 100;
+  ui.areaRow.hidden = c.mode === "keep" || c.mode === "ignore";
+  const area = sourceArea(b, c);
+  ui.areaText.textContent = c.area
+    ? `Area ${area[2]}×${area[3]} at ${area[0]},${area[1]}`
+    : "Drag on the picture to choose an area";
+  ui.areaReset.hidden = !c.area;
+  ui.tiles.value = c.tiles || 0; ui.tilesRange.value = Math.min(12, c.tiles || 0);
+  const vis = visibleRect(b);
+  ui.trimRow.hidden = !vis || c.area || c.mode === "keep" || c.mode === "ignore";
+  ui.trim.checked = c.trim !== false;
+  if (vis && !ui.facts.dataset.visible) {
+    ui.facts.dataset.visible = "1";
+    ui.facts.insertAdjacentHTML("beforeend", `<br>${Math.round(b.clear * 100)}% see-through; the part that shows is ${Math.round(vis[2])}×${Math.round(vis[3])} texels`);
+  }
+  const stretchShown = c.mode === "tile" ? tileStretch(c) : c.stretch;
+  ui.range.value = stretchShown; ui.number.value = stretchShown;
+  ui.clear.checked = !c.bars;
+  if (c.bars) ui.colour.value = c.bars;
+  ui.swatch.style.background = c.bars || "";
+  const shown = sourceArea(b, c);
+  const natural = shown[2] / shown[3], board = b.size[0] / b.size[1];
+  let hint = "";
+  if (c.mode === "fit") hint = natural > board ? `The picture is wider than the board: ${percent(1 - board / natural)} of it is cut off.` : `Bars fill ${percent(1 - natural / board)} of the board.`;
+  if (c.mode === "tile") {
+    const across = board / (natural * tileStretch(c) / 100);
+    hint = c.tiles
+      ? (c.tiles > across ? `${c.tiles === 1 ? "The tile is" : c.tiles + " tiles are"} wider than the board: ${percent(1 - across / c.tiles)} is cut off.` : `${c.tiles === 1 ? "One tile" : c.tiles + " tiles"} from the centre; bars fill ${percent(1 - c.tiles / across)} of the board.`)
+      : `${across.toFixed(2)} tiles fill the board. Each tile is ${tileStretch(c)}% of the picture's own proportions.`;
+  }
+  if (c.mode === "stretch") hint = `100% is the picture's own proportions; ${percent(b.stretch)} is how it is now.`;
+  ui.hint.textContent = hint;
+  ui.el.classList.toggle("changed", c.mode !== "keep" && c.mode !== "ignore");
+  ui.el.classList.toggle("ignored", c.mode === "ignore");
+  const x = ui.el.querySelector(".x");
+  x.textContent = c.mode === "ignore" ? "↺" : "✕";
+  x.title = c.mode === "ignore" ? "It is a billboard after all" : "Not a billboard";
+  render(ui.now, b, { mode: "keep" });
+  render(ui.chosen, b, c);
+  drawThumb(ui, b);
+}
+
+function changed(b) { update(b); save(); counts(); }
+
+/* --- Filters ----------------------------------------------------------------------- */
+
+const ctl = id => document.getElementById(id);
+const trackSelect = ctl("track");
+for (const [k, name] of Object.entries(DATA.tracks)) trackSelect.add(new Option(name, k));
+let visible = [];
+
+function counts() {
+  const decided = allGroups.filter(b => choices[b.key] && choices[b.key].mode !== "keep").length;
+  const ignored = allGroups.filter(b => choices[b.key] && choices[b.key].mode === "ignore").length;
+  ctl("count").textContent = `${visible.length} shown of ${allGroups.length} (${groups.length} + ${authGroups.length} authored) · ${decided} decided (${ignored} not billboards)`;
+}
+
+function layout() {
+  const track = trackSelect.value, likely = ctl("likely").checked, straight = ctl("straight").checked;
+  const undecided = ctl("undecided").checked, sort = ctl("sort").value, hidden = ctl("hidden").checked;
+  const order = Object.keys(DATA.tracks);
+  const pick = list => {
+    const shown = list.filter(b => (!track || b.tracks.includes(track)) && (!likely || b.likely) &&
+      (!straight || Math.abs(b.stretch - 1) > 0.05) && (!undecided || choice(b).mode === "keep") &&
+      (hidden || choice(b).mode !== "ignore"));
+    if (sort === "stretch") shown.sort((a, z) => z.stretch - a.stretch);
+    else if (sort === "squash") shown.sort((a, z) => a.stretch - z.stretch);
+    else shown.sort((a, z) => order.indexOf(a.track) - order.indexOf(z.track) || a.index - z.index);
+    return shown;
+  };
+  visible = [];
+  for (const [list, target] of [[groups, sheet], [authGroups, ctl("authsheet")]]) {
+    const shown = pick(list);
+    target.replaceChildren();
+    if (!shown.length) target.innerHTML = '<p class="empty">No billboards match.</p>';
+    for (const b of shown) {
+      const ui = cards.get(b.key);
+      target.append(ui ? ui.el : makeCard(b));
+      update(b);
+    }
+    visible.push(...shown);
+  }
+  counts();
+}
+for (const id of ["track", "likely", "straight", "undecided", "hidden", "sort"]) ctl(id).addEventListener("change", layout);
+
+/* --- Export and import ------------------------------------------------------------- */
+
+ctl("export").addEventListener("click", () => {
+  const out = {
+    format: 1,
+    generated: new Date().toISOString(),
+    note: "mode: keep | fit (fit vertically, bars) | tile (from the centre: tiles, 0 = fill the board, each at stretchPercent; bars beside a set number) | stretch (stretchPercent of the picture's own proportions) | ignore (not a billboard). trim: the picture's see-through margins are left out, and visibleUv (u, v, width, height in texels) is the part fitted, tiled or stretched. area (u, v, width, height in texels): a part of the picture chosen by hand, used instead. scalePercent: stretch and tile draw the picture at this percentage of the board's height, centred, bars above and below.",
+    boards: allBoards.map(b => {
+      const c = choice(b), p = pictures[b.picture];
+      const record = { key: b.key, card: b.group.key, source: b.auth ? "auth" : p.source, track: b.track,
+        picture: p.name || b.picture, pictureKey: b.picture,
+        uv: b.uv, boardSize: b.size, currentStretchPercent: Math.round(b.stretch * 1000) / 10,
+        instances: b.instances, mode: c.mode };
+      if (c.mode === "fit" || c.mode === "stretch" || (c.mode === "tile" && c.tiles)) record.bars = c.bars || "transparent";
+      if (c.mode === "stretch") record.stretchPercent = c.stretch;
+      if (c.mode === "tile") { record.stretchPercent = tileStretch(c); record.tiles = c.tiles || 0; }
+      if (c.mode === "stretch" || c.mode === "tile") record.scalePercent = c.scale || 100;
+      if (c.area && c.mode !== "keep" && c.mode !== "ignore") record.area = c.area;
+      const vis = visibleRect(b);
+      if (vis && c.mode !== "keep" && c.mode !== "ignore") {
+        record.trim = c.trim !== false;
+        if (record.trim) record.visibleUv = vis.map(x => Math.round(x * 100) / 100);
+      }
+      return record;
+    }),
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "wo4k-billboards-" + new Date().toISOString().slice(0, 19).replace(/:/g, "-") + ".json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+ctl("import").addEventListener("click", () => ctl("file").click());
+ctl("file").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    let n = 0;
+    const seen = new Set();
+    for (const r of data.boards || []) {
+      const b = allBoards.find(x => x.key === r.key); if (!b) continue;
+      if (seen.has(b.group)) continue;
+      seen.add(b.group);
+      const c = choice(b);
+      c.mode = r.mode || "keep";
+      c.bars = r.bars && r.bars !== "transparent" ? r.bars : null;
+      c.barsAuto = false; c.autoTried = true;
+      if (r.stretchPercent) { if (c.mode === "tile") c.tileStretch = r.stretchPercent; else c.stretch = r.stretchPercent; }
+      if (r.tiles !== undefined) c.tiles = r.tiles;
+      c.scale = r.scalePercent || 100;
+      c.area = r.area || null;
+      if (r.trim !== undefined) c.trim = r.trim;
+      n++;
+    }
+    save(); layout();
+    ctl("count").textContent += ` · ${n} imported`;
+  } catch (err) { alert("That file could not be read: " + err.message); }
+  e.target.value = "";
+});
+
+/* Lay out at once; draw again as the pictures finish decoding. */
+let redraw = 0;
+for (const p of Object.values(pictures)) {
+  if (!p.img.complete) p.img.addEventListener("load", () => {
+    clearTimeout(redraw);
+    redraw = setTimeout(() => { for (const b of visible) update(b); }, 50);
+  });
+}
+layout();
+</script>
+</body>
+</html>

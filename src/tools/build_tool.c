@@ -19,6 +19,11 @@
  *       frame to PNG under <output folder>/exports.
  *   wo4k-build extract-music <folder or .mds/.cue/.bin> <output folder> pc|psx
  *       Write the bank's trackNN.wav files and tracks.ini.
+ *   wo4k-build billboards <wobble> <output folder> [<assets>]
+ *       A contact sheet of the trackside billboards for choosing how each
+ *       picture fills its board. See build_billboards.c.
+ *   wo4k-build billboard-layout <export.json> <manifests/billboard-layout.json>
+ *       The page's export as the manifest Setup and Play lay boards out by.
  *   wo4k-build upscale <assets/sd> <assets/hd> 2|4 [<assets/auth>]
  *       A set of neurally upscaled textures from the debanded ones, less
  *       those the authored folder has. See build_upscale.c.
@@ -166,6 +171,10 @@ int wmain(int argc, wchar_t **argv) {
         ok = release_notes(args[2], args[3], args[4], &error);
     } else if (argc == 4 && wo_str_eq(args[1], "export-textures")) {
         ok = wo_sd_extract(args[2], args[3], &error) && wo_sd_export_png(args[3], &error);
+    } else if (argc == 4 && wo_str_eq(args[1], "billboard-layout")) {
+        ok = build_billboard_layout(args[2], args[3], &error);
+    } else if ((argc == 4 || argc == 5) && wo_str_eq(args[1], "billboards")) {
+        ok = build_billboards(args[2], args[3], argc == 5 ? args[4] : NULL, &error);
     } else if ((argc == 5 || argc == 6) && wo_str_eq(args[1], "upscale")) {
         ok = build_upscale(args[2], args[3], args[4], argc == 6 ? args[5] : NULL, &error);
     } else if (argc == 5 && wo_str_eq(args[1], "extract-music") &&
@@ -183,6 +192,8 @@ int wmain(int argc, wchar_t **argv) {
                         "       wo4k-build release-notes <CHANGELOG.md> <version> <output>\n"
                         "       wo4k-build export-textures <game folder> <output folder>\n"
                         "       wo4k-build extract-music <source> <output folder> pc|psx\n"
+                        "       wo4k-build billboards <wobble> <output folder> [<assets>]\n"
+                        "       wo4k-build billboard-layout <export.json> <manifests/billboard-layout.json>\n"
                         "       wo4k-build upscale <assets/sd> <assets/hd> 2|4 [<assets/auth>]\n");
         ok = false;
         wo_fail(&error, WO_ERR_FORMAT, "Invalid arguments.");

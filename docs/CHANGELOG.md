@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Show the trackside billboards in their pictures' proportions. The 1996
+  artwork was laid over the boards with little regard for its shape: a
+  square picture could be stretched over a board two or three times as
+  wide. 62 boards are now laid out again, each as chosen: the picture at
+  its own proportions with bars beside it in a colour of the picture, tiled
+  from the centre, or stretched by a chosen amount.
+  Talon's Reach's lucky-cat boards, which the game fills itself, narrow to
+  the cat's square with black beside it. The boards' faces
+  change, not the pictures, so authored and HD artwork follows. Play
+  rebuilds the track archives once on its next launch.
+
 - Fix Play refusing to start with a whole set of upscaled textures in
   `assets/hd/`. Seven pictures the installer debands had no entry in the HD
   catalogue (the two Red Bull slogans and five textures of Talon's Reach's

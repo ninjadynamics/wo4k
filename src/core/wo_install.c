@@ -56,6 +56,34 @@ bool wo_load_manifest(const WoMod *mod, const char *relative, WoJson **out, WoEr
     return ok;
 }
 
+bool wo_load_plan(const WoMod *mod, WoJson **out, WoError *error) {
+    if (!wo_load_manifest(mod, "manifests/texture-selection.json", out, error)) {
+        return false;
+    }
+    char *path = wo_mod_path(mod, "manifests/billboard-layout.json", error);
+    WoJson *layout = NULL;
+    bool ok = path != NULL;
+    if (ok && wo_is_file(path)) {
+        ok = wo_read_json(path, MANIFEST_MAX, &layout, error);
+    }
+    const WoJson *tracks = wo_json_get(layout, "tracks");
+    const WoJson *scenery = wo_json_get(*out, "scenery");
+    for (size_t i = 0; ok && tracks && i < wo_json_length(scenery); i++) {
+        WoJson *entry = wo_json_at(scenery, i);
+        const WoJson *boards = wo_json_get(tracks, wo_json_str(entry, "track", ""));
+        if (boards && !wo_json_put(entry, "billboards", wo_json_clone(boards))) {
+            ok = wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
+        }
+    }
+    wo_json_free(layout);
+    wo_free(path);
+    if (!ok) {
+        wo_json_free(*out);
+        *out = NULL;
+    }
+    return ok;
+}
+
 bool wo_pc_file_receipt(const WoMod *mod, const char *game_root, WoJson **out, WoError *error) {
     *out = NULL;
     WoJson *files = NULL;
@@ -382,7 +410,7 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
     WoJson *plan = NULL;
     WoJson *catalog = NULL;
     if (!wo_load_manifest(mod, "manifests/patches.json", &patches, error) ||
-        !wo_load_manifest(mod, "manifests/texture-selection.json", &plan, error) ||
+        !wo_load_plan(mod, &plan, error) ||
         !wo_load_manifest(mod, "manifests/hd-textures.json", &catalog, error)) {
         wo_json_free(patches);
         wo_json_free(plan);

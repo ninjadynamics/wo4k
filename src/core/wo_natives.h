@@ -169,6 +169,13 @@ typedef struct WoSheetRegion {
 
 typedef bool (*WoSheetRegionFn)(void *context, const WoSheetRegion *region, WoError *error);
 
+/* The archive Setup and Play put in place for the track of a plan's scenery
+ * entry, from the imported PlayStation archive, the retained PC one and the
+ * advert file, before its boards are laid out (wo_billboards.h): what the
+ * layout manifest's face numbers refer to. */
+bool wo_natives_scenery_unlaid(const char *game_root, const WoJson *entry, WoBuf *out,
+                               WoError *error);
+
 bool wo_natives_regions(const char *game_root, const WoJson *plan, WoSheetRegionFn visit,
                         void *context, WoError *error);
 

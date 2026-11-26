@@ -136,6 +136,25 @@ straight where the texels stepped, and the picture is sharper than the
 game's own bilinear filtering makes it. A 4x set makes every page of
 textures 8 MB of video memory (2 MB at 2x).
 
+## Maintainer billboard sheet
+
+`wo4k-build billboards wobble exports/billboards assets` writes a contact
+sheet of the trackside billboards (`exports/billboards/index.html`, open it in
+a browser): every board of the installed track archives with its picture as
+the game shows it, its frame or backing behind it, and how much the picture
+is stretched across. Each board takes a choice: keep, fit vertically (bars in
+a colour picked from the picture), tile from the centre, stretch by a
+percentage of the picture's own proportions, or not a billboard. Choices are
+kept in the browser and exported as JSON. `toolsillboards.cmd` makes the
+sheet again from the current textures and opens it. `wo4k-build
+billboard-layout <export.json> manifests/billboard-layout.json` turns an
+export into the manifest Setup and Play lay boards out by
+(`src/core/wo_billboards.h`); the sheet itself always shows the boards as
+they were before any layout, which is what the manifest's face numbers
+refer to. The page is
+`tools/billboards/index.html`; how boards are found is in
+`src/tools/build_billboards.c`.
+
 ## Maintainer lighting preview
 
 Setup's "Adjust shadows / highlights" dialog previews the settings on three

@@ -18,6 +18,11 @@ bool build_sign_input(const char *folder, WoError *error);
 bool build_package(const char *version, const char *dist, const char *signed_dir, WoError *error);
 /* Upscale every PNG of source into output, 2x or 4x (scale is "2" or "4"),
  * leaving out those the authored folder (optional) has: build_upscale.c. */
+/* The contact sheet of the trackside billboards (data.js and the page) in
+ * output, from the installed game (assets: the mod's assets folder, optional). */
+bool build_billboards(const char *game, const char *output, const char *assets, WoError *error);
+/* The billboard page's export as manifests/billboard-layout.json. */
+bool build_billboard_layout(const char *export_path, const char *output, WoError *error);
 bool build_upscale(const char *source, const char *output, const char *scale, const char *authored,
                    WoError *error);
 

@@ -20,6 +20,8 @@
 #include "core/wo_hash.h"
 #include "core/wo_hdtex.h"
 #include "core/wo_iso.h"
+#include "core/wo_install.h"
+#include "core/wo_mod.h"
 #include "core/wo_miniz.h"
 #include "core/wo_music.h"
 #include "core/wo_natives.h"
@@ -199,6 +201,14 @@ static char *find_descriptor(const char *source, int depth) {
     return found;
 }
 
+/* The texture plan as Setup and Play load it, with the boards' layout. */
+static bool load_plan(WoJson **plan, WoError *error) {
+    WoMod mod;
+    bool ok = wo_mod_init(&mod, ".", error) && wo_load_plan(&mod, plan, error);
+    wo_mod_free(&mod);
+    return ok;
+}
+
 /* --- Sound effects ---------------------------------------------------------------- */
 
 static bool fixture_hash(const char *text, const char *name, char out[WO_SHA256_HEX_SIZE]) {
@@ -289,7 +299,7 @@ static void test_hd_regions_match(void) {
          * scenery are found by their pictures, as Play finds them. */
         WoJson *plan = NULL;
         CHECK_OK(wo_read_json("manifests/hd-textures.json", 16 << 20, &catalog, &error) &&
-                     wo_read_json("manifests/texture-selection.json", 32 << 20, &plan, &error),
+                     load_plan(&plan, &error),
                  &error);
         WoHdOptions options = {catalog, "assets/auth", "assets/auth", game, NULL, plan, "assets/hd"};
         WoHdRegionIndex index;
@@ -329,7 +339,7 @@ static void test_native_sheets_match(void) {
     WoError error = {0};
     WoJson *plan = NULL;
     WoJson *receipt = NULL;
-    CHECK_OK(wo_read_json("manifests/texture-selection.json", 32 << 20, &plan, &error), &error);
+    CHECK_OK(load_plan(&plan, &error), &error);
     CHECK_OK(wo_read_json(receipt_path, 16 << 20, &receipt, &error), &error);
     if (wo_json_int(receipt, "revision", -1) != wo_json_int(plan, "revision", -2)) {
         /* Built by an older selection; the next Play rebuilds the sheets. */
@@ -716,7 +726,7 @@ static void test_ps1_disc(void) {
     CHECK(found);
     wo_ps1_disc_free(&disc);
     WoJson *plan = NULL;
-    CHECK_OK(wo_read_json("manifests/texture-selection.json", 32 << 20, &plan, &error), &error);
+    CHECK_OK(load_plan(&plan, &error), &error);
     const char *dir = wo_test_dir("golden-ps1-import");
     bool imported = false;
     CHECK_OK(dir && wo_ps1_import_textures(source, dir, plan, NULL, &imported, &error), &error);
