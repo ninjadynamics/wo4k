@@ -105,6 +105,37 @@ deband the game's textures by (see
 [the texture notes](NATIVE-TEXTURES.md#debanded-textures)). `assets/sd/` is
 that step's output, not this tool's.
 
+## Maintainer neural upscaler
+
+`tools\neural-upscale.cmd` (or `wo4k-build upscale assets\sd assets\hd 4
+assets\auth`) makes a whole set of upscaled textures in `assets/hd/` from the
+debanded ones in `assets/sd/`, at 2x or 4x: about 550 pictures in under half
+a minute. It leaves out the pictures `assets/auth/` has and Valparaiso's
+waterfall. Play indexes the set on its next launch; delete the PNGs to be rid
+of it.
+
+Each picture is debanded, upscaled and debanded again. The first debanding
+is the installer's, by the choice made for each texture, and its picture is
+what is upscaled. What it leaves shows again at four times the size: a
+gradient's steps of one level are four pixels wide, and the grain that hid
+them is four-pixel blots. So the upscaled picture goes through the
+four-sample filter and the dither once more, reaching as far across the
+texture as before. The band ramps are not made again; they are for the
+PlayStation's flat bands of one exact colour.
+
+The network is Rich Geldreich's
+[neural_upsampler](https://github.com/richgel999/neural_upsampler) (public
+domain): 11,948 weights that read the 7x7 pixels around each pixel and give
+the 2x2 that replace it. Its weights are vendored in
+`third_party/neural_upsampler/`; `src/core/wo_upscale.c` runs it in C and a
+test holds it to the library's own output byte for byte. The network was
+trained to undo one particular softening, which a PlayStation texture does
+not have, so each texture is first filtered into what the network expects
+(the header explains). The result is not invented detail: edges come out
+straight where the texels stepped, and the picture is sharper than the
+game's own bilinear filtering makes it. A 4x set makes every page of
+textures 8 MB of video memory (2 MB at 2x).
+
 ## Maintainer lighting preview
 
 Setup's "Adjust shadows / highlights" dialog previews the settings on three

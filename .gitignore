@@ -41,3 +41,9 @@ __pycache__/
 assets/sd/
 assets/sd-original/
 assets/sd-debanded/
+
+# Upscaled texture sets are made locally (tools/neural-upscale.cmd).
+assets/hd/
+
+# Claude Code's local settings and worktrees.
+.claude/

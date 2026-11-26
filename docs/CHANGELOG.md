@@ -1,5 +1,22 @@
 ﻿# Beta release changes
 
+## Unreleased
+
+- Fix Play refusing to start with a whole set of upscaled textures in
+  `assets/hd/`. Seven pictures the installer debands had no entry in the HD
+  catalogue (the two Red Bull slogans and five textures of Talon's Reach's
+  PlayStation scenery), and a set made from the debanded pictures has them
+  all.
+- With such a set, show one picture in each place. The same picture is in
+  the game under several names and a set has one for each; all of them were
+  placed on the same spot and the last one showed, which could be another
+  track's, or an upscaled one over your authored one. Now an authored
+  picture comes first, then the upscaled picture of that very place.
+- For maintainers: `tools\neural-upscale.cmd` makes a 2x or 4x set for
+  `assets/hd/` from the debanded textures with a small neural network (Rich
+  Geldreich's neural_upsampler, run in C by WO4K itself), and debands the
+  upscaled pictures once more. See docs/TOOLS.md.
+
 ## 0.2.0-beta.11
 
 - Setup: a "Show FPS counter" box and an "Adjust shadows / highlights" dialog with

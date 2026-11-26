@@ -16,5 +16,9 @@ bool build_sign_input(const char *folder, WoError *error);
 /* Assemble dist/wo4k-<version>.zip, its .sha256 and release-files.json;
  * signed_dir (optional) supplies the signed binaries. */
 bool build_package(const char *version, const char *dist, const char *signed_dir, WoError *error);
+/* Upscale every PNG of source into output, 2x or 4x (scale is "2" or "4"),
+ * leaving out those the authored folder (optional) has: build_upscale.c. */
+bool build_upscale(const char *source, const char *output, const char *scale, const char *authored,
+                   WoError *error);
 
 #endif
