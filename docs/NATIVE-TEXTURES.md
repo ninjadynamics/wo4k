@@ -190,13 +190,23 @@ matte; faint background grain is removed while enclosed dark details stay opaque
 The original full-size edited PNGs stay in the local export workspace.
 
 Artwork is looked for in four places, best first: `assets/auth/` (authored,
-shipped with the mod), `assets/hd/` (upscaled sets, made with `tools\upscale.cmd`;
-not shipped), `assets/sd/` (the installer's debanded pictures, below) and the
-sheet itself. A PNG in `assets/hd/` is used where `assets/auth/` has none of
-that name. The catalogue also lists the 75 frames that only the PlayStation's
-scenery has, with no place in the PC layout (`"regions": []`): their places
-are found by their pictures, so every name in `assets/sd/` is a name the two
-folders above accept.
+shipped with the mod), `assets/hd/` (upscaled sets, made with
+`tools\neural-upscale.cmd` or `tools\upscale.cmd`; not shipped), `assets/sd/`
+(the installer's debanded pictures, below) and the sheet itself. A PNG in
+`assets/hd/` is used where `assets/auth/` has none of that name. The
+catalogue also lists the frames that only the PlayStation's scenery has,
+with no place in the PC layout (`"regions": []`): their places are found by
+their pictures, so every name in `assets/sd/` is a name the two folders
+above accept (a golden test holds the catalogue to that).
+
+A picture is placed wherever the game shows it, and the same picture is in
+the game under more than one name: a wall of one track's scenery is in
+another's, and in the shared archives. An authored picture is drawn once and
+shown in all those places. A whole upscaled set has a picture under every
+one of those names, so several claim one rectangle of a sheet. The index
+places one of them: an authored picture if there is one; else the upscaled
+picture of the rectangle's own name, the name its debanded texture has in
+`textures/sd-regions.bin`; else the first.
 
 Drop a matching exported PNG directly into `assets/auth/` (or `assets/hd/`)
 and launch Play. The

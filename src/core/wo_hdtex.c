@@ -335,8 +335,45 @@ static bool infer_kind(const char *relative, const Natives *natives, const char 
     return true;
 }
 
-static bool add_regions(const WoJson *entry, const char *relative, bool transparent,
-                        const Natives *natives, WoScenery *scenery, WoHdRegionIndex *index,
+/* Several pictures can claim one rectangle: a picture is placed wherever
+ * the game shows it, and the same picture is in more than one archive under
+ * more than one name (a wall of one track's scenery is in another's, and in
+ * the shared archives). Authored artwork is few pictures and that is the
+ * point of it: drawn once, shown everywhere. A whole set of upscaled
+ * textures (assets/hd) has a picture under every one of those names, each
+ * made from its own debanded texture. One of them is placed, the best there
+ * is: an authored picture; else the upscaled picture of the rectangle's own
+ * name, which is the name its debanded texture has; else the first. */
+enum { RANK_OTHER = 1, RANK_OWN, RANK_AUTHORED };
+
+typedef struct Places {
+    WoHdRegionIndex *index;
+    WoBuf ranks;   /* one byte for each record of the index */
+    WoBuf debanded; /* textures/sd-regions.bin, which names each rectangle's own picture */
+} Places;
+
+static bool place(Places *places, const char *png, bool authored, const char *native, int64_t page,
+                  int64_t x, int64_t y, int64_t width, int64_t height, bool alpha, WoError *error) {
+    uint8_t rank = authored ? RANK_AUTHORED
+                   : wo_hd_regions_file_has(places->debanded.data, places->debanded.len, png,
+                                            native, page, x, y, width, height)
+                         ? RANK_OWN
+                         : RANK_OTHER;
+    size_t there = wo_hd_regions_find(places->index, native, page, x, y, width, height);
+    if (there == WO_HD_REGION_NONE) {
+        return wo_hd_regions_add(places->index, png, native, page, x, y, width, height, alpha,
+                                 error) &&
+               wo_buf_append(&places->ranks, &rank, 1, error);
+    }
+    if (rank <= places->ranks.data[there]) {
+        return true;
+    }
+    places->ranks.data[there] = rank;
+    return wo_hd_regions_replace(places->index, there, png, alpha, error);
+}
+
+static bool add_regions(const WoJson *entry, const char *relative, bool authored, bool transparent,
+                        const Natives *natives, WoScenery *scenery, Places *index,
                         WoError *error) {
     const WoJson *regions = wo_json_get(entry, "regions");
     /* No regions: a picture the PC layout has no place for (a frame only
@@ -395,7 +432,7 @@ static bool add_regions(const WoJson *entry, const char *relative, bool transpar
         if (wo_scenery_covers(scenery, native_name, page, x, y, sw, sh)) {
             continue; /* located in the PC layout; found again by its picture below */
         }
-        if (!wo_hd_regions_add(index, relative, native_name, page, x, y, sw, sh, alpha, error)) {
+        if (!place(index, relative, authored, native_name, page, x, y, sw, sh, alpha, error)) {
             return false;
         }
     }
@@ -407,8 +444,8 @@ static bool add_regions(const WoJson *entry, const char *relative, bool transpar
     bool ok = true;
     for (size_t i = 0; ok && i < count; i++) {
         if (places[i].width == (uint32_t)sw && places[i].height == (uint32_t)sh) {
-            ok = wo_hd_regions_add(index, relative, places[i].native, places[i].page, places[i].x,
-                                   places[i].y, sw, sh, alpha, error);
+            ok = place(index, relative, authored, places[i].native, places[i].page, places[i].x,
+                       places[i].y, sw, sh, alpha, error);
         }
     }
     wo_free(places);
@@ -483,8 +520,8 @@ static bool png_facts(WoHashCache *cache, const char *path, bool need_transparen
 }
 
 static bool check_input(const WoJson *catalog, const Input *input, const Natives *natives,
-                        WoScenery *scenery, WoHashCache *cache, WoHdRegionIndex *index,
-                        WoJson *files, WoError *error) {
+                        WoScenery *scenery, WoHashCache *cache, Places *index, WoJson *files,
+                        WoError *error) {
     const WoJson *entry = catalog_entry(catalog, input->relative);
     const char *kind = NULL;
     if (entry) {
@@ -504,8 +541,8 @@ static bool check_input(const WoJson *catalog, const Input *input, const Natives
     }
     bool ok = true;
     if (region) {
-        ok = add_regions(entry, input->relative, facts.transparent, natives, scenery, index,
-                         error);
+        ok = add_regions(entry, input->relative, !input->fallback, facts.transparent, natives,
+                         scenery, index, error);
     }
     WoJson *record = ok ? file_record(input->relative, kind, facts.width, facts.height) : NULL;
     if (ok && !(record && wo_json_push(files, record))) {
@@ -558,10 +595,21 @@ static bool prepare(const WoHdOptions *options, Inputs *inputs, WoHdRegionIndex 
     WoScenery *scenery = NULL;
     ok = ok && (!options->plan ||
                 wo_scenery_open(options->game_root, options->plan, &scenery, error));
+    Places places = {index, {0}, {0}};
+    char *debanded = ok ? wo_path_child(options->game_root, "textures/sd-regions.bin", error) : NULL;
+    ok = ok && debanded;
+    if (ok && wo_is_file(debanded)) {
+        /* Unreadable, or not an index: no rectangle has a picture of its own. */
+        wo_read_file(debanded, 12 + (size_t)WO_HD_REGION_MAX_RECORDS * WO_HD_REGION_RECORD_BYTES,
+                     &places.debanded, NULL);
+    }
+    wo_free(debanded);
     for (size_t i = 0; ok && i < inputs->count; i++) {
         ok = check_input(options->catalog, &inputs->items[i], &natives, scenery, options->cache,
-                         index, result->files, error);
+                         &places, result->files, error);
     }
+    wo_buf_free(&places.debanded);
+    wo_buf_free(&places.ranks);
     wo_scenery_close(scenery);
     natives_free(&natives);
     if (ok) {

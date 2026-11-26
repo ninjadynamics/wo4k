@@ -345,6 +345,85 @@ static void test_rejects(void) {
     free_fixture(&f);
 }
 
+/* The picture the index places at the rectangle of sky01.tga both walls claim. */
+static void placed_wall(const WoHdOptions *options, const char *expected) {
+    WoHdRegionIndex index;
+    WoHdResult result;
+    WoError error = {0};
+    CHECK_OK(wo_hd_build_index(options, &index, &result, &error), &error);
+    size_t at = wo_hd_regions_find(&index, "sky01.tga", 0, 64, 32, 16, 16);
+    CHECK(at != WO_HD_REGION_NONE);
+    CHECK(wo_hd_regions_find(&index, "sky01.tga", 0, 64, 33, 16, 16) == WO_HD_REGION_NONE);
+    if (at != WO_HD_REGION_NONE) {
+        const uint8_t *record = index.records.data + at * WO_HD_REGION_RECORD_BYTES;
+        char name[32] = {0};
+        for (size_t i = 0; i < sizeof(name) - 1 && record[i * 2]; i++) {
+            name[i] = (char)record[i * 2];
+        }
+        CHECK_STR(name, expected);
+    }
+    /* One record for the rectangle, whichever picture has it. */
+    size_t walls = 0;
+    for (size_t i = 0; i < index.count; i++) {
+        walls += index.records.data[i * WO_HD_REGION_RECORD_BYTES] == 'w';
+    }
+    CHECK(walls == 1);
+    wo_hd_regions_free(&index);
+    wo_hd_result_free(&result);
+}
+
+/* The same picture is in the game under more than one name, and a whole
+ * set of upscaled textures has one for each: all claim the same rectangle.
+ * One is placed: an authored picture before any other; else the upscaled
+ * one of the rectangle's own name, which the debanded index gives; else the
+ * first. */
+static void test_one_picture_a_rectangle(void) {
+    HdFixture f;
+    if (!setup_fixture(&f, "hd-claims")) {
+        return;
+    }
+    WoError error = {0};
+    char *upscaled = wo_path_join(f.root, "assets/upscaled", &error);
+    char *debanded = wo_path_join(f.game, "textures/sd-regions.bin", &error);
+    write_png(upscaled, "wall-a.png", 64, 64, false);
+    write_png(upscaled, "wall-b.png", 64, 64, false);
+#define WALL(name)                                                                               \
+    "{\"file\":\"" name "\",\"kind\":\"region\",\"source_width\":16,\"source_height\":16,"       \
+    "\"regions\":[{\"native\":\"sky01.tga\",\"page\":0,\"x\":64,\"y\":32,\"width\":16,"          \
+    "\"height\":16}]}"
+    char *text = wo_format(NULL, "%.*s," WALL("wall-a.png") "," WALL("wall-b.png") "]",
+                           (int)strlen(CATALOG) - 1, CATALOG);
+    WoJson *catalog = parse(text);
+    wo_free(text);
+#undef WALL
+    WoHdOptions options = {catalog, f.assets, f.assets, f.game, NULL, NULL, upscaled};
+    placed_wall(&options, "wall-a.png");
+
+    /* The debanded texture of that rectangle is wall-b's: it is the rectangle's own. */
+    WoHdRegionIndex own = {{0}, 0};
+    WoBuf bytes = {0};
+    CHECK_OK(wo_hd_regions_add(&own, "wall-b.png", "sky01.tga", 0, 64, 32, 16, 16, false, &error) &&
+                 wo_hd_regions_serialize(&own, &bytes, &error) &&
+                 wo_write_file(debanded, bytes.data, bytes.len, &error),
+             &error);
+    CHECK(wo_hd_regions_file_has(bytes.data, bytes.len, "WALL-B.png", "SKY01.tga", 0, 64, 32, 16, 16));
+    CHECK(!wo_hd_regions_file_has(bytes.data, bytes.len, "wall-a.png", "sky01.tga", 0, 64, 32, 16, 16));
+    CHECK(!wo_hd_regions_file_has(bytes.data, bytes.len, "wall-b.png", "sky01.tga", 0, 64, 33, 16, 16));
+    CHECK(!wo_hd_regions_file_has(bytes.data, bytes.len - 1, "wall-b.png", "sky01.tga", 0, 64, 32, 16, 16));
+    wo_buf_free(&bytes);
+    wo_hd_regions_free(&own);
+    placed_wall(&options, "wall-b.png");
+
+    /* An authored wall-a comes before it. */
+    write_png(f.assets, "wall-a.png", 32, 32, false);
+    placed_wall(&options, "wall-a.png");
+
+    wo_json_free(catalog);
+    wo_free(debanded);
+    wo_free(upscaled);
+    free_fixture(&f);
+}
+
 static void test_region_index(void) {
     WoHdRegionIndex index = {{0}, 0};
     WoError error = {0};
@@ -382,6 +461,7 @@ int main(void) {
     RUN(test_png_round_trip);
     RUN(test_install);
     RUN(test_rejects);
+    RUN(test_one_picture_a_rectangle);
     RUN(test_region_index);
     return wo_test_finish();
 }
