@@ -199,9 +199,12 @@ matte; faint background grain is removed while enclosed dark details stay opaque
 The original full-size edited PNGs stay in the local export workspace.
 
 Artwork is looked for in four places, best first: `assets/auth/` (authored,
-shipped with the mod), `assets/hd/` (upscaled sets, made with
-`tools\neural-upscale.cmd` or `tools\upscale.cmd`; not shipped), `assets/sd/`
-(the installer's debanded pictures, below) and the sheet itself. A PNG in
+shipped with the mod; used while Install HD artwork is ticked), `assets/hd/`
+(upscaled sets, made by Setup's **Upscale textures** from
+`wobble/textures/originals/` or with `tools\neural-upscale.cmd`; not
+shipped, and used only while that option is ticked), `assets/sd/` (the
+installer's debanded pictures, below, always used) and the sheet itself.
+The two options are independent of each other. A PNG in
 `assets/hd/` is used where `assets/auth/` has none of that name. The
 catalogue also lists the frames that only the PlayStation's scenery has,
 with no place in the PC layout (`"regions": []`): their places are found by

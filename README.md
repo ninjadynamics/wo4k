@@ -75,7 +75,8 @@ unsupported binaries are rejected before an installation is committed.
 3. Select the PC game source and the PlayStation game source,
    then choose available PC/PlayStation music or **No music**.
 4. Choose **Audio output** (Mono, Stereo or Dolby Surround),
-   **Install HD artwork** and **Improve audio quality** as desired,
+   **Install HD artwork**, **Upscale textures** and **Improve audio quality**
+   as desired,
    then click **Install**.
 5. Click **Play**, or run **Play.exe**. The original display-selection screen
    is bypassed; WO4K renders at your display's resolution and aspect ratio.

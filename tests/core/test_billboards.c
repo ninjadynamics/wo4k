@@ -115,23 +115,26 @@ static void test_fit(void) {
         size_t size = 0;
         const uint8_t *prm = models(&made, &wad, &size);
         if (prm) {
-            CHECK(be16(prm + 16) == 4 + 3 * 4); /* a picture and two bars */
+            /* A picture and two bars, sharing corners: the bars' outer ones
+             * are the board's, their inner ones the picture's. */
+            CHECK(be16(prm + 16) == 4 + 4);
             CHECK(be16(prm + 32) == 1 + 3);
-            const uint8_t *p = prm + 144 + 16 * 8;
+            const uint8_t *p = prm + 144 + 8 * 8;
             CHECK(be16(p) == 11); /* the sprite is kept, first */
             p += 16;
-            /* The picture: from 150 to 250 across, the whole picture, drawn as the board was. */
+            /* The picture: from 150 to 250 across, the whole picture but a
+             * texel at the sides that meet the bars, drawn as the board was. */
             CHECK(be16(p) == 8 && be16(p + 2) == 0x0016);
             CHECK(corner_x(prm, be16(p + 4)) == 150 && corner_x(prm, be16(p + 6)) == 250);
             CHECK(be16(p + 12) == 0 && be16(p + 14) == 0x1234 && be16(p + 16) == 0x0056);
-            CHECK(p[18] == 0 && p[20] == 63 && p[23] == 63);
+            CHECK(p[18] == 1 && p[20] == 62 && p[19] == 0 && p[23] == 63);
             CHECK(p[28] == 64 && p[29] == 128 && p[30] == 192);
             p += 44;
             for (int bar = 0; bar < 2; bar++) {
                 if (flat) {
                     /* One texel of the picture, inside it, with neighbours alike. */
                     CHECK(be16(p) == 8 && p[18] == p[20] && p[19] == p[21] && p[18] == p[22] &&
-                          p[18] >= 1 && p[18] <= 62);
+                          p[18] >= 8 && p[18] <= 55 && p[19] >= 8 && p[19] <= 55);
                     p += 44;
                 } else {
                     /* White, lit as the board was: 255 at the board's 128. */
@@ -140,11 +143,49 @@ static void test_fit(void) {
                     p += 28;
                 }
             }
-            CHECK(corner_x(prm, 4 + 4) == 0 || corner_x(prm, 4 + 4) == 250);
         }
         wo_wad_free(&wad);
         wo_buf_free(&made);
     }
+    wo_json_free(entries);
+}
+
+/* Scaled: the bars above and below are cut where the picture's corners
+ * meet them, so no corner lies partway along another face's edge. */
+static void test_no_corner_on_an_edge(void) {
+    WoError error = {0};
+    WoJson *entries = parse("[{\"object\":0,\"faces\":[0],\"mode\":\"stretch\",\"source\":[0,0,64,64],"
+                            "\"stretch\":100,\"scale\":50,\"tiles\":0,\"bars\":\"#123456\"}]");
+    WoBuf made = {0};
+    archive(&made, false);
+    CHECK_OK(wo_billboards_apply(entries, &made, NULL, &error), &error);
+    WoWad wad = {0};
+    size_t size = 0;
+    const uint8_t *prm = models(&made, &wad, &size);
+    if (prm) {
+        unsigned nv = be16(prm + 16), np = be16(prm + 32);
+        CHECK(np == 1 + 1 + 8); /* the picture and a ring of eight bars */
+        const uint8_t *p = prm + 144 + nv * 8u + 16;
+        for (unsigned f = 0; f + 1 < np; f++) {
+            unsigned kind = be16(p);
+            int x0 = 1 << 20, x1 = -(1 << 20), y0 = 1 << 20, y1 = -(1 << 20);
+            for (int c = 0; c < 4; c++) {
+                const uint8_t *v = prm + 144 + be16(p + 4 + c * 2) * 8u;
+                int x = (int16_t)be16(v), y = (int16_t)be16(v + 2);
+                x0 = x < x0 ? x : x0; x1 = x > x1 ? x : x1;
+                y0 = y < y0 ? y : y0; y1 = y > y1 ? y : y1;
+            }
+            for (unsigned v = 0; v < nv; v++) {
+                int x = (int16_t)be16(prm + 144 + v * 8u), y = (int16_t)be16(prm + 146 + v * 8u);
+                bool on_edge = ((y == y0 || y == y1) && x > x0 && x < x1) ||
+                               ((x == x0 || x == x1) && y > y0 && y < y1);
+                CHECK(!on_edge);
+            }
+            p += kind == 8 ? 44 : 28;
+        }
+    }
+    wo_wad_free(&wad);
+    wo_buf_free(&made);
     wo_json_free(entries);
 }
 
@@ -166,11 +207,12 @@ static void test_tile(void) {
         int full = 0, left_cut = 0, right_cut = 0;
         for (int i = 0; i < 5; i++, p += 44) {
             int x0 = corner_x(prm, be16(p + 4)), x1 = corner_x(prm, be16(p + 6));
-            if (x1 - x0 == 100 && p[18] == 0 && p[20] == 63) {
+            /* A texel in where tiles meet, not at the board's edges. */
+            if (x1 - x0 == 100 && p[18] == 1 && p[20] == 62) {
                 full++;
-            } else if (x0 == 0 && x1 == 50 && p[18] == 32 && p[20] == 63) {
+            } else if (x0 == 0 && x1 == 50 && p[18] == 32 && p[20] == 62) {
                 left_cut++;
-            } else if (x0 == 350 && x1 == 400 && p[18] == 0 && p[20] == 31) {
+            } else if (x0 == 350 && x1 == 400 && p[18] == 1 && p[20] == 31) {
                 right_cut++;
             }
         }
@@ -218,6 +260,7 @@ static void test_sprite_and_others(void) {
 
 int main(void) {
     RUN(test_fit);
+    RUN(test_no_corner_on_an_edge);
     RUN(test_tile);
     RUN(test_sprite_and_others);
     return wo_test_finish();

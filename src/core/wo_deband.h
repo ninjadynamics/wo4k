@@ -27,6 +27,11 @@
  * The filter is the maintainer tool's own (tools/deband/filter.c), with the
  * tool's settings for the two strengths.
  *
+ * With an originals folder, every picture the choices name is also written
+ * there as the sheet has it, whatever its choice, "original" included: what
+ * the upscaler starts from (wo_upscaled.h), so that upscaling does not
+ * depend on debanding. Those are not placed on the sheets.
+ *
  * The step runs again only when something it was made from has changed:
  * the choices, the filter, or the sheets. PNGs deleted in between stay
  * deleted, and the game shows the sheet's own texels in their place. */
@@ -45,6 +50,7 @@ typedef struct WoDebandOptions {
     const WoJson *native_receipt; /* what wo_natives_install returned for these sheets */
     bool force;                   /* build even when nothing has changed */
     WoHashCache *cache;           /* optional */
+    const char *originals_dir;    /* optional: every named picture's own texels (see above) */
 } WoDebandOptions;
 
 typedef struct WoDebandResult {

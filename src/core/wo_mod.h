@@ -69,6 +69,7 @@ typedef struct WoConfig {
     char *psx_source;
     WoSoundtrack soundtrack;
     bool hd_textures;
+    bool upscale_textures; /* make assets/hd with the neural upscaler (wo_upscaled.h) */
     bool clean_audio;
     int sound_mode;
     WoFullscreen fullscreen;

@@ -30,8 +30,10 @@
  *
  * Each picture is the debanded one (assets/sd/<name>.png), else the
  * archive's own; where authored artwork replaces it (assets/auth: a PNG of
- * the picture's name, or one the HD index, textures/hd-regions.bin, places
- * exactly over the picture on the track's sheet), that goes with it too, and
+ * the picture's name, or one the HD index places exactly over the picture on
+ * the track's sheet, the index being worked out afresh from assets/auth as
+ * Play would, so new artwork shows before the game has run), that goes with
+ * it too, and
  * the page has a section of its own for boards that show authored artwork.
  * All are put into data.js as PNG data, so that the page can sample their
  * colours. */
@@ -42,6 +44,8 @@
 #include <time.h>
 
 #include "core/wo_fs.h"
+#include "core/wo_hdtex.h"
+#include "core/wo_install.h"
 #include "core/wo_json.h"
 #include "core/wo_natives.h"
 #include "core/wo_png.h"
@@ -869,6 +873,53 @@ static bool track_load(const char *game, const WoJson *plan, const char *folder,
     return ok;
 }
 
+/* Where the authored artwork of `assets`/auth goes, worked out now as Play
+ * would, so a picture added there shows on the page before the game has run
+ * again. When that cannot be done (a PNG the HD catalogue does not know, say,
+ * which Play would refuse too), the installed index is used, and why is
+ * printed. */
+static void authored_places(const char *game, const char *assets, WoBuf *out) {
+    WoError error = {0};
+    WoJson *catalog = NULL;
+    WoJson *plan = NULL;
+    WoMod mod;
+    bool have_mod = wo_mod_init(&mod, ".", &error);
+    /* The plan as Play has it, the boards' layout included: the index finds
+     * the installed scenery by it. */
+    char *auth = assets && have_mod ? wo_path_join(assets, "auth", &error) : NULL;
+    bool ok = auth && wo_load_plan(&mod, &plan, &error) &&
+              wo_read_json("manifests/hd-textures.json", 16u << 20, &catalog, &error);
+    if (ok) {
+        WoHdOptions options = {catalog, auth, auth, game, NULL, plan, NULL};
+        WoHdRegionIndex index;
+        WoHdResult result;
+        ok = wo_hd_build_index(&options, &index, &result, &error);
+        if (ok) {
+            ok = wo_hd_regions_serialize(&index, out, &error);
+            wo_hd_regions_free(&index);
+            wo_hd_result_free(&result);
+        }
+    }
+    wo_json_free(catalog);
+    wo_json_free(plan);
+    wo_free(auth);
+    if (have_mod) {
+        wo_mod_free(&mod);
+    }
+    if (ok) {
+        return;
+    }
+    if (assets) {
+        printf("Authored artwork placed as the game last placed it: %s\n", error.message);
+    }
+    wo_buf_free(out);
+    char *regions = wo_path_join(game, "textures/hd-regions.bin", NULL);
+    if (regions && wo_is_file(regions)) {
+        wo_read_file(regions, 16u << 20, out, NULL); /* unreadable: no authored art */
+    }
+    wo_free(regions);
+}
+
 static void track_free(Track *track) {
     scene_free(&track->scene);
     wo_cmp_free(&track->frames);
@@ -885,11 +936,9 @@ bool build_billboards(const char *game, const char *output, const char *assets, 
     WoJson *plan = NULL;
     bool ok = boards && tracks &&
               wo_read_json("manifests/texture-selection.json", 32u << 20, &plan, error);
-    char *regions = ok ? wo_path_join(game, "textures/hd-regions.bin", error) : NULL;
-    if (regions && wo_is_file(regions)) {
-        wo_read_file(regions, 16u << 20, &pictures.regions, NULL); /* unreadable: no authored art */
+    if (ok) {
+        authored_places(game, assets, &pictures.regions);
     }
-    wo_free(regions);
     for (size_t t = 0; ok && t < WO_COUNT(TRACK_NAMES); t++) {
         Track track;
         if (!track_load(game, plan, TRACK_NAMES[t][0], &track, error)) {

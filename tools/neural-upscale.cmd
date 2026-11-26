@@ -1,8 +1,9 @@
 @echo off
-rem Make a set of upscaled textures for assets\hd from the installer's
-rem debanded ones (assets\sd), with WO4K's own neural upscaler
-rem (src\core\wo_upscale.h); each upscaled picture is then debanded once
-rem more. Maintainer tool; never shipped.
+rem Make a set of upscaled textures for assets\hd from the textures as the
+rem game has them (wobble\textures\originals, which Setup and Play keep),
+rem with WO4K's own neural upscaler (src\core\wo_upscale.h); each upscaled
+rem picture is then debanded. What Setup's "Upscale textures" makes, at the
+rem scale chosen. Maintainer tool; never shipped.
 rem
 rem   tools\neural-upscale.cmd      ask for the scale
 rem   tools\neural-upscale.cmd 4    4x (or 2) without asking or pausing
@@ -18,8 +19,8 @@ if not exist "%tool%" (
     echo %tool% is not built yet. Run: mingw32-make tools
     goto finish
 )
-if not exist "%root%\assets\sd\*.png" (
-    echo There are no debanded textures in %root%\assets\sd.
+if not exist "%root%\wobble\textures\originals\*.png" (
+    echo There are no textures in %root%\wobble\textures\originals.
     echo Run Setup or Play once so that they are made.
     goto finish
 )
@@ -31,7 +32,7 @@ if not defined scale (
     set "scale=4"
     set /p "scale=Scale, 2 or 4 [4]: "
 )
-"%tool%" upscale "%root%\assets\sd" "%root%\assets\hd" %scale% "%root%\assets\auth"
+"%tool%" upscale "%root%\wobble\textures\originals" "%root%\assets\hd" %scale% "%root%\assets\auth"
 set "result=%errorlevel%"
 
 :finish

@@ -7,11 +7,13 @@ static BOOL hd_append(WCHAR *out,UINT capacity,const WCHAR *text) {
     if(n>=capacity || *text)return FALSE;out[n]=0;return TRUE;
 }
 static BOOL hd_exists(const WCHAR *path){DWORD attr=GetFileAttributesW(path);return attr!=INVALID_FILE_ATTRIBUTES && !(attr&FILE_ATTRIBUTE_DIRECTORY);}
-/* The authored picture of that name, or the upscaled one where there is none. */
+/* The authored picture of that name, or the upscaled one where there is none;
+ * each only while its setting is on (initialize_ui_hd). */
+static BOOL ui_hd_authored=TRUE;
 static BOOL hd_path(WCHAR *out,const WCHAR *relative) {
     WCHAR upscaled[MAX_PATH];upscaled[0]=0;out[0]=0;
-    if(!hd_append(out,MAX_PATH,ui_hd_directory) || !hd_append(out,MAX_PATH,relative))return FALSE;
-    if(!hd_exists(out) && ui_upscaled_directory[0] && hd_append(upscaled,MAX_PATH,ui_upscaled_directory) &&
+    if(ui_hd_authored && (!hd_append(out,MAX_PATH,ui_hd_directory) || !hd_append(out,MAX_PATH,relative)))return FALSE;
+    if((!ui_hd_authored || !hd_exists(out)) && ui_upscaled_directory[0] && hd_append(upscaled,MAX_PATH,ui_upscaled_directory) &&
        hd_append(upscaled,MAX_PATH,relative) && hd_exists(upscaled))copy((BYTE *)out,(const BYTE *)upscaled,sizeof(upscaled));
     return TRUE;
 }

@@ -228,6 +228,64 @@ static void bars(Layout *l, double aspect, double x0, double x1, double y0, doub
     }
 }
 
+/* The bars cut at every edge of a picture piece, so that no corner of one
+ * face lies partway along another's edge: the renderer leaves a crack a
+ * pixel wide there at some angles. The picture pieces are never cut. */
+static void split_bars(Layout *l) {
+    double xs[2 * MAX_PIECES], ys[2 * MAX_PIECES];
+    int nx = 0, ny = 0;
+    for (int i = 0; i < l->count; i++) {
+        if (l->pieces[i].textured) {
+            xs[nx++] = l->pieces[i].x0;
+            xs[nx++] = l->pieces[i].x1;
+            ys[ny++] = l->pieces[i].y0;
+            ys[ny++] = l->pieces[i].y1;
+        }
+    }
+    Layout out;
+    memset(&out, 0, sizeof(out));
+    for (int i = 0; i < l->count; i++) {
+        Piece p = l->pieces[i];
+        if (p.textured) {
+            piece(&out, p.x0, p.x1, p.y0, p.y1, true, p.u0, p.u1, p.v0, p.v1);
+            continue;
+        }
+        /* The cuts inside the bar, in order, across and down. */
+        double cx[2 * MAX_PIECES + 2], cy[2 * MAX_PIECES + 2];
+        int ncx = 0, ncy = 0;
+        cx[ncx++] = p.x0;
+        cy[ncy++] = p.y0;
+        for (int k = 0; k < nx; k++) {
+            if (xs[k] > p.x0 + 1e-4 && xs[k] < p.x1 - 1e-4) {
+                cx[ncx++] = xs[k];
+            }
+        }
+        for (int k = 0; k < ny; k++) {
+            if (ys[k] > p.y0 + 1e-4 && ys[k] < p.y1 - 1e-4) {
+                cy[ncy++] = ys[k];
+            }
+        }
+        cx[ncx++] = p.x1;
+        cy[ncy++] = p.y1;
+        for (int a = 1; a < ncx; a++) {
+            for (int b = a; b > 0 && cx[b] < cx[b - 1]; b--) {
+                double t = cx[b]; cx[b] = cx[b - 1]; cx[b - 1] = t;
+            }
+        }
+        for (int a = 1; a < ncy; a++) {
+            for (int b = a; b > 0 && cy[b] < cy[b - 1]; b--) {
+                double t = cy[b]; cy[b] = cy[b - 1]; cy[b - 1] = t;
+            }
+        }
+        for (int a = 0; a + 1 < ncy; a++) {
+            for (int b = 0; b + 1 < ncx; b++) {
+                piece(&out, cx[b], cx[b + 1], cy[a], cy[a + 1], false, 0, 0, 0, 0);
+            }
+        }
+    }
+    *l = out;
+}
+
 static void lay_out(Layout *l, const char *mode, double aspect, const double *source,
                     double stretch, double height, int tiles) {
     memset(l, 0, sizeof(*l));
@@ -240,6 +298,7 @@ static void lay_out(Layout *l, const char *mode, double aspect, const double *so
                 picture_piece(l, aspect, x0 + n * w, x0 + (n + 1) * w, y0, y1, source);
             }
             bars(l, aspect, x0, x0 + tiles * w, y0, y1);
+            split_bars(l);
         } else {
             double x0 = (aspect - w) / 2;
             int reach = (int)ceil(x0 / w) + 1;
@@ -247,12 +306,14 @@ static void lay_out(Layout *l, const char *mode, double aspect, const double *so
                 picture_piece(l, aspect, x0 + n * w, x0 + (n + 1) * w, y0, y1, source);
             }
             bars(l, aspect, 0, aspect, y0, y1);
+            split_bars(l);
         }
         return;
     }
     double x0 = (aspect - w) / 2;
     picture_piece(l, aspect, x0, x0 + w, y0, y1, source);
     bars(l, aspect, x0, x0 + w, y0, y1);
+    split_bars(l);
 }
 
 /* --- Building --------------------------------------------------------------------------- */
@@ -263,13 +324,29 @@ typedef struct Built {
     size_t vertex_count, primitive_count;
 } Built;
 
-static bool add_vertex(Built *built, Vec p, size_t first, unsigned *index, WoError *error) {
+/* The corner at p: one the object (`existing`, `first` corners) or an
+ * earlier new face already has there, else a new one. Faces that meet share
+ * their corners, so the renderer places them alike. */
+static bool add_vertex(Built *built, Vec p, const uint8_t *existing, size_t first,
+                       unsigned *index, WoError *error) {
     uint8_t v[8] = {0};
     double c[3] = {p.x, p.y, p.z};
     for (int i = 0; i < 3; i++) {
         double r = floor(c[i] + 0.5);
         int value = r < -32768 ? -32768 : r > 32767 ? 32767 : (int)r;
         put_be16(v + i * 2, (unsigned)(uint16_t)(int16_t)value);
+    }
+    for (size_t i = 0; existing && i < first; i++) {
+        if (!memcmp(existing + i * 8u, v, 6)) {
+            *index = (unsigned)i;
+            return true;
+        }
+    }
+    for (size_t i = 0; i < built->vertex_count; i++) {
+        if (!memcmp(built->vertices.data + i * 8u, v, 6)) {
+            *index = (unsigned)(first + i);
+            return true;
+        }
     }
     if (first + built->vertex_count > 0xffff) {
         return wo_fail(error, WO_ERR_FORMAT, "Too many corners for one object.");
@@ -315,9 +392,16 @@ static bool find_bar_texel(Board *b, const double *source, const uint8_t bar[3])
     int x0 = (int)fmax(1, floor(fmin(source[0], b->umin))), y0 = (int)fmax(1, floor(fmin(source[1], b->vmin)));
     int x1 = (int)fmin((double)img->width - 2, ceil(fmax(source[0] + source[2] - 1, b->umax)));
     int y1 = (int)fmin((double)img->height - 2, ceil(fmax(source[1] + source[3] - 1, b->vmax)));
-    int best = BAR_MATCH + 1;
+    /* Of the texels alike enough, the one farthest from the picture's edges:
+     * near one, the filtering reads the art beside the picture too. */
+    int best = BAR_MATCH + 1, best_room = -1;
     for (int y = y0; y <= y1; y++) {
         for (int x = x0; x <= x1; x++) {
+            int room = x - x0;
+            room = x1 - x < room ? x1 - x : room;
+            room = y - y0 < room ? y - y0 : room;
+            room = y1 - y < room ? y1 - y : room;
+            room = room > 8 ? 8 : room;
             int worst = 0;
             for (int dy = -1; dy <= 1 && worst < best; dy++) {
                 for (int dx = -1; dx <= 1; dx++) {
@@ -326,8 +410,9 @@ static bool find_bar_texel(Board *b, const double *source, const uint8_t bar[3])
                     worst = d > worst ? d : worst;
                 }
             }
-            if (worst < best) {
+            if (worst <= BAR_MATCH && (room > best_room || (room == best_room && worst < best))) {
                 best = worst;
+                best_room = room;
                 b->bar_u = x;
                 b->bar_v = y;
             }
@@ -350,7 +435,8 @@ static bool add_piece(const Board *b, const Piece *p, const uint8_t bar[3], Buil
     unsigned index[QUAD];
     size_t first = b->object->vertices;
     for (int c = 0; c < QUAD; c++) {
-        if (!add_vertex(built, board_point(b, xs[c], ys[c]), first, &index[c], error)) {
+        if (!add_vertex(built, board_point(b, xs[c], ys[c]),
+                        b->data + b->object->at + PRM_HEADER, first, &index[c], error)) {
             return false;
         }
     }
@@ -367,6 +453,14 @@ static bool add_piece(const Board *b, const Piece *p, const uint8_t bar[3], Buil
             put_be16(face + 4 + c * 2, index[c]);
             bool right = xs[c] == p->x1, bottom = ys[c] == p->y1;
             int u0 = texel(p->u0), u1 = texel(p->u1) - 1, v0 = texel(p->v0), v1 = texel(p->v1) - 1;
+            /* Where the picture's edge meets a bar or another tile rather
+             * than the board's edge, a texel in: the game's filtering reads
+             * past the edge, into the art beside the picture on its page,
+             * and draws a line of it there at a glancing angle. */
+            u0 += p->x0 > 1e-4 && u1 - u0 > 2;
+            u1 -= p->x1 < b->aspect - 1e-4 && u1 - u0 > 2;
+            v0 += p->y0 > 1e-4 && v1 - v0 > 2;
+            v1 -= p->y1 < 1 - 1e-4 && v1 - v0 > 2;
             u1 = u1 < u0 ? u0 : u1;
             v1 = v1 < v0 ? v0 : v1;
             if (!p->textured) {
@@ -489,25 +583,36 @@ static bool lay_out_routine_board(uint8_t *copy, const Object *object, const WoJ
     if (factor >= 1 || factor <= 0) {
         return true;
     }
-    /* The outer corners as they were, top and bottom of each side. */
-    Vec side_top[2], side_bottom[2], side_axis[2];
-    int found[2] = {0, 0};
+    /* The corners on each side (as far out as the board reaches), before
+     * they move: a bar runs between their old and new places. */
+    enum { MOST = 16 };
+    unsigned side_index[2][MOST];
+    Vec side_old[2][MOST];
+    int side_count[2] = {0, 0};
+    Vec axis = {0, 0, 0};
     for (size_t v = 0; v < object->vertices; v++) {
         Vec p = vertex(copy, object, (unsigned)v);
-        double d = hypot(p.x - centre.x, p.z - centre.z);
-        if (d < reach * 0.9) {
+        if (hypot(p.x - centre.x, p.z - centre.z) < reach * 0.9) {
             continue;
         }
-        int side = found[0] && (p.x - centre.x) * side_axis[0].x + (p.z - centre.z) * side_axis[0].z < 0;
-        if (!found[side]) {
-            side_axis[side] = (Vec){p.x - centre.x, 0, p.z - centre.z};
-            side_top[side] = side_bottom[side] = p;
-            found[side] = 1;
+        if (axis.x == 0 && axis.z == 0) {
+            axis = (Vec){p.x - centre.x, 0, p.z - centre.z};
         }
-        if (p.y < side_top[side].y) side_top[side] = p;
-        if (p.y > side_bottom[side].y) side_bottom[side] = p;
+        int side = (p.x - centre.x) * axis.x + (p.z - centre.z) * axis.z < 0;
+        if (side_count[side] == MOST) {
+            return true;
+        }
+        /* Kept in order down the side. */
+        int at = side_count[side]++;
+        while (at > 0 && side_old[side][at - 1].y > p.y) {
+            side_old[side][at] = side_old[side][at - 1];
+            side_index[side][at] = side_index[side][at - 1];
+            at--;
+        }
+        side_old[side][at] = p;
+        side_index[side][at] = (unsigned)v;
     }
-    if (!found[0] || !found[1]) {
+    if (side_count[0] < 2 || side_count[1] < 2) {
         return true;
     }
     /* Narrow: every corner's distance across from the middle, scaled. */
@@ -531,40 +636,45 @@ static bool lay_out_routine_board(uint8_t *copy, const Object *object, const WoJ
              (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z),
              (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)};
     const uint8_t *light = pb + TEXTURE_AT + 6 + QUAD * 2 + 2;
+    const uint8_t *existing = copy + object->at + PRM_HEADER;
     for (int side = 0; side < 2; side++) {
-        Vec outer_top = side_top[side], outer_bottom = side_bottom[side];
-        Vec inner_top = {centre.x + (outer_top.x - centre.x) * factor, outer_top.y,
-                         centre.z + (outer_top.z - centre.z) * factor};
-        Vec inner_bottom = {centre.x + (outer_bottom.x - centre.x) * factor, outer_bottom.y,
-                            centre.z + (outer_bottom.z - centre.z) * factor};
-        Vec corners[QUAD] = {outer_top, inner_top, outer_bottom, inner_bottom};
-        Vec e1 = {inner_top.x - outer_top.x, inner_top.y - outer_top.y, inner_top.z - outer_top.z};
-        Vec e2 = {outer_bottom.x - outer_top.x, outer_bottom.y - outer_top.y,
-                  outer_bottom.z - outer_top.z};
-        Vec m = {e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x};
-        if (m.x * n.x + m.y * n.y + m.z * n.z < 0) {
-            Vec t = corners[0]; corners[0] = corners[1]; corners[1] = t;
-            t = corners[2]; corners[2] = corners[3]; corners[3] = t;
-        }
-        uint8_t face[4 + 24];
-        put_be16(face, KIND_SHADED_QUAD);
-        face[2] = copy[panel->at + 2];
-        face[3] = copy[panel->at + 3];
-        for (int k = 0; k < QUAD; k++) {
-            unsigned index;
-            if (!add_vertex(built, corners[k], object->vertices, &index, error)) {
+        for (int k = 0; k + 1 < side_count[side]; k++) {
+            /* Outer top, inner top, outer bottom, inner bottom: the inner
+             * corners are the panels' own. */
+            unsigned index[QUAD];
+            if (!add_vertex(built, side_old[side][k], existing, object->vertices, &index[0], error) ||
+                !add_vertex(built, side_old[side][k + 1], existing, object->vertices, &index[2],
+                            error)) {
                 return false;
             }
-            put_be16(face + 4 + k * 2, index);
-            for (int ch = 0; ch < 3; ch++) {
-                unsigned value = (unsigned)bar[ch] * light[k * 4 + ch] / 128u;
-                face[4 + 8 + k * 4 + ch] = (uint8_t)(value > 255 ? 255 : value);
+            index[1] = side_index[side][k];
+            index[3] = side_index[side][k + 1];
+            Vec ot = side_old[side][k], ob = side_old[side][k + 1];
+            Vec it = vertex(copy, object, index[1]);
+            Vec e1 = {it.x - ot.x, it.y - ot.y, it.z - ot.z};
+            Vec e2 = {ob.x - ot.x, ob.y - ot.y, ob.z - ot.z};
+            Vec m = {e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z,
+                     e1.x * e2.y - e1.y * e2.x};
+            if (m.x * n.x + m.y * n.y + m.z * n.z < 0) {
+                unsigned t = index[0]; index[0] = index[1]; index[1] = t;
+                t = index[2]; index[2] = index[3]; index[3] = t;
             }
-            face[4 + 8 + k * 4 + 3] = light[k * 4 + 3];
-        }
-        built->primitive_count++;
-        if (!wo_buf_append(&built->primitives, face, sizeof(face), error)) {
-            return false;
+            uint8_t face[4 + 24];
+            put_be16(face, KIND_SHADED_QUAD);
+            face[2] = copy[panel->at + 2];
+            face[3] = copy[panel->at + 3];
+            for (int q = 0; q < QUAD; q++) {
+                put_be16(face + 4 + q * 2, index[q]);
+                for (int ch = 0; ch < 3; ch++) {
+                    unsigned value = (unsigned)bar[ch] * light[q * 4 + ch] / 128u;
+                    face[4 + 8 + q * 4 + ch] = (uint8_t)(value > 255 ? 255 : value);
+                }
+                face[4 + 8 + q * 4 + 3] = light[q * 4 + 3];
+            }
+            built->primitive_count++;
+            if (!wo_buf_append(&built->primitives, face, sizeof(face), error)) {
+                return false;
+            }
         }
     }
     ++*changed;

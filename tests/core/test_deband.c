@@ -266,7 +266,7 @@ static void test_layer(void) {
     WoNativeOptions natives = {game, plan, NULL, NULL, NULL, false, false, NULL, false};
     WoJson *receipt = NULL;
     CHECK_OK(wo_natives_install(&natives, &receipt, &error), &error);
-    WoDebandOptions options = {game, output, selection, plan, receipt, false, NULL};
+    WoDebandOptions options = {game, output, selection, plan, receipt, false, NULL, NULL};
     WoDebandResult result;
 
     /* Without the choices nothing is made. */
@@ -317,6 +317,29 @@ static void test_layer(void) {
     CHECK_OK(wo_deband_install(&options, &result, &error), &error);
     CHECK(result.built && result.pictures == 1 && result.regions == 1);
     CHECK(!wo_exists(mine) && wo_is_file(road));
+
+    /* With an originals folder: every named picture is there as the sheet
+     * has it, the one kept as it is too, and only the debanded ones are
+     * placed. When a picture is no longer named, its original goes. */
+    char *originals = wo_path_join(root, "game/textures/originals", &error);
+    char *mine_original = wo_path_join(originals, "common-mine-cmp-0.png", &error);
+    char *road_original = wo_path_join(originals, "track01-road-1-32.png", &error);
+    options.originals_dir = originals;
+    CHECK_OK(wo_deband_install(&options, &result, &error), &error);
+    CHECK(result.built && result.pictures == 1 && result.regions == 1);
+    CHECK(wo_is_file(mine_original) && wo_is_file(road_original) && !wo_exists(mine));
+    CHECK_OK(wo_png_read(mine_original, WO_PIXELS_RGBA, &image, &error), &error);
+    CHECK(image.width == 8 && image.height == 4);
+    wo_image_free(&image);
+    CHECK_OK(wo_deband_install(&options, &result, &error), &error);
+    CHECK(!result.built);
+    write_choices(selection, "v1");
+    CHECK_OK(wo_deband_install(&options, &result, &error), &error);
+    CHECK(result.built && wo_is_file(mine) && wo_is_file(mine_original));
+    options.originals_dir = NULL;
+    wo_free(road_original);
+    wo_free(mine_original);
+    wo_free(originals);
 
     /* Choices of a form this does not know are refused, and the layer in
      * place stays as it was. */

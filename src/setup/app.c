@@ -45,6 +45,7 @@ enum WidgetId {
     W_AUDIO,
     W_FULLSCREEN,
     W_HD,
+    W_UPSCALE,
     W_CLEAN,
     W_FPS,
     W_LIGHT,
@@ -104,6 +105,7 @@ typedef struct App {
     int audio;
     int fullscreen;
     bool hd;
+    bool upscale;
     bool clean;
     bool show_fps; /* these three are the game's own settings, read from its INI */
     int shadows;
@@ -242,6 +244,7 @@ static void save_preferences_with(bool commit_sources) {
                              : trimmed(app.psx.text);
     config.soundtrack = (WoSoundtrack)app.soundtrack;
     config.hd_textures = app.hd;
+    config.upscale_textures = app.upscale;
     config.clean_audio = app.clean;
     config.sound_mode = audio_modes[app.audio];
     config.fullscreen = (WoFullscreen)app.fullscreen;
@@ -269,6 +272,7 @@ static void show_config(const WoConfig *config) {
     app.audio = config->sound_mode == 1 ? 0 : config->sound_mode == 5 ? 2 : 1;
     app.fullscreen = (int)config->fullscreen;
     app.hd = config->hd_textures;
+    app.upscale = config->upscale_textures;
     app.clean = config->clean_audio;
     app.restoring = false;
 }
@@ -979,8 +983,8 @@ static void apply_window_size(void) {
     app.layout_sources = (int)sources;
     /* The fullscreen row takes 42 units when it is offered. */
     float row = WO_EXCLUSIVE_FULLSCREEN_OFFERED ? 0 : 42;
-    float min_height = ui_px((sources ? 756 : 606) - row);
-    float height = ui_px((sources ? 776 : 626) - row);
+    float min_height = ui_px((sources ? 782 : 632) - row);
+    float height = ui_px((sources ? 802 : 652) - row);
     int area_x;
     int area_y;
     int area_w;
@@ -1146,6 +1150,19 @@ static void draw_frame(void) {
                            ui_px(17)},
                "Install the supplied HD fonts, HUD, notice and title. Original SD artwork is "
                "retained for fallback.");
+    y += ui_px(17) + ui_px(9);
+    Rectangle upscale_rect = {left, y, content, ui_px(17)};
+    if (ui_checkbox(W_UPSCALE, upscale_rect, "Upscale textures", &app.upscale, !locked())) {
+        save_preferences();
+        set_status(app.upscale ? "The textures will be upscaled when the game next starts."
+                               : "The upscaled textures will be removed when the game next "
+                                 "starts.");
+    }
+    ui_tooltip((Rectangle){left, y, ui_px(25) + ui_text_width(UI_FONT_BODY, "Upscale textures"),
+                           ui_px(17)},
+               "Make every texture four times as large with a neural upscaler, on this "
+               "computer, and smooth its colour bands. Done once, when the game next starts "
+               "(a minute or so). With Install HD artwork, authored artwork comes first.");
     y += ui_px(17) + ui_px(9);
     Rectangle clean_rect = {left, y, content, ui_px(17)};
     if (ui_checkbox(W_CLEAN, clean_rect, "Improve audio quality", &app.clean, !locked())) {

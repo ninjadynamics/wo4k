@@ -301,7 +301,17 @@ static void test_hd_regions_match(void) {
         CHECK_OK(wo_read_json("manifests/hd-textures.json", 16 << 20, &catalog, &error) &&
                      load_plan(&plan, &error),
                  &error);
-        WoHdOptions options = {catalog, "assets/auth", "assets/auth", game, NULL, plan, "assets/hd"};
+        /* Authored artwork and upscaled textures each count only while the
+         * installation has them on, as Play builds the index. */
+        char *receipt_path = under(game, "installation.json");
+        WoJson *receipt = NULL;
+        bool read = receipt_path && wo_read_json(receipt_path, 16 << 20, &receipt, NULL);
+        bool upscale = !read || wo_json_bool(receipt, "upscale_textures", true);
+        bool authored = !read || wo_json_bool(receipt, "hd_textures", false);
+        wo_json_free(receipt);
+        wo_free(receipt_path);
+        const char *auth = authored ? "assets/auth" : NULL;
+        WoHdOptions options = {catalog, auth, auth, game, NULL, plan, upscale ? "assets/hd" : NULL};
         WoHdRegionIndex index;
         WoHdResult result;
         CHECK_OK(wo_hd_build_index(&options, &index, &result, &error), &error);

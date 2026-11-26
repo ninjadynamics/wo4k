@@ -461,8 +461,13 @@ static void ui_hd_finish_buffer(BYTE *buffer) {
 }
 static void ui_hd_finish(void){ui_hd_finish_buffer(*(BYTE **)(game+0x7c9690));}
 static void hd_world_finish(void){ui_hd_finish_buffer(*(BYTE **)(game+0x53f190));}
+/* The loader always runs: the debanded pictures are not a setting. Install
+ * HD artwork (WO2097_HD_ART) and Upscale textures (WO2097_UPSCALED) each
+ * switch their own folder, on unless set to 0. */
 static void initialize_ui_hd(const WCHAR *root) {
-    WCHAR hd[4];if(GetEnvironmentVariableW(L"WO2097_HD_ART",hd,4) && hd[0]==L'0')return;
+    WCHAR setting[4];
+    ui_hd_authored=!(GetEnvironmentVariableW(L"WO2097_HD_ART",setting,4) && setting[0]==L'0');
+    BOOL upscaled_on=!(GetEnvironmentVariableW(L"WO2097_UPSCALED",setting,4) && setting[0]==L'0');
     UINT n=0;while(root[n] && n<MAX_PATH-40) {ui_hd_directory[n]=root[n];++n;}
     if(root[n])return;
     for(UINT i=0;i<=n;++i)ui_hd_game_root[i]=root[i];
@@ -470,6 +475,7 @@ static void initialize_ui_hd(const WCHAR *root) {
     const WCHAR *smooth=L"..\\assets\\sd\\";for(UINT i=n;(ui_sd_directory[i]=*smooth++);++i) {}
     for(UINT i=0;i<n;++i)ui_upscaled_directory[i]=root[i];
     const WCHAR *upscaled=L"..\\assets\\hd\\";for(UINT i=n;(ui_upscaled_directory[i]=*upscaled++);++i) {}
+    if(!upscaled_on)ui_upscaled_directory[0]=0;
     const WCHAR *suffix=L"..\\assets\\auth\\";while((*((WCHAR *)ui_hd_directory+n++)=*suffix++)) {}
     /* Replaced pages are released after the next present (ui_hd_retire),
      * which only the refresh hooks see: without them, native art stays. */

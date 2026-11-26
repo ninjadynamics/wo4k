@@ -698,6 +698,7 @@ typedef struct Work {
     Regions regions;
     float *noise;
     WoStrList written; /* file names, each once */
+    WoStrList originals; /* the same, of the originals folder */
     WoHdRegionIndex index;
 } Work;
 
@@ -795,6 +796,29 @@ static bool write_picture(Work *work, const char *name, uint32_t width, uint32_t
     return ok;
 }
 
+/* The picture `name` as the sheet has it, into the originals folder (when
+ * there is one), once. */
+static bool write_original(Work *work, const char *name, uint32_t width, uint32_t height,
+                           const uint16_t *pixels, WoError *error) {
+    const char *folder = work->options->originals_dir;
+    if (!folder || wo_strlist_contains_i(&work->originals, name)) {
+        return true;
+    }
+    size_t texels = (size_t)width * height;
+    uint8_t *rgba = wo_alloc_array(texels, 4, error);
+    char *path = rgba ? wo_path_child(folder, name, error) : NULL;
+    bool ok = path != NULL;
+    if (ok) {
+        to_rgba(pixels, texels, rgba);
+        WoImage image = {width, height, rgba};
+        ok = wo_png_write(path, &image, WO_PIXELS_RGBA, error) &&
+             wo_strlist_push(&work->originals, name, error);
+    }
+    wo_free(path);
+    wo_free(rgba);
+    return ok;
+}
+
 /* One frame, at the strength chosen for it. */
 static bool deband_frame(Work *work, const Region *region, const Choice *choice, Track *track,
                          int64_t frame, WoError *error) {
@@ -873,12 +897,14 @@ static bool deband_road(Work *work, const Region *region, char *name, size_t nam
     }
     Level levels[WO_TEXSRC_ROAD_TILES];
     bool wanted[LEVEL_COUNT] = {false};
+    bool named = false;
     for (size_t i = 0; i < region->tile_count; i++) {
         const Choice *choice = choices_find(&work->choices, region->file, region->tiles[i]);
         levels[i] = choice ? choice->level : LEVEL_ORIGINAL;
         wanted[levels[i]] = true;
+        named = named || choice;
     }
-    if (!wanted[LEVEL_V1] && !wanted[LEVEL_V2]) {
+    if (!named) {
         return true;
     }
     /* "TRACK13/LIBRARY.CMP" material 0 at 128: "track13-road-0-128.png". */
@@ -893,6 +919,13 @@ static bool deband_road(Work *work, const Region *region, char *name, size_t nam
     }
     if (!valid_name(road) || !wo_copy_str(name, name_size, road)) {
         name[0] = 0;
+        return true;
+    }
+    if (!write_original(work, road, region->width, region->height, region->pixels, error)) {
+        return false;
+    }
+    if (!wanted[LEVEL_V1] && !wanted[LEVEL_V2]) {
+        name[0] = 0; /* every tile as it is: the sheet's own texels show */
         return true;
     }
     if (was_written(work, name)) {
@@ -943,6 +976,11 @@ static bool same_picture(const Region *region, const WoNativeImage *image) {
 static bool deband_slogan(Work *work, const Track *track, const char *archive, WoError *error) {
     const Choice *choice =
         track->slogan.pixels ? choices_find(&work->choices, archive, 1) : NULL;
+    if (choice && valid_name(choice->file) &&
+        !write_original(work, choice->file, track->slogan.width, track->slogan.height,
+                        track->slogan.pixels, error)) {
+        return false;
+    }
     if (!choice || choice->level == LEVEL_ORIGINAL || !valid_name(choice->file) ||
         was_written(work, choice->file)) {
         return true;
@@ -1015,6 +1053,11 @@ static bool region_picture(Work *work, const Region *region, char *name, size_t 
         return true;
     }
     const Choice *choice = choices_find(&work->choices, archive, frame);
+    if (choice && valid_name(choice->file) &&
+        !write_original(work, choice->file, region->width, region->height, region->pixels,
+                        error)) {
+        return false;
+    }
     if (!choice || choice->level == LEVEL_ORIGINAL || !valid_name(choice->file) ||
         !wo_copy_str(name, name_size, choice->file)) {
         name[0] = 0;
@@ -1034,7 +1077,8 @@ static bool make_stamp(const WoDebandOptions *options, char stamp[WO_SHA256_HEX_
         return false;
     }
     WoBuf text = {0};
-    char *head = wo_format(error, "deband %d\n%s\n%lld\n", DEBAND_REVISION, selection,
+    char *head = wo_format(error, "deband %d%s\n%s\n%lld\n", DEBAND_REVISION,
+                           options->originals_dir ? " originals" : "", selection,
                            (long long)wo_json_int(options->native_receipt, "revision", -1));
     bool ok = head && wo_buf_append_str(&text, head, error);
     wo_free(head);
@@ -1063,7 +1107,8 @@ static bool build(Work *work, WoDebandResult *result, WoError *error) {
     if (!choices_load(options->selection, &work->choices, error) ||
         !wo_natives_regions(options->game_root, options->plan, note_region, &work->regions,
                             error) ||
-        !mark_whole(&work->regions, error) || !wo_mkdirs(options->output_dir, error)) {
+        !mark_whole(&work->regions, error) || !wo_mkdirs(options->output_dir, error) ||
+        (options->originals_dir && !wo_mkdirs(options->originals_dir, error))) {
         return false;
     }
     for (size_t i = 0; i < work->regions.count; i++) {
@@ -1103,6 +1148,7 @@ bool wo_deband_install(const WoDebandOptions *options, WoDebandResult *result, W
         wo_read_json(receipt_path, RECEIPT_MAX_BYTES, &previous, NULL); /* unreadable: build */
     }
     if (ok && !options->force && wo_is_file(index_path) &&
+        (!options->originals_dir || wo_is_dir(options->originals_dir)) &&
         wo_str_eq(wo_json_str(previous, "stamp", ""), stamp)) {
         wo_json_free(previous);
         wo_free(index_path);
@@ -1130,6 +1176,16 @@ bool wo_deband_install(const WoDebandOptions *options, WoDebandResult *result, W
             }
             wo_free(path);
         }
+        const WoJson *old_originals = wo_json_get(previous, "originals");
+        for (size_t i = 0; options->originals_dir && i < wo_json_length(old_originals); i++) {
+            const char *name = wo_json_as_str(wo_json_at(old_originals, i), "");
+            bool kept = !valid_name(name) || wo_strlist_contains_i(&work.originals, name);
+            char *path = kept ? NULL : wo_path_child(options->originals_dir, name, NULL);
+            if (path && wo_is_file(path)) {
+                wo_delete_file(path, NULL);
+            }
+            wo_free(path);
+        }
         WoJson *receipt = wo_json_new_object();
         WoJson *files = wo_json_new_array();
         ok = receipt && files && wo_json_put_int(receipt, "format", 1) &&
@@ -1143,6 +1199,15 @@ bool wo_deband_install(const WoDebandOptions *options, WoDebandResult *result, W
             ok = wo_json_put(receipt, "files", files);
             files = NULL;
         }
+        WoJson *originals = ok ? wo_json_new_array() : NULL;
+        for (size_t i = 0; originals && ok && i < work.originals.count; i++) {
+            ok = wo_json_push_str(originals, work.originals.items[i]);
+        }
+        if (ok && originals) {
+            ok = wo_json_put(receipt, "originals", originals);
+            originals = NULL;
+        }
+        wo_json_free(originals);
         if (!ok) {
             wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
         }
@@ -1161,6 +1226,7 @@ bool wo_deband_install(const WoDebandOptions *options, WoDebandResult *result, W
     }
     wo_hd_regions_free(&work.index);
     wo_strlist_free(&work.written);
+    wo_strlist_free(&work.originals);
     wo_free(work.noise);
     regions_free(&work.regions);
     tracks_free(&work.tracks);

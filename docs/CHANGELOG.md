@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Setup: **Upscale textures**, below Install HD artwork. It makes every
+  texture four times as large on your computer with the neural upscaler,
+  from the texture as the game has it, and smooths the colour bands of the
+  result; once, when the game next starts (about half a minute), and again
+  only for a texture whose source changed. Unticking it removes what it
+  made. On by default.
+- Install HD artwork and Upscale textures are independent of each other:
+  each switches only its own textures, best first authored artwork, then
+  the upscaled textures, then the smoothed ones, then the game's own. The
+  smoothed textures no longer depend on either.
+- The four PC skies (Talon's Reach, Gare d'Europa, Valparaiso, Phenitia
+  Park) are catalogued as the sky picture itself rather than its whole
+  texture page, so authored or upscaled skies fit them as they fit the
+  other four.
+
 - Show the trackside billboards in their pictures' proportions. The 1996
   artwork was laid over the boards with little regard for its shape: a
   square picture could be stretched over a board two or three times as

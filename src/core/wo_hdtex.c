@@ -587,7 +587,7 @@ static bool prepare(const WoHdOptions *options, Inputs *inputs, WoHdRegionIndex 
     ok = ok && collect_folder(options->fallback_dir, true, inputs, error) &&
          collect_folder(options->canonical_dir, false, inputs, error) &&
          collect_folder(options->source_dir, false, inputs, error) &&
-         require_artwork(options->catalog, inputs, error) &&
+         (!options->canonical_dir || require_artwork(options->catalog, inputs, error)) &&
          collect_natives(options->game_root, &natives, error);
     if (ok && inputs->count > 1) {
         qsort(inputs->items, inputs->count, sizeof(Input), compare_inputs);

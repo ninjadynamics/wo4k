@@ -346,6 +346,8 @@ bool wo_config_load(const WoMod *mod, WoConfig *config, WoError *error) {
             wo_json_as_str(pick(saved, "DefaultSoundtrack", receipt, "default_soundtrack"), "Pc");
         config->hd_textures =
             wo_json_as_bool(pick(saved, "HdTextures", receipt, "hd_textures"), true);
+        config->upscale_textures =
+            wo_json_as_bool(pick(saved, "UpscaleTextures", receipt, "upscale_textures"), true);
         config->clean_audio =
             wo_json_as_bool(pick(saved, "CleanAudio", receipt, "clean_audio"), true);
         char *game_ini = wo_path_join(mod->game, "Wipeout2097.ini", error);
@@ -392,6 +394,7 @@ static WoJson *config_to_json(const WoMod *mod, const WoConfig *config, WoError 
               wo_json_put_str(stored, "PsxMusicSource", psx) &&
               wo_json_put_str(stored, "DefaultSoundtrack", wo_soundtrack_name(config->soundtrack)) &&
               wo_json_put_bool(stored, "HdTextures", config->hd_textures) &&
+              wo_json_put_bool(stored, "UpscaleTextures", config->upscale_textures) &&
               wo_json_put_bool(stored, "CleanAudio", config->clean_audio) &&
               wo_json_put_int(stored, "SoundMode", config->sound_mode) &&
               wo_json_put_str(stored, "FullscreenMode",

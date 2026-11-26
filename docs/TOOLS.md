@@ -107,20 +107,24 @@ that step's output, not this tool's.
 
 ## Maintainer neural upscaler
 
-`tools\neural-upscale.cmd` (or `wo4k-build upscale assets\sd assets\hd 4
-assets\auth`) makes a whole set of upscaled textures in `assets/hd/` from the
-debanded ones in `assets/sd/`, at 2x or 4x: about 550 pictures in under half
-a minute. It leaves out the pictures `assets/auth/` has and Valparaiso's
-waterfall. Play indexes the set on its next launch; delete the PNGs to be rid
-of it.
+Setup's **Upscale textures** makes this set on the player's computer
+(`src/core/wo_upscaled.c`, at 4x, when Play next starts). The tool is the
+same code for maintainers: `tools\neural-upscale.cmd` (or `wo4k-build upscale
+wobble\textures\originals assets\hd 4 assets\auth`) makes a whole set of
+upscaled textures in `assets/hd/` from the textures as the game has them, at
+2x or 4x: about 550 pictures in under half a minute. Those are in
+`wobble/textures/originals/`, which the deband step fills with every picture
+its choices name, whatever the choice: upscaling does not depend on
+debanding. It leaves out the pictures `assets/auth/`
+has and Valparaiso's waterfall. `assets/hd/upscaled.json` records what was
+made from which picture, so only changed pictures are made again, and
+unticking the option removes them. Play uses `assets/hd/` only while the
+option is ticked.
 
-Each picture is debanded, upscaled and debanded again. The first debanding
-is the installer's, by the choice made for each texture, and its picture is
-what is upscaled. What it leaves shows again at four times the size: a
-gradient's steps of one level are four pixels wide, and the grain that hid
-them is four-pixel blots. So the upscaled picture goes through the
-four-sample filter and the dither once more, reaching as far across the
-texture as before. The band ramps are not made again; they are for the
+Each picture is upscaled, then debanded: at four times the size a
+gradient's steps of one level are four pixels wide. So the upscaled picture
+goes through the four-sample filter and the dither, reaching as far across
+the texture as at its own size. The band ramps are not made again; they are for the
 PlayStation's flat bands of one exact colour.
 
 The network is Rich Geldreich's
@@ -145,8 +149,10 @@ the game shows it, its frame or backing behind it, and how much the picture
 is stretched across. Each board takes a choice: keep, fit vertically (bars in
 a colour picked from the picture), tile from the centre, stretch by a
 percentage of the picture's own proportions, or not a billboard. Choices are
-kept in the browser and exported as JSON. `toolsillboards.cmd` makes the
-sheet again from the current textures and opens it. `wo4k-build
+kept in the browser and exported as JSON. `tools\billboards.cmd` makes the
+sheet again from the current textures and opens it: run it after adding or
+changing artwork in `assets\auth`, which shows on the page at once, without
+starting the game first. `wo4k-build
 billboard-layout <export.json> manifests/billboard-layout.json` turns an
 export into the manifest Setup and Play lay boards out by
 (`src/core/wo_billboards.h`); the sheet itself always shows the boards as

@@ -705,6 +705,7 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
     if (ok && receipt) {
         wo_json_put_int(receipt, "configuration_revision", config.revision);
         wo_json_put_bool(receipt, "hd_textures", config.hd_textures);
+        wo_json_put_bool(receipt, "upscale_textures", config.upscale_textures);
         wo_json_put_bool(receipt, "clean_audio", config.clean_audio);
         wo_json_put_bool(receipt, "pc_music_available", music.pc_available);
         wo_json_put_bool(receipt, "playstation_available", music.psx_available);
@@ -830,15 +831,21 @@ static bool refresh_assets(const WoMod *mod, WoProgress *progress, WoHashCache *
          wo_load_manifest(mod, "manifests/hd-textures.json", &catalog, error);
     wo_laps_mark(laps, "layout_ms");
     WoHdResult art = {0};
-    if (ok && wo_json_bool(receipt, "hd_textures", false)) {
+    if (ok) {
+        /* Authored artwork and upscaled textures, each while it is chosen. */
         set_stage(progress, WO_STAGE_HD_ART);
         /* Authored artwork, then upscaled artwork where there is none. */
         char *canonical = wo_mod_path(mod, "assets/auth", error);
         char *upscaled = canonical ? wo_mod_path(mod, "assets/hd", error) : NULL;
         WoJson *plan = NULL;
         ok = wo_load_plan(mod, &plan, error);
-        WoHdOptions options = {catalog, canonical, canonical, mod->game, cache, plan, upscaled};
-        ok = ok && upscaled && wo_hd_install(&options, &art, error);
+        bool upscale = wo_json_bool(receipt, "upscale_textures", true);
+        ok = ok && upscaled && wo_install_upscaled(mod, mod->game, upscale, catalog, cache, progress, error);
+        const char *authored = wo_json_bool(receipt, "hd_textures", false) ? canonical : NULL;
+        WoHdOptions options = {catalog,   authored, authored,
+                               mod->game, cache,    plan,
+                               upscale ? upscaled : NULL};
+        ok = ok && wo_hd_install(&options, &art, error);
         wo_json_free(plan);
         wo_free(upscaled);
         wo_free(canonical);

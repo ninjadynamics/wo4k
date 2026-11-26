@@ -19,6 +19,7 @@
 #include "core/wo_settings.h"
 #include "core/wo_sfx.h"
 #include "core/wo_sources.h"
+#include "core/wo_upscaled.h"
 #include "wo_version.h"
 
 #define MANIFEST_MAX (16u << 20)
@@ -319,6 +320,7 @@ static WoJson *build_receipt(const WoMod *mod, const char *stage, const WoConfig
               /* Made from both games: see wo_is_update. */
               wo_json_put_bool(receipt, "playstation_required", true) &&
               wo_json_put_bool(receipt, "hd_textures", saved->hd_textures) &&
+              wo_json_put_bool(receipt, "upscale_textures", saved->upscale_textures) &&
               wo_json_put_bool(receipt, "clean_audio", saved->clean_audio) &&
               wo_json_put_str(receipt, "executable_sha256", wo_json_str(patches, "output_sha256", "")) &&
               wo_json_put_int(receipt, "configuration_revision", saved->revision) &&
@@ -365,17 +367,51 @@ void wo_install_debanded(const WoMod *mod, const char *game_root, const WoJson *
     WoError error = {0};
     char *selection = wo_mod_path(mod, "manifests/deband-selection.json", &error);
     char *output = selection ? wo_mod_path(mod, "assets/sd", &error) : NULL;
-    bool ok = output != NULL;
+    char *originals = output ? wo_path_join(game_root, WO_ORIGINALS_DIR, &error) : NULL;
+    bool ok = originals != NULL;
     if (ok) {
-        WoDebandOptions options = {game_root, output, selection, plan, native_receipt, false, cache};
+        WoDebandOptions options = {game_root, output,     selection, plan,
+                                   native_receipt, false, cache,     originals};
         WoDebandResult result;
         ok = wo_deband_install(&options, &result, &error);
     }
     if (!ok) {
         wo_log_text("textures_not_debanded", error.message);
     }
+    wo_free(originals);
     wo_free(output);
     wo_free(selection);
+}
+
+bool wo_install_upscaled(const WoMod *mod, const char *game_root, bool wanted,
+                         const WoJson *catalog, WoHashCache *cache, WoProgress *progress,
+                         WoError *error) {
+    char *source = wo_path_join(game_root, WO_ORIGINALS_DIR, error);
+    char *output = source ? wo_mod_path(mod, "assets/hd", error) : NULL;
+    char *authored = output ? wo_mod_path(mod, "assets/auth", error) : NULL;
+    bool ok = authored != NULL;
+    if (ok && wanted) {
+        WoUpscaledResult result;
+        ok = wo_upscaled_make(source, output, WO_UPSCALED_SCALE, authored, catalog, cache, progress,
+                              84, 90, &result, error);
+        if (ok && (result.made || result.removed)) {
+            WoJson *summary = wo_json_new_object();
+            wo_json_put_int(summary, "made", (int64_t)result.made);
+            wo_json_put_int(summary, "kept", (int64_t)result.kept);
+            wo_json_put_int(summary, "removed", (int64_t)result.removed);
+            wo_log_event("textures_upscaled", summary);
+        }
+    } else if (ok) {
+        size_t removed = 0;
+        ok = wo_upscaled_remove(output, &removed, error);
+        if (ok && removed) {
+            wo_log_text("textures_upscaled_removed", "The upscaled textures were removed.");
+        }
+    }
+    wo_free(authored);
+    wo_free(output);
+    wo_free(source);
+    return ok;
 }
 
 bool wo_is_update(const WoMod *mod) {
@@ -546,13 +582,23 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
         wo_progress(progress, WO_STAGE_RUNTIME, 82, "Installing the mod runtime and artwork");
         ok = wo_install_runtime(mod, stage, error);
     }
-    if (ok && config->hd_textures) {
+    if (ok) {
+        /* Authored artwork and upscaled textures, each while it is chosen. */
         set_stage(progress, WO_STAGE_HD_ART);
         char *canonical = wo_mod_path(mod, "assets/auth", error);
         char *upscaled = canonical ? wo_mod_path(mod, "assets/hd", error) : NULL;
-        WoHdOptions options = {catalog, canonical, canonical, stage, NULL, plan, upscaled};
+        ok = upscaled && wo_install_upscaled(mod, stage, config->upscale_textures, catalog, NULL,
+                                               progress, error);
+        const char *authored = config->hd_textures ? canonical : NULL;
+        WoHdOptions options = {catalog,
+                               authored,
+                               authored,
+                               stage,
+                               NULL,
+                               plan,
+                               config->upscale_textures ? upscaled : NULL};
         WoHdResult result = {0};
-        ok = upscaled && wo_hd_install(&options, &result, error);
+        ok = ok && wo_hd_install(&options, &result, error);
         wo_hd_result_free(&result);
         wo_free(upscaled);
         wo_free(canonical);

@@ -25,7 +25,7 @@ static void test_defaults_without_state(void) {
     CHECK_OK(wo_config_load(&mod, &config, &error), &error);
     CHECK_STR(config.game_source, "");
     CHECK(config.soundtrack == WO_SOUNDTRACK_PC);
-    CHECK(config.hd_textures && config.clean_audio);
+    CHECK(config.hd_textures && config.upscale_textures && config.clean_audio);
     CHECK(config.sound_mode == 2 && config.fullscreen == WO_FULLSCREEN_BORDERLESS);
     wo_config_free(&config);
 

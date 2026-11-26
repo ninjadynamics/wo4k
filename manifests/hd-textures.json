@@ -10590,16 +10590,16 @@
     "file": "pc-sky01-page00-region000.png",
     "kind": "region",
     "required": false,
-    "source_width": 256,
-    "source_height": 256,
+    "source_width": 128,
+    "source_height": 128,
     "regions": [
       {
         "native": "sky01.tga",
         "page": 0,
         "x": 0,
-        "y": 0,
-        "width": 256,
-        "height": 256
+        "y": 128,
+        "width": 128,
+        "height": 128
       }
     ]
   },
@@ -10607,16 +10607,16 @@
     "file": "pc-sky02-page00-region000.png",
     "kind": "region",
     "required": false,
-    "source_width": 256,
-    "source_height": 256,
+    "source_width": 128,
+    "source_height": 218,
     "regions": [
       {
         "native": "sky02.tga",
         "page": 0,
         "x": 0,
-        "y": 0,
-        "width": 256,
-        "height": 256
+        "y": 38,
+        "width": 128,
+        "height": 218
       }
     ]
   },
@@ -10624,16 +10624,16 @@
     "file": "pc-sky03-page00-region000.png",
     "kind": "region",
     "required": false,
-    "source_width": 256,
-    "source_height": 256,
+    "source_width": 128,
+    "source_height": 218,
     "regions": [
       {
         "native": "sky03.tga",
         "page": 0,
         "x": 0,
-        "y": 0,
-        "width": 256,
-        "height": 256
+        "y": 38,
+        "width": 128,
+        "height": 218
       }
     ]
   },
@@ -10641,16 +10641,16 @@
     "file": "pc-sky06-page00-region000.png",
     "kind": "region",
     "required": false,
-    "source_width": 256,
-    "source_height": 256,
+    "source_width": 128,
+    "source_height": 218,
     "regions": [
       {
         "native": "sky06.tga",
         "page": 0,
         "x": 0,
-        "y": 0,
-        "width": 256,
-        "height": 256
+        "y": 38,
+        "width": 128,
+        "height": 218
       }
     ]
   },

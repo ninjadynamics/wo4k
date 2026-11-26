@@ -7,6 +7,7 @@
 #include "core/wo_hashcache.h"
 #include "core/wo_json.h"
 #include "core/wo_mod.h"
+#include "core/wo_ops.h"
 
 /* Read a manifest below the mod folder (e.g. "manifests/patches.json"). */
 bool wo_load_manifest(const WoMod *mod, const char *relative, WoJson **out, WoError *error);
@@ -28,5 +29,17 @@ bool wo_install_runtime(const WoMod *mod, const char *game_root, WoError *error)
  * game plays without the result, so a failure is logged, not returned. */
 void wo_install_debanded(const WoMod *mod, const char *game_root, const WoJson *plan,
                          const WoJson *native_receipt, WoHashCache *cache);
+
+/* Where wo_install_debanded keeps every named picture as the sheets have it,
+ * below the game folder: what the upscaler starts from. */
+#define WO_ORIGINALS_DIR "textures/originals"
+
+/* With `wanted`, make the upscaled textures of assets/hd from the pictures
+ * of game_root's WO_ORIGINALS_DIR where they are missing or out of date
+ * (core/wo_upscaled.h): every picture, debanded or not, debanded once
+ * upscaled. Without, take away the ones made before. */
+bool wo_install_upscaled(const WoMod *mod, const char *game_root, bool wanted,
+                         const WoJson *catalog, WoHashCache *cache, WoProgress *progress,
+                         WoError *error);
 
 #endif
