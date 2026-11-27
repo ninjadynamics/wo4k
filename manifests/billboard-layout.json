@@ -21,7 +21,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#080101"
+        "bars": "#000000"
       },
       {
         "object": 27,
@@ -40,7 +40,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#080101"
+        "bars": "#000000"
       },
       {
         "object": 22,
@@ -97,7 +97,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#080101"
+        "bars": "#000000"
       },
       {
         "object": 25,
@@ -154,7 +154,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#080101"
+        "bars": "#000000"
       },
       {
         "object": 30,
@@ -230,7 +230,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#080101"
+        "bars": "#000000"
       },
       {
         "object": 34,
@@ -287,7 +287,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#080101"
+        "bars": "#000000"
       },
       {
         "object": 9,
@@ -295,7 +295,7 @@
         "note": "redb: the game's board routine shows the lucky cat here",
         "mode": "fit",
         "aspect": 1,
-        "bars": "#000000"
+        "bars": "transparent"
       },
       {
         "object": 11,
@@ -303,7 +303,7 @@
         "note": "redb: the game's board routine shows the lucky cat here",
         "mode": "fit",
         "aspect": 1,
-        "bars": "#000000"
+        "bars": "transparent"
       },
       {
         "object": 13,
@@ -311,7 +311,7 @@
         "note": "redb: the game's board routine shows the lucky cat here",
         "mode": "fit",
         "aspect": 1,
-        "bars": "#000000"
+        "bars": "transparent"
       },
       {
         "object": 37,
@@ -319,7 +319,7 @@
         "note": "redb: the game's board routine shows the lucky cat here",
         "mode": "fit",
         "aspect": 1,
-        "bars": "#000000"
+        "bars": "transparent"
       }
     ],
     "TRACK08": [
@@ -333,17 +333,17 @@
           4,
           5
         ],
-        "mode": "stretch",
+        "mode": "fit",
         "source": [
           0,
           0,
           64,
           63
         ],
-        "stretch": 150,
+        "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#e6ac18"
+        "bars": "#fdb315"
       },
       {
         "object": 65,
@@ -557,6 +557,180 @@
         "stretch": 135,
         "scale": 100,
         "tiles": 1,
+        "bars": "#ffffff"
+      },
+      {
+        "object": 347,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 100,
+        "scale": 100,
+        "tiles": 3,
+        "bars": "#ffffff"
+      },
+      {
+        "object": 348,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 119,
+        "scale": 100,
+        "tiles": 3
+      },
+      {
+        "object": 349,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 135,
+        "scale": 100,
+        "tiles": 2,
+        "bars": "#ffb400"
+      },
+      {
+        "object": 350,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 100,
+        "scale": 100,
+        "tiles": 3
+      },
+      {
+        "object": 351,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 100,
+        "scale": 100,
+        "tiles": 3,
+        "bars": "#ffffff"
+      },
+      {
+        "object": 352,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 135,
+        "scale": 100,
+        "tiles": 2,
+        "bars": "#ffb400"
+      },
+      {
+        "object": 353,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 100,
+        "scale": 100,
+        "tiles": 3,
+        "bars": "#ffffff"
+      },
+      {
+        "object": 355,
+        "faces": [
+          1,
+          7,
+          11,
+          14,
+          15,
+          16
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          64,
+          64
+        ],
+        "stretch": 100,
+        "scale": 100,
+        "tiles": 3,
         "bars": "#ffffff"
       }
     ],
@@ -1005,17 +1179,16 @@
           2,
           3
         ],
-        "mode": "stretch",
+        "mode": "tile",
         "source": [
-          0,
-          0,
-          128,
-          128
+          1,
+          11,
+          127,
+          103
         ],
-        "stretch": 135,
+        "stretch": 200,
         "scale": 100,
-        "tiles": 0,
-        "bars": "#ffffff"
+        "tiles": 0
       }
     ],
     "TRACK02": [
@@ -1074,7 +1247,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#040403"
+        "bars": "#000000"
       },
       {
         "object": 63,
@@ -1160,17 +1333,17 @@
           6,
           7
         ],
-        "mode": "stretch",
+        "mode": "fit",
         "source": [
           0,
           0,
           64,
           63
         ],
-        "stretch": 150,
+        "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#e6ac18"
+        "bars": "#fdb315"
       },
       {
         "object": 67,
@@ -1276,7 +1449,7 @@
           2,
           3
         ],
-        "mode": "fit",
+        "mode": "tile",
         "source": [
           0,
           0,
@@ -1284,9 +1457,8 @@
           64
         ],
         "stretch": 100,
-        "scale": 100,
-        "tiles": 0,
-        "bars": "#040403"
+        "scale": 79,
+        "tiles": 0
       }
     ],
     "TRACK17": [
@@ -1408,7 +1580,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#080101"
+        "bars": "#000000"
       },
       {
         "object": 384,
@@ -1429,6 +1601,23 @@
       }
     ],
     "TRACK06": [
+      {
+        "object": 8,
+        "faces": [
+          15
+        ],
+        "mode": "stretch",
+        "source": [
+          0,
+          0,
+          64,
+          63
+        ],
+        "stretch": 300,
+        "scale": 36,
+        "tiles": 0,
+        "bars": "#f8f9f8"
+      },
       {
         "object": 78,
         "faces": [
@@ -1528,6 +1717,54 @@
         "bars": "#ffffff"
       },
       {
+        "object": 191,
+        "faces": [
+          0,
+          1,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "mode": "stretch",
+        "source": [
+          0,
+          0,
+          127,
+          127
+        ],
+        "stretch": 135,
+        "scale": 100,
+        "tiles": 0,
+        "bars": "#444489"
+      },
+      {
+        "object": 191,
+        "faces": [
+          2,
+          3,
+          4,
+          5,
+          12,
+          13,
+          14,
+          15
+        ],
+        "mode": "tile",
+        "source": [
+          0,
+          0,
+          63,
+          63
+        ],
+        "stretch": 100,
+        "scale": 80,
+        "tiles": 1,
+        "bars": "#fdb417"
+      },
+      {
         "object": 201,
         "faces": [
           0
@@ -1612,7 +1849,7 @@
         "stretch": 100,
         "scale": 100,
         "tiles": 0,
-        "bars": "#040403"
+        "bars": "#000000"
       },
       {
         "object": 263,
@@ -1634,3 +1871,4 @@
     ]
   }
 }
+

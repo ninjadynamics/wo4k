@@ -1,0 +1,6 @@
+{
+  "tracks": {},
+  "format": "wo4k.sky-layout",
+  "version": 1,
+  "note": "How each track's sky picture is laid round its sky: \"around\" times, its left edge at \"turn\" degrees, its top and bottom edges at \"top\" and \"bottom\" degrees above the horizon (with \"flat\", laid flat on the sky's faces, as a photo: wo_sky.h). Play applies it while the picture is authored and HD artwork is on. Made by tools\\sky.cmd."
+}

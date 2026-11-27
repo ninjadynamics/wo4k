@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WO4K Skies</title>
+<style>
+:root {
+  --bg: #111317; --panel: #1b1e24; --panel2: #232730; --line: #2f343f; --text: #e6e8ec;
+  --quiet: #9aa1ad; --accent: #66dbd0; --accent-ink: #0b1f1d; --warn: #ffb347; --bad: #ff6b6b;
+  --good: #7ddc7a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: rgba(17,19,23,.96);
+  border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; flex-wrap: wrap;
+  gap: 6px 16px; align-items: baseline; }
+h1 { font-size: 18px; margin: 0; font-weight: 600; }
+header a { color: var(--accent); text-decoration: none; }
+.help { color: var(--quiet); font-size: 13px; margin: 0; }
+.layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; padding: 16px; }
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+nav { display: flex; flex-direction: column; gap: 6px; }
+nav button { text-align: left; background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit;
+  cursor: pointer; }
+nav button.on { border-color: var(--accent); }
+.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px;
+  background: #22463a; color: var(--good); margin-left: 6px; vertical-align: 1px; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.quiet { color: var(--quiet); font-size: 13px; }
+.status { font-size: 13px; color: var(--quiet); min-height: 18px; }
+.status.good { color: var(--good); }
+.status.busy { color: var(--warn); }
+button.b { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+button.b:hover { border-color: #4a5160; }
+button.b.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  font-weight: 600; }
+button.b.danger:hover, button.b.confirm { border-color: var(--bad); color: var(--bad); }
+button.b:disabled { opacity: .45; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.drop { border: 2px dashed #3d4452; border-radius: 12px; padding: 48px 20px; text-align: center;
+  display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.drop .big { font-size: 20px; }
+.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(10,30,28,.82);
+  border: 4px dashed var(--accent); display: none; align-items: center; justify-content: center;
+  font-size: 26px; color: var(--accent); pointer-events: none; }
+body.dragging .overlay { display: flex; }
+
+.view { position: relative; width: 100%; aspect-ratio: 16 / 7; background: #000;
+  border-radius: 8px; overflow: hidden; cursor: grab; touch-action: none; }
+.view:active { cursor: grabbing; }
+.view canvas { width: 100%; height: 100%; display: block; }
+.view .note { position: absolute; left: 10px; bottom: 8px; color: #cfd3da; font-size: 12px;
+  text-shadow: 0 1px 2px #000; pointer-events: none; }
+.view .flip { position: absolute; right: 8px; top: 8px; }
+
+.knobs { display: grid; grid-template-columns: 150px 1fr 90px; gap: 12px 14px; align-items: center; }
+@media (max-width: 600px) { .knobs { grid-template-columns: 1fr; } }
+.knobs .name small { display: block; color: var(--quiet); font-size: 12px; }
+.knobs .value { color: var(--accent); font-variant-numeric: tabular-nums; }
+.knobs input[type=range] { width: 100%; accent-color: var(--accent); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 12px; font: inherit; cursor: pointer; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  font-weight: 600; }
+.notice { background: #2a2618; border: 1px solid #4a4128; color: #f3dfb2; border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; }
+details { color: var(--quiet); font-size: 13px; }
+details summary { cursor: pointer; }
+details .row { margin-top: 10px; }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  background: #3a1f22; color: #ffd7d7; border: 1px solid #6b2f35; padding: 10px 14px;
+  border-radius: 8px; display: none; max-width: 90vw; z-index: 30; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Skies</h1>
+  <p class="help">Pick a track, drop a picture on the page, then move the sliders until the sky
+  looks right. It saves by itself; the game shows it the next time it starts.</p>
+  <a id="textures" href="#">Textures page</a>
+</header>
+<div class="layout">
+  <nav id="tracks"></nav>
+  <section id="detail"><p class="quiet">Loading the skies...</p></section>
+</div>
+<div class="overlay">Drop the picture to make it this track's sky</div>
+<input type="file" id="file" accept="image/*" hidden>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const T = "__TOKEN__";
+const WIDEST = 8192;
+document.getElementById("textures").href = "/?t=" + T;
+/* choice: the layout shown ({around, turn, top, bottom}), or null for the game's own. */
+let state = null, current = null, choice = null, faces = null, pic = null, showMine = true;
+let saveTimer = 0, confirmUntil = 0;
+const $ = (id) => document.getElementById(id);
+
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.style.display = "block";
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (t.style.display = "none"), 6000);
+}
+function status(text, cls) {
+  const s = $("status");
+  if (s) { s.textContent = text; s.className = "status " + (cls || ""); }
+}
+
+function track() { return state && state.tracks.find((t) => t.track === current); }
+/* The sky as the layout shown sees it: laid flat (a photo) or by direction (a panorama). */
+function sh(t) { return choice && choice.flat && t.flat ? t.flat : t; }
+function option(t, around) { return (sh(t).options || []).find((o) => o.around === around); }
+function q(params) {
+  return Object.entries(params).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
+}
+function picURL(t) { return "/a/" + encodeURIComponent(t.picture) + "?t=" + T + "&v=" + t.v; }
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const round1 = (v) => Math.round(v * 10) / 10;
+
+async function load() {
+  const r = await fetch("/skystate?t=" + T, {cache: "no-store"});
+  if (!r.ok) throw new Error("The studio did not answer.");
+  return r.json();
+}
+
+/* --- The layout, as the sliders see it -------------------------------------------- */
+/* The picture's height in degrees when nothing is stretched. */
+function natural() { return (360 / choice.around) * pic.h / pic.w; }
+function middle() { return (choice.top + choice.bottom) / 2; }
+function stretch() { return Math.log2((choice.top - choice.bottom) / natural()); }
+
+/* Set the edges from where the picture's middle is and how much it is stretched. */
+function setShape(mid, stretchLog) {
+  const height = clamp(natural() * Math.pow(2, stretchLog), 1, 360);
+  mid = clamp(mid, -180 + height / 2, 180 - height / 2);
+  let top = mid + height / 2, bottom = mid - height / 2;
+  /* An edge close to a row of the sky's corners goes onto it, so the picture does not bend. */
+  const s = sh(track());
+  const near = (el) => (s.rows || []).filter((r) => r > s.low + 0.5 && r < s.high - 0.5)
+    .find((r) => Math.abs(r - el) < 1.2);
+  const nt = near(top), nb = near(bottom);
+  if (nt !== undefined) { bottom += nt - top; top = nt; }
+  else if (nb !== undefined) { top += nb - bottom; bottom = nb; }
+  choice.top = round1(top);
+  choice.bottom = round1(bottom);
+}
+
+/* A first layout for a picture: laid flat as a photo (unless it has a
+ * panorama's proportions, 2 : 1), once round (or as few times as keep it no
+ * taller than half a circle), undistorted, its middle on the horizon. */
+function firstLayout(t) {
+  choice = {flat: Math.abs(pic.w / pic.h - 2) > 0.04};
+  const opts = sh(t).options.map((o) => o.around);
+  let around = opts.includes(1) ? 1 : opts[0];
+  if ((360 / around) * pic.h / pic.w > 180) {
+    around = opts.find((a) => (360 / a) * pic.h / pic.w <= 180) || opts[opts.length - 1];
+  }
+  Object.assign(choice, {around, turn: option(t, around).seams[0], top: 0, bottom: 0});
+  setShape(0, 0);
+}
+
+/* The game's own sky as a start picture: once round, the whole sky. */
+function firstLayoutGame(t) {
+  const o = t.options.find((x) => x.around === 1) || t.options[0]; /* by direction */
+  return {flat: false, around: o.around, turn: o.seams[0], top: round1(t.high), bottom: round1(t.low)};
+}
+
+/* What a track shows: its saved layout, else the game's own. */
+function pick(t) {
+  const layout = t && t.layout;
+  choice = layout ? {flat: !!layout.flat} : null;
+  const o = layout && option(t, layout.around);
+  if (!o) { choice = null; return; }
+  const s = sh(t);
+  const turn = o.seams.reduce((a, b) => Math.abs(b - layout.turn) < Math.abs(a - layout.turn) ? b : a);
+  Object.assign(choice, {around: layout.around, turn,
+                        top: layout.top !== undefined ? layout.top : round1(s.high),
+                        bottom: layout.bottom !== undefined ? layout.bottom : round1(s.low)});
+}
+
+function saved(t) {
+  const l = t.layout, s = sh(t);
+  return choice && l && !!l.flat === !!choice.flat && l.around === choice.around && Math.abs(l.turn - choice.turn) < 0.05 &&
+    Math.abs((l.top !== undefined ? l.top : s.high) - choice.top) < 0.05 &&
+    Math.abs((l.bottom !== undefined ? l.bottom : s.low) - choice.bottom) < 0.05;
+}
+
+/* The picture's size, before anything about it can be shown. */
+function measure(t) {
+  return new Promise((done) => {
+    if (!t || !t.authored) { pic = null; done(); return; }
+    const img = new Image();
+    img.onload = () => { pic = {w: img.naturalWidth, h: img.naturalHeight}; done(); };
+    img.onerror = () => { pic = null; done(); };
+    img.src = picURL(t);
+  });
+}
+
+/* --- The page ------------------------------------------------------------------------- */
+function renderNav() {
+  const nav = $("tracks");
+  nav.innerHTML = "";
+  for (const t of state.tracks) {
+    const b = document.createElement("button");
+    b.className = t.track === current ? "on" : "";
+    b.append(t.title);
+    if (t.authored && t.layout) b.insertAdjacentHTML("beforeend", '<span class="badge">yours</span>');
+    else if (t.authored) b.insertAdjacentHTML("beforeend", '<span class="badge">redrawn</span>');
+    b.onclick = () => select(t.track);
+    nav.append(b);
+  }
+}
+
+async function select(id) {
+  current = id;
+  try { localStorage.setItem("wo4k-sky-track", id); } catch (e) {}
+  const t = track();
+  pick(t);
+  await measure(t);
+  renderAll(true);
+}
+
+function renderDetail() {
+  const t = track(), d = $("detail");
+  if (!t) { d.innerHTML = '<p class="quiet">Choose a track.</p>'; return; }
+  d.innerHTML = "<h2></h2>";
+  d.querySelector("h2").textContent = t.title;
+  if (t.problem) { d.append(t.problem); return; }
+  if (!t.authored || !pic) {
+    d.insertAdjacentHTML("beforeend", `
+      <div class="drop">
+        <div class="big">Drop a picture here</div>
+        <div class="quiet">Any picture: a 360&deg; panorama, a wide photo, a painting. PNG or JPG.</div>
+        <div class="row" style="justify-content:center">
+          <button class="b primary" id="choose">Choose a picture...</button>
+          <button class="b" id="start">Or start from the game's own sky</button>
+        </div>
+      </div>
+      <div class="view" id="view"><canvas id="gl"></canvas><div class="note" id="note"></div></div>
+      <p class="quiet">Above: the sky as the game has it now. Drag to look round; the wheel zooms.</p>`);
+    $("choose").onclick = () => $("file").click();
+    $("start").onclick = () => { choice = firstLayoutGame(t); showMine = true; act("start"); };
+    hookView();
+    return;
+  }
+  d.insertAdjacentHTML("beforeend", `
+    <div class="view" id="view"><canvas id="gl"></canvas><div class="note" id="note"></div>
+      <button class="b flip" id="flip"></button></div>
+    <div class="status" id="status"></div>
+    <div id="body"></div>
+    <details>
+      <summary>More</summary>
+      <div class="row" id="more"></div>
+    </details>`);
+  const flip = $("flip");
+  flip.textContent = showMine ? "Show the game's sky" : "Show yours";
+  flip.onclick = () => { showMine = !showMine; flip.textContent = showMine ? "Show the game's sky" : "Show yours"; draw(); };
+  const body = $("body");
+  if (!choice) {
+    body.innerHTML = `<div class="notice">This picture is still laid out the game's way: repeated
+      round the sky as the 1996 one was. Lay it out your way to use the sliders.</div>
+      <div class="row" style="margin-top:10px"><button class="b primary" id="mine">Lay it out my way</button></div>`;
+    $("mine").onclick = () => { firstLayout(t); renderDetail(); changed(true); };
+  } else {
+    body.innerHTML = `
+      <div class="knobs">
+        <div class="name">The picture is<small>how it was made</small></div>
+        <div class="seg" id="kind"></div><div></div>
+        <div class="name">Repeats<small>times round the sky</small></div>
+        <div class="seg" id="around"></div><div></div>
+        <div class="name">Turn<small>spin it round</small></div>
+        <input type="range" id="turn" min="0" step="1"><div class="value" id="turnv"></div>
+        <div class="name">Up / down<small>where it sits</small></div>
+        <input type="range" id="mid" min="-90" max="90" step="0.5"><div class="value" id="midv"></div>
+        <div class="name">Stretch<small>taller or flatter</small></div>
+        <input type="range" id="stretch" min="-2" max="2" step="0.02"><div class="value" id="stretchv"></div>
+      </div>`;
+    for (const [flat, text, tip] of [[true, "A photo or painting", "Laid flat on the sky's walls: straight lines stay straight"],
+                                     [false, "A 360\u00b0 panorama", "Laid by direction, as panoramas are made"]]) {
+      const b = document.createElement("button");
+      b.textContent = text;
+      b.title = tip;
+      b.className = !!choice.flat === flat ? "on" : "";
+      b.onclick = () => {
+        if (!!choice.flat === flat) return;
+        const mid = middle(), s = stretch();
+        choice.flat = flat;
+        const o = option(t, choice.around) || sh(t).options[0];
+        choice.around = o.around;
+        choice.turn = o.seams[0];
+        setShape(mid, s);
+        renderDetail();
+        changed(true);
+      };
+      $("kind").append(b);
+    }
+    const seg = $("around");
+    for (const o of sh(t).options) {
+      const b = document.createElement("button");
+      b.textContent = o.around === 1 ? "Once" : o.around + "×";
+      b.className = o.around === choice.around ? "on" : "";
+      b.onclick = () => {
+        const mid = middle(), s = stretch();
+        choice.around = o.around;
+        choice.turn = o.seams[0];
+        setShape(mid, s);
+        renderDetail();
+        changed(true);
+      };
+      seg.append(b);
+    }
+    const turn = $("turn"), mid = $("mid"), str = $("stretch");
+    const seams = option(t, choice.around).seams;
+    turn.max = seams.length - 1;
+    turn.disabled = seams.length < 2;
+    const knobs = () => {
+      const i = seams.findIndex((s) => Math.abs(s - choice.turn) < 0.05);
+      turn.value = Math.max(0, i);
+      $("turnv").textContent = Math.round(choice.turn) + "°";
+      mid.value = middle();
+      $("midv").textContent = (middle() >= 0 ? "+" : "") + Math.round(middle()) + "°";
+      str.value = stretch();
+      const k = Math.pow(2, stretch());
+      $("stretchv").textContent = Math.abs(k - 1) < 0.02 ? "none" : k.toFixed(2) + "×";
+    };
+    knobs();
+    turn.oninput = () => { choice.turn = seams[+turn.value]; knobs(); changed(false); };
+    mid.oninput = () => { setShape(+mid.value, stretch()); knobs(); changed(false); };
+    str.oninput = () => {
+      let s = +str.value;
+      if (Math.abs(s) < 0.06) s = 0; /* a notch at no stretch */
+      setShape(middle(), s); knobs(); changed(false);
+    };
+    for (const k of [turn, mid, str]) k.onchange = () => save();
+  }
+  const more = $("more");
+  const add = (text, cls, fn) => {
+    const b = document.createElement("button");
+    b.className = "b " + (cls || "");
+    b.textContent = text;
+    b.onclick = fn;
+    more.append(b);
+    return b;
+  };
+  add("Replace the picture...", "", () => $("file").click());
+  add("Open it in my editor", "", () => act("edit"));
+  add("Show it in its folder", "", () => act("reveal"));
+  const going = Date.now() < confirmUntil;
+  add(going ? "Click again: your picture goes to auth-unused" : "Back to the game's sky",
+      going ? "confirm" : "danger", async () => {
+    if (Date.now() < confirmUntil) {
+      confirmUntil = 0;
+      await act("unlay");
+      await act("unauthor");
+    } else {
+      confirmUntil = Date.now() + 4000;
+      renderDetail();
+      $("detail").querySelector("details").open = true;
+      setTimeout(() => { if (confirmUntil && Date.now() >= confirmUntil) { confirmUntil = 0; renderDetail(); } }, 4100);
+    }
+  });
+  more.insertAdjacentHTML("beforeend", `<span class="quiet"></span>`);
+  more.lastChild.textContent = t.picture + " · " + pic.w + " × " + pic.h + " px";
+  hookView();
+  if (choice && saved(t)) status("Saved. The game shows it like this the next time it starts.", "good");
+}
+
+/* A knob moved: show it now; save when it is let go (or at once). */
+function changed(now) {
+  status("Not saved yet...", "busy");
+  loadFaces();
+  if (now) save();
+}
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => { await act("lay"); saveTimer = 0; }, 150);
+}
+
+function hookView() {
+  const view = $("view");
+  if (!view) return;
+  gl = null;
+  view.onpointerdown = (e) => {
+    if (e.target.closest("button")) return;
+    view.setPointerCapture(e.pointerId);
+    let x = e.clientX, y = e.clientY;
+    view.onpointermove = (m) => {
+      /* The sky stays under the pointer: degrees per pixel at the middle of the view. */
+      const k = Math.atan(Math.tan(cam.fov * Math.PI / 360) / Math.max(1, view.clientWidth / 2)) * 180 / Math.PI;
+      cam.yaw -= (m.clientX - x) * k;
+      cam.pitch = clamp(cam.pitch + (m.clientY - y) * k, -89, 89);
+      x = m.clientX; y = m.clientY;
+      draw();
+    };
+  };
+  view.onpointerup = () => (view.onpointermove = null);
+  view.onwheel = (e) => {
+    e.preventDefault();
+    cam.fov = clamp(cam.fov * (e.deltaY > 0 ? 1.08 : 1 / 1.08), 30, 120);
+    draw();
+  };
+}
+
+/* --- Dropping a picture ---------------------------------------------------------------- */
+let dragDepth = 0;
+addEventListener("dragenter", (e) => {
+  const t = track();
+  if (!t || t.problem || !e.dataTransfer.types.includes("Files")) return;
+  dragDepth++;
+  document.body.classList.add("dragging");
+});
+addEventListener("dragleave", () => {
+  if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); }
+});
+addEventListener("dragover", (e) => e.preventDefault());
+addEventListener("drop", (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove("dragging");
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) usePicture(file);
+});
+$("file").onchange = () => {
+  const file = $("file").files[0];
+  $("file").value = "";
+  if (file) usePicture(file);
+};
+
+async function usePicture(file) {
+  const t = track();
+  if (!t || t.problem) return;
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); }
+  catch (e) { toast("That file is not a picture this browser can open."); return; }
+  let w = bitmap.width, h = bitmap.height, data = file;
+  if (w > WIDEST || h > WIDEST) { /* made smaller to fit */
+    const s = Math.min(WIDEST / w, WIDEST / h), c = document.createElement("canvas");
+    c.width = Math.round(w * s); c.height = Math.round(h * s);
+    c.getContext("2d").drawImage(bitmap, 0, 0, c.width, c.height);
+    w = c.width; h = c.height;
+    data = await new Promise((done) => c.toBlob(done, "image/png"));
+  }
+  bitmap.close();
+  status("Putting the picture in place...", "busy");
+  try {
+    const r = await fetch("/skydrop?" + q({t: T, track: t.track}), {method: "POST", body: data});
+    const next = await r.json();
+    if (next.tracks) state = next;
+    if (next.error) { toast(next.error); renderAll(false); return; }
+  } catch (e) {
+    toast("The studio did not answer. Is its window still open?");
+    return;
+  }
+  pic = {w, h};
+  showMine = true;
+  firstLayout(track());
+  await act("lay");
+}
+
+/* --- Talking to the studio ------------------------------------------------------------- */
+async function act(a) {
+  const t = track();
+  const c = choice || {around: 0, turn: 0, top: "", bottom: ""};
+  try {
+    const r = await fetch("/skyact?" + q({t: T, a, track: t.track, flat: c.flat ? 1 : 0, around: c.around, turn: c.turn,
+                                          top: c.top, bottom: c.bottom}), {method: "POST"});
+    const next = await r.json();
+    if (next.error) toast(next.error);
+    if (next.tracks) state = next;
+    if (a === "edit" || a === "reveal") return;
+    if (a === "unlay" || a === "unauthor") pick(track());
+    if (a === "start" || a === "unauthor") await measure(track());
+    renderAll(true);
+  } catch (e) {
+    toast("The studio did not answer. Is its window still open?");
+  }
+}
+
+async function poll() {
+  try {
+    const next = await load();
+    const key = (s) => JSON.stringify(s && s.tracks.map((t) => [t.v, t.authored, t.layout]));
+    const outside = key(state) !== key(next);
+    state = next;
+    if (outside && !saveTimer) { /* changed elsewhere: in an editor, or by hand */
+      const t = track();
+      pick(t);
+      await measure(t);
+      renderAll(true);
+    }
+  } catch (e) { /* the window was closed: say so on the next action */ }
+}
+
+/* --- The view from the camera ---------------------------------------------------------- */
+const cam = {yaw: 0, pitch: 5, fov: 90}; /* fov: across the view, about as a racing camera sees */
+let gl = null, program = null, buffer = null, texture = null, textureKey = "";
+
+function setupGL() {
+  const canvas = $("gl");
+  if (!canvas) return false;
+  gl = canvas.getContext("webgl", {antialias: true});
+  if (!gl) { $("note").textContent = "This browser has no WebGL."; return false; }
+  const vs = `attribute vec3 p; attribute vec2 t; uniform mat4 m; varying vec2 vt; varying float vy;
+    void main() { vt = t; vy = p.y; gl_Position = m * vec4(p, 1.0); }`;
+  const fs = `precision mediump float; uniform sampler2D s; varying vec2 vt; varying float vy;
+    void main() { vec4 c = texture2D(s, vt); gl_FragColor = vec4(c.rgb, 1.0); }`;
+  const shader = (type, src) => {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    return sh;
+  };
+  program = gl.createProgram();
+  gl.attachShader(program, shader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(program, shader(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(program);
+  buffer = gl.createBuffer();
+  texture = gl.createTexture();
+  textureKey = "";
+  return true;
+}
+
+function matrix() {
+  const c = $("gl"), aspect = c.clientWidth / Math.max(1, c.clientHeight);
+  const f = aspect / Math.tan(cam.fov * Math.PI / 360), n = 0.01, far = 10;
+  const P = [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + n) / (n - far), -1, 0, 0, 2 * far * n / (n - far), 0];
+  const y = cam.yaw * Math.PI / 180, p = cam.pitch * Math.PI / 180;
+  /* Look along +x turned by yaw round y, and pitched up. */
+  const cy = Math.cos(y), sy = Math.sin(y), cp = Math.cos(p), sp = Math.sin(p);
+  const fwd = [cy * cp, sp, sy * cp], up0 = [0, 1, 0];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (a) => { const l = Math.hypot(...a); return a.map((v) => v / l); };
+  const right = norm(cross(fwd, up0)), up = cross(right, fwd);
+  const V = [right[0], up[0], -fwd[0], 0, right[1], up[1], -fwd[1], 0, right[2], up[2], -fwd[2], 0, 0, 0, 0, 1];
+  const out = new Array(16).fill(0);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++)
+    out[j * 4 + i] += P[k * 4 + i] * V[j * 4 + k];
+  return out;
+}
+
+function loadTexture(src, key) {
+  if (key === textureKey) return;
+  textureKey = key;
+  const img = new Image();
+  img.onload = () => {
+    if (key !== textureKey || !gl) return;
+    let source = img;
+    const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    if (img.width > max || img.height > max) {
+      const s = Math.min(max / img.width, max / img.height), c = document.createElement("canvas");
+      c.width = Math.floor(img.width * s); c.height = Math.floor(img.height * s);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      source = c;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    draw();
+  };
+  img.src = src;
+}
+
+function draw() {
+  const t = track();
+  if (!t || !faces || t.problem || !$("gl")) return;
+  if (!gl && !setupGL()) return;
+  const canvas = $("gl");
+  const w = canvas.clientWidth * devicePixelRatio, h = canvas.clientHeight * devicePixelRatio;
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const mine = showMine && t.authored && pic;
+  const laid = mine && choice && faces.fits;
+  const src = mine ? picURL(t) : "/skypic?t=" + T + "&track=" + t.track;
+  loadTexture(src, src);
+  $("note").textContent = !mine ? "The game's sky as it is now"
+    : laid ? "Your sky" : "Your picture, laid out the game's way";
+  const c = faces.corners, data = new Float32Array(c.length / 7 * 5);
+  for (let i = 0, o = 0; i < c.length; i += 7) {
+    data[o++] = c[i]; data[o++] = c[i + 1]; data[o++] = c[i + 2];
+    data[o++] = laid ? c[i + 5] : c[i + 3];
+    data[o++] = laid ? c[i + 6] : c[i + 4];
+  }
+  gl.viewport(0, 0, w, h);
+  gl.clearColor(0.05, 0.05, 0.06, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(program);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  const p = gl.getAttribLocation(program, "p"), tc = gl.getAttribLocation(program, "t");
+  gl.enableVertexAttribArray(p);
+  gl.vertexAttribPointer(p, 3, gl.FLOAT, false, 20, 0);
+  gl.enableVertexAttribArray(tc);
+  gl.vertexAttribPointer(tc, 2, gl.FLOAT, false, 20, 12);
+  gl.uniformMatrix4fv(gl.getUniformLocation(program, "m"), false, new Float32Array(matrix()));
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.drawArrays(gl.TRIANGLES, 0, data.length / 5);
+}
+
+/* The faces for the layout shown; while one answer is on its way, only the latest waits. */
+let facesBusy = false, facesAgain = false;
+async function loadFaces() {
+  const t = track();
+  if (!t || t.problem) { faces = null; return; }
+  if (facesBusy) { facesAgain = true; return; }
+  facesBusy = true;
+  const c = choice || firstLayoutGame(t); /* the game's own uv come with any answer */
+  try {
+    const r = await fetch("/skyfaces?" + q({t: T, track: t.track, flat: c.flat ? 1 : 0, around: c.around, turn: c.turn,
+                                            top: c.top, bottom: c.bottom}), {cache: "no-store"});
+    if (r.ok) faces = await r.json();
+  } catch (e) { /* shown on the next action */ }
+  facesBusy = false;
+  draw();
+  if (facesAgain) { facesAgain = false; loadFaces(); }
+}
+
+async function renderAll(newFaces) {
+  renderNav();
+  renderDetail();
+  if (newFaces) await loadFaces(); else draw();
+}
+
+(async () => {
+  try {
+    state = await load();
+    let remembered = null;
+    try { remembered = localStorage.getItem("wo4k-sky-track"); } catch (e) {}
+    await select((state.tracks.find((t) => t.track === remembered) || state.tracks[0]).track);
+    setInterval(poll, 2500);
+    addEventListener("resize", draw);
+  } catch (e) {
+    $("detail").textContent = "The studio did not answer: " + e.message;
+  }
+})();
+</script>
+</body>
+</html>

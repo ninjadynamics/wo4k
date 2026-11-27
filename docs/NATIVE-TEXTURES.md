@@ -204,7 +204,12 @@ shipped with the mod; used while Install HD artwork is ticked), `assets/hd/`
 `wobble/textures/originals/` or with `tools\neural-upscale.cmd`; not
 shipped, and used only while that option is ticked), `assets/sd/` (the
 installer's debanded pictures, below, always used) and the sheet itself.
-The two options are independent of each other. A PNG in
+The two options are independent of each other. Names that are one
+picture are grouped in `manifests/auth-masters.json`; the authored file of
+any of a group is shown in the places of all of it (see the authoring
+studio in [TOOLS.md](TOOLS.md)). An authored sky picture may be laid round
+its sky in other proportions than the game's (`manifests/sky-layout.json`,
+the studio's sky page). A PNG in
 `assets/hd/` is used where `assets/auth/` has none of that name. The
 catalogue also lists the frames that only the PlayStation's scenery has,
 with no place in the PC layout (`"regions": []`): their places are found by

@@ -311,7 +311,13 @@ static void test_hd_regions_match(void) {
         wo_json_free(receipt);
         wo_free(receipt_path);
         const char *auth = authored ? "assets/auth" : NULL;
-        WoHdOptions options = {catalog, auth, auth, game, NULL, plan, upscale ? "assets/hd" : NULL};
+        WoMod mod;
+        WoJson *masters = NULL;
+        CHECK_OK(wo_mod_init(&mod, ".", &error) && wo_load_masters(&mod, &masters, &error),
+                 &error);
+        wo_mod_free(&mod);
+        WoHdOptions options = {catalog, auth, auth, game, NULL, plan,
+                               upscale ? "assets/hd" : NULL, masters};
         WoHdRegionIndex index;
         WoHdResult result;
         CHECK_OK(wo_hd_build_index(&options, &index, &result, &error), &error);
@@ -327,6 +333,7 @@ static void test_hd_regions_match(void) {
         wo_buf_free(&built);
         wo_hd_regions_free(&index);
         wo_hd_result_free(&result);
+        wo_json_free(masters);
         wo_json_free(plan);
     }
     wo_json_free(catalog);

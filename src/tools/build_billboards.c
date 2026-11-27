@@ -548,11 +548,12 @@ static WoJson *number_array(const double *values, int count) {
 
 /* The board's picture rectangle in texels, and the faces of its object seen
  * face on, in board units: s along the picture's width, t down it, 0..1
- * over the board. */
+ * over the board. When `tiled`, the faces repeat the picture side by side
+ * on one plane, so the board's rectangle is the span of all their corners. */
 static WoJson *board_record(const Track *track, const Object *object, int object_index,
-                            const int *faces, int count, const Mapping *map, const Picture *picture,
-                            Pictures *pictures, const char *assets, const char *output,
-                            WoError *error) {
+                            const int *faces, int count, const Mapping *map, bool tiled,
+                            const Picture *picture, Pictures *pictures, const char *assets,
+                            const char *output, WoError *error) {
     int umin = 255, vmin = 255, umax = 0, vmax = 0;
     for (int f = 0; f < count; f++) {
         const Face *face = &object->faces[faces[f]];
@@ -572,6 +573,24 @@ static WoJson *board_record(const Track *track, const Object *object, int object
     Vec t_axis = scale(map->ev, 1 / length(map->ev));
     Vec normal = cross(s_axis, t_axis);
     Vec corner = add(map->origin, add(scale(map->eu, umin), scale(map->ev, vmin)));
+    if (tiled) {
+        Vec p0 = vec(object->vertices[object->faces[faces[0]].vertex[0]]);
+        double smin = 1e18, smax = -1e18, tmin = 1e18, tmax = -1e18;
+        for (int f = 0; f < count; f++) {
+            const Face *face = &object->faces[faces[f]];
+            for (int c = 0; c < face->corners; c++) {
+                Vec d = sub(vec(object->vertices[face->vertex[c]]), p0);
+                double s = dot(d, s_axis), t = dot(d, t_axis);
+                smin = fmin(smin, s);
+                smax = fmax(smax, s);
+                tmin = fmin(tmin, t);
+                tmax = fmax(tmax, t);
+            }
+        }
+        width = smax - smin;
+        height = tmax - tmin;
+        corner = add(p0, add(scale(s_axis, smin), scale(t_axis, tmin)));
+    }
 
     WoJson *board = wo_json_new_object();
     wo_json_put_str(board, "track", track->folder);
@@ -675,10 +694,12 @@ static bool object_boards(const Track *track, const Object *object, int object_i
     if (picture->width < MIN_PICTURE || picture->height < MIN_PICTURE) {
         return true;
     }
-    /* All faces one board, else each face one (a picture on both sides of a
-     * board), unless there are many: a tiled surface. */
+    /* All faces one board, else a single-row tiled board on one plane (such as
+     * Valparaiso's three-panel overhead boards), else each face one (a picture
+     * on both sides of a board), unless there are many: a tiled wall. */
     int groups[64][64];
     int sizes[64];
+    bool tiled_group[64] = {false};
     int group_count = 0;
     Mapping all;
     if (fit_mapping(object, faces, count, &all) &&
@@ -687,6 +708,65 @@ static bool object_boards(const Track *track, const Object *object, int object_i
         memcpy(groups[0], faces, (size_t)count * sizeof(int));
         sizes[0] = count;
         group_count = 1;
+    } else if (count > 2 && count <= 16) {
+        Mapping first;
+        if (fit_mapping(object, &faces[0], 1, &first)) {
+            Vec s0 = scale(first.eu, 1 / length(first.eu));
+            Vec t0 = scale(first.ev, 1 / length(first.ev));
+            Vec n0 = cross(s0, t0);
+            double nl = length(n0);
+            bool ok = nl >= 0.5;
+            if (ok) {
+                n0 = scale(n0, 1 / nl);
+            }
+            for (int i = 0; ok && i < count; i++) {
+                Mapping mf;
+                if (!fit_mapping(object, &faces[i], 1, &mf)) {
+                    ok = false;
+                    break;
+                }
+                if (dot(scale(mf.eu, 1 / length(mf.eu)), s0) < 0.99 ||
+                    dot(scale(mf.ev, 1 / length(mf.ev)), t0) < 0.99) {
+                    ok = false;
+                    break;
+                }
+                const Face *face = &object->faces[faces[i]];
+                for (int c = 0; ok && c < face->corners; c++) {
+                    double d = fabs(dot(sub(vec(object->vertices[face->vertex[c]]), first.origin), n0));
+                    if (d > FIT_TOLERANCE * length(first.ev) * picture->height) {
+                        ok = false;
+                    }
+                }
+            }
+            if (ok) {
+                int umin = 255, vmin = 255, umax = 0, vmax = 0;
+                Vec p0 = vec(object->vertices[object->faces[faces[0]].vertex[0]]);
+                double smin = 1e18, smax = -1e18, tmin = 1e18, tmax = -1e18;
+                for (int i = 0; i < count; i++) {
+                    const Face *face = &object->faces[faces[i]];
+                    for (int c = 0; c < face->corners; c++) {
+                        umin = face->u[c] < umin ? face->u[c] : umin;
+                        umax = face->u[c] > umax ? face->u[c] : umax;
+                        vmin = face->v[c] < vmin ? face->v[c] : vmin;
+                        vmax = face->v[c] > vmax ? face->v[c] : vmax;
+                        Vec d = sub(vec(object->vertices[face->vertex[c]]), p0);
+                        smin = fmin(smin, dot(d, s0));
+                        smax = fmax(smax, dot(d, s0));
+                        tmin = fmin(tmin, dot(d, t0));
+                        tmax = fmax(tmax, dot(d, t0));
+                    }
+                }
+                double du = umax - umin + 1, dv = vmax - vmin + 1;
+                double tile_w = length(first.eu) * du, tile_h = length(first.ev) * dv;
+                if (du >= COVER_MIN * picture->width && dv >= COVER_MIN * picture->height &&
+                    fabs((tmax - tmin) - tile_h) <= 0.1 * tile_h && smax - smin > 1.2 * tile_w) {
+                    memcpy(groups[0], faces, (size_t)count * sizeof(int));
+                    sizes[0] = count;
+                    tiled_group[0] = true;
+                    group_count = 1;
+                }
+            }
+        }
     } else if (count <= 2) {
         for (int i = 0; i < count; i++) {
             groups[i][0] = faces[i];
@@ -696,7 +776,7 @@ static bool object_boards(const Track *track, const Object *object, int object_i
     }
     for (int g = 0; g < group_count; g++) {
         Mapping map;
-        if (!fit_mapping(object, groups[g], sizes[g], &map)) {
+        if (!fit_mapping(object, groups[g], tiled_group[g] ? 1 : sizes[g], &map)) {
             continue;
         }
         int umin = 255, vmin = 255, umax = 0, vmax = 0;
@@ -714,7 +794,7 @@ static bool object_boards(const Track *track, const Object *object, int object_i
             continue;
         }
         WoJson *board = board_record(track, object, object_index, groups[g], sizes[g], &map,
-                                     picture, pictures, assets, output, error);
+                                     tiled_group[g], picture, pictures, assets, output, error);
         if (!board || wo_error_is_set(error)) {
             wo_json_free(board);
             return false;
@@ -890,10 +970,13 @@ static void authored_places(const char *game, const char *assets, WoBuf *out) {
     bool ok = auth && wo_load_plan(&mod, &plan, &error) &&
               wo_read_json("manifests/hd-textures.json", 16u << 20, &catalog, &error);
     if (ok) {
-        WoHdOptions options = {catalog, auth, auth, game, NULL, plan, NULL};
+        WoJson *masters = NULL;
+        wo_load_masters(&mod, &masters, NULL); /* unreadable: no copies */
+        WoHdOptions options = {catalog, auth, auth, game, NULL, plan, NULL, masters};
         WoHdRegionIndex index;
         WoHdResult result;
         ok = wo_hd_build_index(&options, &index, &result, &error);
+        wo_json_free(masters);
         if (ok) {
             ok = wo_hd_regions_serialize(&index, out, &error);
             wo_hd_regions_free(&index);

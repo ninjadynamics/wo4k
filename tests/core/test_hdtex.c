@@ -153,7 +153,7 @@ static void test_install(void) {
         return;
     }
     WoJson *catalog = parse(CATALOG);
-    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL, NULL};
+    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL, NULL, NULL};
     WoHdResult result;
     WoError error = {0};
     CHECK_OK(wo_hd_install(&options, &result, &error), &error);
@@ -209,7 +209,7 @@ static void test_install(void) {
                           "{\"file\":\"scene-c.png\",\"kind\":\"region\",\"source_width\":16,"
                           "\"source_height\":16,\"regions\":[{\"native\":\"sky01.tga\",\"page\":0,"
                           "\"x\":32,\"y\":0,\"width\":16,\"height\":16}]}]");
-    WoHdOptions layered = {wider, f.assets, f.assets, f.game, NULL, NULL, beneath};
+    WoHdOptions layered = {wider, f.assets, f.assets, f.game, NULL, NULL, beneath, NULL};
     CHECK_OK(wo_hd_install(&layered, &result, &error), &error);
     CHECK(result.checked == 6 && result.region_placements == 4 && !wo_exists(copied));
     for (size_t i = 0; i < wo_json_length(result.files); i++) {
@@ -233,7 +233,7 @@ static void expect_failure(HdFixture *f, const char *catalog_text, WoErrorKind k
     WoError error = {0};
     CHECK_OK(wo_sha256_file(f->index, before, &error), &error);
     WoJson *catalog = parse(catalog_text);
-    WoHdOptions options = {catalog, f->assets, f->extra, f->game, NULL, NULL, NULL};
+    WoHdOptions options = {catalog, f->assets, f->extra, f->game, NULL, NULL, NULL, NULL};
     WoHdResult result;
     CHECK_FAILS(wo_hd_install(&options, &result, &error), &error, kind);
     if (!strstr(error.message, needle)) {
@@ -258,7 +258,7 @@ static void test_rejects(void) {
         return;
     }
     WoJson *catalog = parse(CATALOG);
-    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL, NULL};
+    WoHdOptions options = {catalog, f.assets, f.extra, f.game, NULL, NULL, NULL, NULL};
     WoHdResult result;
     WoError error = {0};
     CHECK_OK(wo_hd_install(&options, &result, &error), &error);
@@ -310,7 +310,7 @@ static void test_rejects(void) {
      * found by its picture where the PlayStation's scenery is in effect. */
     WoJson *none = parse("[" FONT_AND_SCENE_A ",{\"file\":\"scene-b.png\",\"kind\":\"region\","
                          "\"source_width\":16,\"source_height\":16,\"regions\":[]}]");
-    WoHdOptions placeless = {none, f.assets, f.extra, f.game, NULL, NULL, NULL};
+    WoHdOptions placeless = {none, f.assets, f.extra, f.game, NULL, NULL, NULL, NULL};
     WoHdRegionIndex unplaced;
     WoHdResult listed;
     CHECK_OK(wo_hd_build_index(&placeless, &unplaced, &listed, &error), &error);
@@ -396,7 +396,7 @@ static void test_one_picture_a_rectangle(void) {
     WoJson *catalog = parse(text);
     wo_free(text);
 #undef WALL
-    WoHdOptions options = {catalog, f.assets, f.assets, f.game, NULL, NULL, upscaled};
+    WoHdOptions options = {catalog, f.assets, f.assets, f.game, NULL, NULL, upscaled, NULL};
     placed_wall(&options, "wall-a.png");
 
     /* The debanded texture of that rectangle is wall-b's: it is the rectangle's own. */
@@ -421,6 +421,70 @@ static void test_one_picture_a_rectangle(void) {
     wo_json_free(catalog);
     wo_free(debanded);
     wo_free(upscaled);
+    free_fixture(&f);
+}
+
+/* Names that are one picture (manifests/auth-masters.json): the authored
+ * file of one is shown in the places of the others, at their size, under its
+ * own name; a copy with a file of its own keeps it; nothing is copied. */
+static void test_masters(void) {
+    HdFixture f;
+    if (!setup_fixture(&f, "hd-masters")) {
+        return;
+    }
+    WoError error = {0};
+#define SPOT(name, x, side)                                                                          "{\"file\":\"" name "\",\"kind\":\"region\",\"source_width\":" #side                      ",\"source_height\":" #side ",\"regions\":[{\"native\":\"sky01.tga\",\"page\":0,\"x\":" #x     ",\"y\":0,\"width\":" #side ",\"height\":" #side "}]}"
+    char *text = wo_format(NULL, "%.*s," SPOT("logo-a.png", 0, 64) "," SPOT("logo-b.png", 64, 32)
+                           "," SPOT("logo-c.png", 128, 16) "]",
+                           (int)strlen(CATALOG) - 1, CATALOG);
+    WoJson *catalog = parse(text);
+    wo_free(text);
+#undef SPOT
+    WoJson *masters = parse("{\"groups\":[[\"logo-a.png\",\"logo-b.png\",\"logo-c.png\","
+                            "\"not-a-texture.png\"]]}");
+    write_png(f.assets, "logo-b.png", 256, 256, false);
+    WoHdOptions options = {catalog, f.assets, f.assets, f.game, NULL, NULL, NULL, masters};
+    WoHdRegionIndex index;
+    WoHdResult result;
+    CHECK_OK(wo_hd_build_index(&options, &index, &result, &error), &error);
+    const char *expected[3] = {"logo-b.png", "logo-b.png", "logo-b.png"};
+    const int64_t xs[3] = {0, 64, 128}, sides[3] = {64, 32, 16};
+    for (int i = 0; i < 3; i++) {
+        size_t at = wo_hd_regions_find(&index, "sky01.tga", 0, xs[i], 0, sides[i], sides[i]);
+        CHECK(at != WO_HD_REGION_NONE);
+        if (at != WO_HD_REGION_NONE) {
+            const uint8_t *record = index.records.data + at * WO_HD_REGION_RECORD_BYTES;
+            char name[32] = {0};
+            for (size_t k = 0; k < sizeof(name) - 1 && record[k * 2]; k++) {
+                name[k] = (char)record[k * 2];
+            }
+            CHECK_STR(name, expected[i]);
+        }
+    }
+    wo_hd_regions_free(&index);
+    wo_hd_result_free(&result);
+
+    /* logo-c has a picture of its own: it keeps it. Nothing was copied. */
+    write_png(f.assets, "logo-c.png", 64, 64, false);
+    CHECK_OK(wo_hd_install(&options, &result, &error), &error);
+    wo_hd_result_free(&result);
+    CHECK_OK(wo_hd_build_index(&options, &index, &result, &error), &error);
+    size_t at = wo_hd_regions_find(&index, "sky01.tga", 0, 128, 0, 16, 16);
+    CHECK(at != WO_HD_REGION_NONE && index.records.data[at * WO_HD_REGION_RECORD_BYTES + 10] == 'c');
+    char *copy = wo_path_join(f.assets, "logo-a.png", &error);
+    CHECK(copy && !wo_exists(copy));
+    wo_free(copy);
+    wo_hd_regions_free(&index);
+    wo_hd_result_free(&result);
+
+    /* Without authored artwork the groups do nothing. */
+    WoHdOptions none = {catalog, NULL, NULL, f.game, NULL, NULL, NULL, masters};
+    CHECK_OK(wo_hd_build_index(&none, &index, &result, &error), &error);
+    CHECK(wo_hd_regions_find(&index, "sky01.tga", 0, 0, 0, 64, 64) == WO_HD_REGION_NONE);
+    wo_hd_regions_free(&index);
+    wo_hd_result_free(&result);
+    wo_json_free(masters);
+    wo_json_free(catalog);
     free_fixture(&f);
 }
 
@@ -462,6 +526,7 @@ int main(void) {
     RUN(test_install);
     RUN(test_rejects);
     RUN(test_one_picture_a_rectangle);
+    RUN(test_masters);
     RUN(test_region_index);
     return wo_test_finish();
 }

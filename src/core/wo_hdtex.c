@@ -18,6 +18,7 @@ typedef struct Input {
     char *relative; /* '/'-separated */
     char *path;
     bool fallback; /* from the folder beneath the authored one: used where it is, never copied */
+    char *master;   /* a copy: the authored picture of its group shown in its places, or NULL */
 } Input;
 
 typedef struct Inputs {
@@ -30,6 +31,7 @@ static void inputs_free(Inputs *inputs) {
     for (size_t i = 0; i < inputs->count; i++) {
         wo_free(inputs->items[i].relative);
         wo_free(inputs->items[i].path);
+        wo_free(inputs->items[i].master);
     }
     wo_free(inputs->items);
     memset(inputs, 0, sizeof(*inputs));
@@ -76,7 +78,61 @@ static bool add_input(Inputs *inputs, const char *relative, const char *path, bo
     inputs->items[inputs->count].relative = relative_copy;
     inputs->items[inputs->count].path = path_copy;
     inputs->items[inputs->count].fallback = fallback;
+    inputs->items[inputs->count].master = NULL;
     inputs->count++;
+    return true;
+}
+
+/* Copies of authored pictures (manifests/auth-masters.json): in each group
+ * of names that are one picture, the first with an authored file is shown
+ * in the places of every other that has none of its own, at whatever size
+ * that place is. Names the catalogue does not know are passed over. */
+static bool add_copies(const WoJson *masters, const WoJson *catalog, Inputs *inputs,
+                       WoError *error) {
+    const WoJson *groups = wo_json_get(masters, "groups");
+    for (size_t g = 0; g < wo_json_length(groups); g++) {
+        const WoJson *names = wo_json_at(groups, g);
+        const Input *art = NULL;
+        for (size_t i = 0; !art && i < wo_json_length(names); i++) {
+            const Input *found = find_input(inputs, wo_json_as_str(wo_json_at(names, i), ""));
+            art = found && !found->fallback && !found->master ? found : NULL;
+        }
+        if (!art) {
+            continue;
+        }
+        char *master = wo_strdup(art->relative, error);
+        char *path = master ? wo_strdup(art->path, error) : NULL;
+        if (!path) {
+            wo_free(master);
+            return false;
+        }
+        for (size_t i = 0; i < wo_json_length(names); i++) {
+            const char *name = wo_json_as_str(wo_json_at(names, i), "");
+            const Input *own = find_input(inputs, name);
+            bool known = false;
+            for (size_t c = 0; !known && c < wo_json_length(catalog); c++) {
+                known = wo_str_ieq(wo_json_str(wo_json_at(catalog, c), "file", ""), name);
+            }
+            if (!known || (own && !own->fallback)) {
+                continue; /* its own picture, or not a texture */
+            }
+            if (!add_input(inputs, name, path, false, error)) {
+                wo_free(path);
+                wo_free(master);
+                return false;
+            }
+            Input *copy = find_input(inputs, name);
+            wo_free(copy->master);
+            copy->master = wo_strdup(master, error);
+            if (!copy->master) {
+                wo_free(path);
+                wo_free(master);
+                return false;
+            }
+        }
+        wo_free(path);
+        wo_free(master);
+    }
     return true;
 }
 
@@ -372,9 +428,11 @@ static bool place(Places *places, const char *png, bool authored, const char *na
     return wo_hd_regions_replace(places->index, there, png, alpha, error);
 }
 
-static bool add_regions(const WoJson *entry, const char *relative, bool authored, bool transparent,
-                        const Natives *natives, WoScenery *scenery, Places *index,
-                        WoError *error) {
+/* `relative` is the picture's name, which says where it goes; `png` the
+ * file shown there (a copy shows its master's). */
+static bool add_regions(const WoJson *entry, const char *relative, const char *png, bool authored,
+                        bool transparent, const Natives *natives, WoScenery *scenery,
+                        Places *index, WoError *error) {
     const WoJson *regions = wo_json_get(entry, "regions");
     /* No regions: a picture the PC layout has no place for (a frame only
      * the PlayStation's scenery has), found by its picture below. */
@@ -432,7 +490,7 @@ static bool add_regions(const WoJson *entry, const char *relative, bool authored
         if (wo_scenery_covers(scenery, native_name, page, x, y, sw, sh)) {
             continue; /* located in the PC layout; found again by its picture below */
         }
-        if (!place(index, relative, authored, native_name, page, x, y, sw, sh, alpha, error)) {
+        if (!place(index, png, authored, native_name, page, x, y, sw, sh, alpha, error)) {
             return false;
         }
     }
@@ -444,7 +502,7 @@ static bool add_regions(const WoJson *entry, const char *relative, bool authored
     bool ok = true;
     for (size_t i = 0; ok && i < count; i++) {
         if (places[i].width == (uint32_t)sw && places[i].height == (uint32_t)sh) {
-            ok = place(index, relative, authored, places[i].native, places[i].page, places[i].x,
+            ok = place(index, png, authored, places[i].native, places[i].page, places[i].x,
                        places[i].y, sw, sh, alpha, error);
         }
     }
@@ -541,8 +599,8 @@ static bool check_input(const WoJson *catalog, const Input *input, const Natives
     }
     bool ok = true;
     if (region) {
-        ok = add_regions(entry, input->relative, !input->fallback, facts.transparent, natives,
-                         scenery, index, error);
+        ok = add_regions(entry, input->relative, input->master ? input->master : input->relative,
+                         !input->fallback, facts.transparent, natives, scenery, index, error);
     }
     WoJson *record = ok ? file_record(input->relative, kind, facts.width, facts.height) : NULL;
     if (ok && !(record && wo_json_push(files, record))) {
@@ -587,6 +645,8 @@ static bool prepare(const WoHdOptions *options, Inputs *inputs, WoHdRegionIndex 
     ok = ok && collect_folder(options->fallback_dir, true, inputs, error) &&
          collect_folder(options->canonical_dir, false, inputs, error) &&
          collect_folder(options->source_dir, false, inputs, error) &&
+         (!options->canonical_dir || !options->masters ||
+          add_copies(options->masters, options->catalog, inputs, error)) &&
          (!options->canonical_dir || require_artwork(options->catalog, inputs, error)) &&
          collect_natives(options->game_root, &natives, error);
     if (ok && inputs->count > 1) {
@@ -696,7 +756,7 @@ bool wo_hd_install(const WoHdOptions *options, WoHdResult *result, WoError *erro
     bool ok = true;
     for (size_t i = 0; ok && i < inputs.count; i++) {
         bool copied = false;
-        ok = inputs.items[i].fallback ||
+        ok = inputs.items[i].fallback || inputs.items[i].master ||
              keep_artwork(options->canonical_dir, &inputs.items[i], &copied, error);
         result->updated += copied ? 1 : 0;
     }

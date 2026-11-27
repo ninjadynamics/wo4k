@@ -1,14 +1,18 @@
 #include "core/wo_billboards.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/wo_png.h"
 #include "core/wo_texfmt.h"
 
 #define PRM_HEADER 144u
 #define QUAD 4
+#define KIND_TEXTURED_TRI 2
 #define KIND_TEXTURED_QUAD 4  /* flat */
+#define KIND_SHADED_TEXTURED_TRI 6
 #define KIND_SHADED_TEXTURED_QUAD 8
 #define KIND_SHADED_QUAD 7
 #define KIND_SPRITE 11
@@ -121,11 +125,17 @@ typedef struct Vec {
 static Vec add(Vec a, Vec b) {
     return (Vec){a.x + b.x, a.y + b.y, a.z + b.z};
 }
+static Vec sub(Vec a, Vec b) {
+    return (Vec){a.x - b.x, a.y - b.y, a.z - b.z};
+}
 static Vec scale(Vec a, double s) {
     return (Vec){a.x * s, a.y * s, a.z * s};
 }
+static double dot(Vec a, Vec b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
 static double length(Vec a) {
-    return sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+    return sqrt(dot(a, a));
 }
 
 static Vec vertex(const uint8_t *data, const Object *object, unsigned index) {
@@ -364,24 +374,42 @@ typedef struct Board {
     const uint8_t *data;
     const Object *object;
     const WoImage *picture; /* the board's texture, BGRA; NULL when it cannot be read */
+    const WoImage *shown;   /* what the game shows in its place (BGRA, any size), or NULL */
     int bar_u, bar_v;       /* a texel of the bars colour in it, or -1 */
-    const Primitive *model; /* the board's own textured quad: what new faces copy */
-    Mapping map;
+    const Primitive *model; /* a textured face of the board: what new faces copy */
+    Vec origin, sx, sy;     /* world = origin + x * sx + y * sy, x in [0, aspect], y in [0, 1] */
     double umin, umax, vmin, vmax, aspect;
     bool reversed; /* the model's corners go round the other way */
+    const int *prims; /* the board's faces (primitive numbers) */
+    size_t count;
 } Board;
 
 /* The board's point (x, y) in board units, in the object's coordinates. */
 static Vec board_point(const Board *b, double x, double y) {
-    double u = b->umin + x / b->aspect * (b->umax - b->umin);
-    double v = b->vmin + y * (b->vmax - b->vmin);
-    return add(b->map.origin, add(scale(b->map.eu, u), scale(b->map.ev, v)));
+    return add(b->origin, add(scale(b->sx, x), scale(b->sy, y)));
+}
+
+/* A point in the object's coordinates, expressed in the board's (x, y) units. */
+static bool board_coords(const Board *b, Vec p, double *x, double *y) {
+    Vec d = sub(p, b->origin);
+    double a = dot(b->sx, b->sx), c = dot(b->sx, b->sy), e = dot(b->sy, b->sy);
+    double det = a * e - c * c;
+    if (fabs(det) < 1e-12) {
+        return false;
+    }
+    double r0 = dot(d, b->sx), r1 = dot(d, b->sy);
+    *x = (e * r0 - c * r1) / det;
+    *y = (a * r1 - c * r0) / det;
+    return true;
 }
 
 /* A texel of the picture in the bars colour with its neighbours alike (the
  * picture is filtered when drawn), in the part of it the board uses; false
  * when there is none near enough. A bar drawn with it is lit as the picture
- * is, whatever the game does with a face's colours. */
+ * is, whatever the game does with a face's colours. Where the game shows
+ * another picture in the texture's place (`b->shown`, authored artwork, at
+ * any size), the texel is judged by all of that picture that covers it and
+ * its neighbours: that is what the bar shows. */
 #define BAR_MATCH 30 /* the most the colour of a texel and its neighbours may differ, summed */
 static bool find_bar_texel(Board *b, const double *source, const uint8_t bar[3]) {
     b->bar_u = b->bar_v = -1;
@@ -403,9 +431,17 @@ static bool find_bar_texel(Board *b, const double *source, const uint8_t bar[3])
             room = y1 - y < room ? y1 - y : room;
             room = room > 8 ? 8 : room;
             int worst = 0;
-            for (int dy = -1; dy <= 1 && worst < best; dy++) {
-                for (int dx = -1; dx <= 1; dx++) {
-                    const uint8_t *px = img->pixels + ((size_t)(y + dy) * img->width + (size_t)(x + dx)) * 4;
+            const WoImage *seen = b->shown ? b->shown : img;
+            double sx = (double)seen->width / img->width, sy = (double)seen->height / img->height;
+            int px0 = (int)floor((x - 1) * sx), px1 = (int)ceil((x + 2) * sx) - 1;
+            int py0 = (int)floor((y - 1) * sy), py1 = (int)ceil((y + 2) * sy) - 1;
+            px1 = px1 >= (int)seen->width ? (int)seen->width - 1 : px1;
+            py1 = py1 >= (int)seen->height ? (int)seen->height - 1 : py1;
+            /* (Stopping once it cannot be alike enough: a texel no better than
+             * the best so far may still have more room.) */
+            for (int py = py0 < 0 ? 0 : py0; py <= py1 && worst <= BAR_MATCH; py++) {
+                for (int qx = px0 < 0 ? 0 : px0; qx <= px1; qx++) {
+                    const uint8_t *px = seen->pixels + ((size_t)py * seen->width + (size_t)qx) * 4;
                     int d = px[3] ? abs(px[2] - bar[0]) + abs(px[1] - bar[1]) + abs(px[0] - bar[2]) : 999;
                     worst = d > worst ? d : worst;
                 }
@@ -419,6 +455,56 @@ static bool find_bar_texel(Board *b, const double *source, const uint8_t bar[3])
         }
     }
     return b->bar_u >= 0;
+}
+
+/* The colour the board had at its point (x, y) (board units), as the game
+ * shades its faces: each triangle evenly between its corners (a quad's are
+ * 0 1 2 and 1 3 2). A new face given these at its corners is shaded as the
+ * board was there, so pieces side by side meet without a step. False when
+ * the board's faces are not all shaded textured faces, or none is there. */
+static bool board_light(const Board *b, double x, double y, uint8_t out[4]) {
+    static const int triangles[2][3] = {{0, 1, 2}, {1, 3, 2}};
+    for (size_t f = 0; f < b->count; f++) {
+        const Primitive *p = &b->object->primitives[b->prims[f]];
+        if (p->kind != KIND_SHADED_TEXTURED_QUAD && p->kind != KIND_SHADED_TEXTURED_TRI) {
+            return false;
+        }
+    }
+    for (size_t f = 0; f < b->count; f++) {
+        const Primitive *p = &b->object->primitives[b->prims[f]];
+        const uint8_t *body = b->data + p->at + 4;
+        const uint8_t *colours = body + (size_t)p->corners * 2u + 6u + (size_t)p->corners * 2u + 2u;
+        double px[QUAD], py[QUAD];
+        for (int c = 0; c < p->corners; c++) {
+            if (!board_coords(b, vertex(b->data, b->object, be16(body + c * 2)), &px[c], &py[c])) {
+                return false;
+            }
+        }
+        int tri_count = p->corners == QUAD ? 2 : 1;
+        for (int t = 0; t < tri_count; t++) {
+            const int *k = triangles[t];
+            double d = (py[k[1]] - py[k[2]]) * (px[k[0]] - px[k[2]]) +
+                       (px[k[2]] - px[k[1]]) * (py[k[0]] - py[k[2]]);
+            if (fabs(d) < 1e-12) {
+                continue;
+            }
+            double w0 = ((py[k[1]] - py[k[2]]) * (x - px[k[2]]) + (px[k[2]] - px[k[1]]) * (y - py[k[2]])) / d;
+            double w1 = ((py[k[2]] - py[k[0]]) * (x - px[k[2]]) + (px[k[0]] - px[k[2]]) * (y - py[k[2]])) / d;
+            double w2 = 1 - w0 - w1;
+            const double slack = -1e-6;
+            if (w0 < slack || w1 < slack || w2 < slack) {
+                continue;
+            }
+            for (int ch = 0; ch < 3; ch++) {
+                double v = w0 * colours[k[0] * 4 + ch] + w1 * colours[k[1] * 4 + ch] +
+                           w2 * colours[k[2] * 4 + ch];
+                out[ch] = (uint8_t)(v < 0 ? 0 : v > 255 ? 255 : floor(v + 0.5));
+            }
+            out[3] = colours[k[0] * 4 + 3];
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool add_piece(const Board *b, const Piece *p, const uint8_t bar[3], Built *built,
@@ -441,14 +527,23 @@ static bool add_piece(const Board *b, const Piece *p, const uint8_t bar[3], Buil
         }
     }
     const uint8_t *model = b->data + b->model->at;
-    size_t body = b->model->size - 4;
-    const uint8_t *colours = model + 4 + TEXTURE_AT + 6 + QUAD * 2 + 2; /* after the pad */
-    bool shaded = b->model->kind == KIND_SHADED_TEXTURED_QUAD;
+    size_t model_tex = (size_t)b->model->corners * 2u;
+    const uint8_t *colours = model + 4 + model_tex + 6 + model_tex + 2; /* after the pad */
+    bool shaded = b->model->kind == KIND_SHADED_TEXTURED_QUAD ||
+                  b->model->kind == KIND_SHADED_TEXTURED_TRI;
     if (p->textured || b->bar_u >= 0) {
-        /* A face like the board's: the picture's part, or for a bar one
-         * texel of the picture in the bars colour. */
-        uint8_t face[64];
-        memcpy(face, model, b->model->size);
+        /* A textured quad like the board's: the picture's part, or for a bar
+         * one texel of the picture in the bars colour. */
+        uint8_t face[44] = {0};
+        size_t size = shaded ? 44u : 32u;
+        put_be16(face, shaded ? KIND_SHADED_TEXTURED_QUAD : KIND_TEXTURED_QUAD);
+        face[2] = model[2];
+        face[3] = model[3];
+        memcpy(face + 4 + TEXTURE_AT, model + 4 + model_tex, 6);
+        memcpy(face + 4 + TEXTURE_AT + 6 + QUAD * 2, model + 4 + model_tex + 6 + model_tex, 2);
+        if (!shaded) {
+            memcpy(face + 4 + TEXTURE_AT + 6 + QUAD * 2 + 2, colours, 4);
+        }
         for (int c = 0; c < QUAD; c++) {
             put_be16(face + 4 + c * 2, index[c]);
             bool right = xs[c] == p->x1, bottom = ys[c] == p->y1;
@@ -467,11 +562,18 @@ static bool add_piece(const Board *b, const Piece *p, const uint8_t bar[3], Buil
                 u0 = u1 = b->bar_u;
                 v0 = v1 = b->bar_v;
             }
+            if (shaded) {
+                uint8_t light[4];
+                const uint8_t *src = board_light(b, xs[c], ys[c], light)
+                                         ? light
+                                         : colours + (c < b->model->corners ? c : 0) * 4;
+                memcpy(face + 4 + TEXTURE_AT + 6 + QUAD * 2 + 2 + c * 4, src, 4);
+            }
             face[4 + TEXTURE_AT + 6 + c * 2] = (uint8_t)(right ? u1 : u0);
             face[4 + TEXTURE_AT + 6 + c * 2 + 1] = (uint8_t)(bottom ? v1 : v0);
         }
         built->primitive_count++;
-        return wo_buf_append(&built->primitives, face, 4 + body, error);
+        return wo_buf_append(&built->primitives, face, size, error);
     }
     /* A bar: a plain shaded quad in the bars colour, lit as the board is (a
      * textured face's colour of 128 leaves the picture as it is). */
@@ -481,7 +583,10 @@ static bool add_piece(const Board *b, const Piece *p, const uint8_t bar[3], Buil
     face[3] = model[3];
     for (int c = 0; c < QUAD; c++) {
         put_be16(face + 4 + c * 2, index[c]);
-        const uint8_t *light = colours + (shaded ? c * 4 : 0);
+        uint8_t here[4];
+        const uint8_t *light = board_light(b, xs[c], ys[c], here)
+                                   ? here
+                                   : colours + (shaded && c < b->model->corners ? c * 4 : 0);
         for (int k = 0; k < 3; k++) {
             unsigned value = (unsigned)bar[k] * light[k] / 128u;
             face[4 + 8 + c * 4 + k] = (uint8_t)(value > 255 ? 255 : value);
@@ -684,12 +789,14 @@ static bool lay_out_routine_board(uint8_t *copy, const Object *object, const WoJ
 /* Lay out one board of `object`: its faces are marked removed and the new
  * ones go into `built`. False only for lack of memory. */
 static bool lay_out_board(const uint8_t *data, Object *object, const WoJson *entry,
-                          const WoCmp *frames, Built *built, size_t *changed, WoError *error) {
+                          const WoCmp *frames, const WoJson *shown, Built *built, size_t *changed,
+                          WoError *error) {
     const WoJson *faces = wo_json_get(entry, "faces");
     const WoJson *source_json = wo_json_get(entry, "source");
     int prims[64];
     size_t count = 0;
     const Primitive *model = NULL;
+    int model_prim = -1;
     for (size_t i = 0; i < wo_json_length(faces) && count < 64; i++) {
         int64_t n = wo_json_as_int(wo_json_at(faces, i), -1);
         if (n < 0 || (size_t)n >= object->face_count) {
@@ -699,8 +806,10 @@ static bool lay_out_board(const uint8_t *data, Object *object, const WoJson *ent
         if (p->kind & 1u) {
             return true; /* untextured */
         }
-        if (!model && (p->kind == KIND_TEXTURED_QUAD || p->kind == KIND_SHADED_TEXTURED_QUAD)) {
+        if (!model && (p->kind == KIND_TEXTURED_QUAD || p->kind == KIND_SHADED_TEXTURED_QUAD ||
+                       p->kind == KIND_TEXTURED_TRI || p->kind == KIND_SHADED_TEXTURED_TRI)) {
             model = p;
+            model_prim = object->faces[n];
         }
         prims[count++] = object->faces[n];
     }
@@ -708,10 +817,9 @@ static bool lay_out_board(const uint8_t *data, Object *object, const WoJson *ent
     for (int i = 0; i < 4; i++) {
         source[i] = number_at(source_json, (size_t)i);
     }
-    Board b = {data, object, NULL, -1, -1, model, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}, 255, 0, 255, 0, 1,
-               false};
-    if (!count || !model || source[2] <= 0 || source[3] <= 0 ||
-        !fit_mapping(data, object, prims, count, &b.map)) {
+    Board b = {data, object, NULL, NULL, -1, -1, model, {0, 0, 0}, {0, 0, 0}, {0, 0, 0},
+               255, 0, 255, 0, 1, false, prims, count};
+    if (!count || !model || source[2] <= 0 || source[3] <= 0) {
         return true;
     }
     for (size_t f = 0; f < count; f++) {
@@ -727,8 +835,73 @@ static bool lay_out_board(const uint8_t *data, Object *object, const WoJson *ent
     if (b.umax <= b.umin || b.vmax <= b.vmin) {
         return true;
     }
-    b.aspect = length(b.map.eu) * (b.umax - b.umin) / (length(b.map.ev) * (b.vmax - b.vmin));
-    const uint8_t *muv = data + model->at + 4 + TEXTURE_AT + 6;
+    /* One affine mapping fits every face when the board shows one copy of its
+     * picture. When its faces repeat the picture side by side (like Valparaiso's
+     * three-panel overhead boards), one face gives the picture's axes and all
+     * faces' corners span the board's rectangle on that plane. */
+    Mapping map;
+    bool fitted = fit_mapping(data, object, prims, count, &map);
+    if (fitted) {
+        double residual = 0;
+        for (size_t f = 0; f < count; f++) {
+            const Primitive *p = &object->primitives[prims[f]];
+            const uint8_t *body = data + p->at + 4;
+            const uint8_t *uv = body + (size_t)p->corners * 2u + 6u;
+            for (int c = 0; c < p->corners; c++) {
+                Vec want = add(map.origin, add(scale(map.eu, uv[c * 2]), scale(map.ev, uv[c * 2 + 1])));
+                double d = length(sub(want, vertex(data, object, be16(body + c * 2))));
+                residual = d > residual ? d : residual;
+            }
+        }
+        double span = fmax(length(map.eu) * (b.umax - b.umin), length(map.ev) * (b.vmax - b.vmin));
+        fitted = residual <= 0.04 * span;
+    }
+    if (fitted) {
+        b.aspect = length(map.eu) * (b.umax - b.umin) / (length(map.ev) * (b.vmax - b.vmin));
+        b.origin = add(map.origin, add(scale(map.eu, b.umin), scale(map.ev, b.vmin)));
+        b.sx = scale(map.eu, (b.umax - b.umin) / b.aspect);
+        b.sy = scale(map.ev, b.vmax - b.vmin);
+    } else {
+        if (!fit_mapping(data, object, &model_prim, 1, &map)) {
+            return true;
+        }
+        Vec su = scale(map.eu, 1.0 / length(map.eu));
+        Vec tv = scale(map.ev, 1.0 / length(map.ev));
+        double cdot = dot(su, tv);
+        double det = 1.0 - cdot * cdot;
+        if (det < 0.25) {
+            return true;
+        }
+        Vec p0 = vertex(data, object, be16(data + model->at + 4));
+        double smin = 1e18, smax = -1e18, tmin = 1e18, tmax = -1e18, plane_err = 0;
+        for (size_t f = 0; f < count; f++) {
+            const Primitive *p = &object->primitives[prims[f]];
+            const uint8_t *body = data + p->at + 4;
+            for (int c = 0; c < p->corners; c++) {
+                Vec d = sub(vertex(data, object, be16(body + c * 2)), p0);
+                double r0 = dot(d, su), r1 = dot(d, tv);
+                double s = (r0 - cdot * r1) / det;
+                double t = (r1 - cdot * r0) / det;
+                Vec on_plane = add(scale(su, s), scale(tv, t));
+                double err = length(sub(d, on_plane));
+                plane_err = err > plane_err ? err : plane_err;
+                smin = fmin(smin, s);
+                smax = fmax(smax, s);
+                tmin = fmin(tmin, t);
+                tmax = fmax(tmax, t);
+            }
+        }
+        double width = smax - smin, height = tmax - tmin;
+        if (width <= 1e-4 || height <= 1e-4 || plane_err > 0.04 * height) {
+            return true;
+        }
+        b.aspect = width / height;
+        b.origin = add(p0, add(scale(su, smin), scale(tv, tmin)));
+        b.sx = scale(su, height);
+        b.sy = scale(tv, height);
+    }
+    size_t model_tex = (size_t)model->corners * 2u;
+    const uint8_t *muv = data + model->at + 4 + model_tex + 6;
     double turn = (double)(muv[2] - muv[0]) * (muv[5] - muv[1]) -
                   (double)(muv[3] - muv[1]) * (muv[4] - muv[0]);
     b.reversed = turn < 0;
@@ -739,12 +912,18 @@ static bool lay_out_board(const uint8_t *data, Object *object, const WoJson *ent
             (double)wo_json_int(entry, "scale", 100) / 100, (int)wo_json_int(entry, "tiles", 0));
     uint8_t bar[3];
     bool coloured = parse_colour(wo_json_str(entry, "bars", NULL), bar);
-    WoImage picture = {0};
-    unsigned number = be16(data + model->at + 4 + TEXTURE_AT);
+    WoImage picture = {0}, shown_picture = {0};
+    unsigned number = be16(data + model->at + 4 + model_tex);
     if (coloured && frames && number < frames->count &&
         wo_tim_decode_bgra(frames->data + frames->offsets[number], frames->sizes[number], &picture,
                            NULL)) {
         b.picture = &picture;
+        char key[16];
+        snprintf(key, sizeof(key), "%u", number);
+        const char *path = wo_json_as_str(wo_json_get(shown, key), NULL);
+        if (path && wo_png_read(path, WO_PIXELS_BGRA, &shown_picture, NULL)) {
+            b.shown = &shown_picture;
+        }
         find_bar_texel(&b, source, bar);
     }
     bool ok = true;
@@ -754,6 +933,7 @@ static bool lay_out_board(const uint8_t *data, Object *object, const WoJson *ent
         }
     }
     wo_image_free(&picture);
+    wo_image_free(&shown_picture);
     if (!ok) {
         return false;
     }
@@ -766,7 +946,8 @@ static bool lay_out_board(const uint8_t *data, Object *object, const WoJson *ent
 
 /* The object, laid out, appended to out. */
 static bool write_object(const uint8_t *data, Object *object, const WoJson *entries, int index,
-                         const WoCmp *frames, WoBuf *out, size_t *changed, WoError *error) {
+                         const WoCmp *frames, const WoJson *shown, WoBuf *out, size_t *changed,
+                         WoError *error) {
     Built built = {{0}, {0}, 0, 0};
     uint8_t *copy = malloc(object->at + object->size);
     if (!copy) {
@@ -784,7 +965,7 @@ static bool write_object(const uint8_t *data, Object *object, const WoJson *entr
         } else if (wo_json_bool(entry, "routine", false)) {
             ok = lay_out_routine_board(copy, object, entry, &built, changed, error);
         } else {
-            ok = lay_out_board(data, object, entry, frames, &built, changed, error);
+            ok = lay_out_board(data, object, entry, frames, shown, &built, changed, error);
         }
     }
     size_t removed = 0;
@@ -820,7 +1001,8 @@ static bool write_object(const uint8_t *data, Object *object, const WoJson *entr
     return ok;
 }
 
-bool wo_billboards_apply(const WoJson *entries, WoBuf *archive, size_t *changed, WoError *error) {
+bool wo_billboards_apply(const WoJson *entries, const WoJson *shown, WoBuf *archive,
+                         size_t *changed, WoError *error) {
     size_t laid = 0;
     if (changed) {
         *changed = 0;
@@ -860,7 +1042,7 @@ bool wo_billboards_apply(const WoJson *entries, WoBuf *archive, size_t *changed,
             edited = wo_json_int(wo_json_at(entries, i), "object", -1) == index;
         }
         ok = edited ? write_object(prm, &object, entries, index, have_frames ? &frames : NULL,
-                                   &rebuilt, &laid, error)
+                                   shown, &rebuilt, &laid, error)
                     : wo_buf_append(&rebuilt, prm + at, object.size, error);
         at += object.size;
         object_free(&object);

@@ -57,6 +57,86 @@ bool wo_load_manifest(const WoMod *mod, const char *relative, WoJson **out, WoEr
     return ok;
 }
 
+/* The texture number of `name` when it is one of the scenery pictures named
+ * by `prefix` ("track02-scene-cmp-3.png": 3), else -1. */
+static int scene_texture(const char *name, const char *prefix) {
+    if (!wo_str_istarts_with(name, prefix)) {
+        return -1;
+    }
+    const char *p = name + strlen(prefix);
+    int number = 0, digits = 0;
+    while (*p >= '0' && *p <= '9' && digits < 5) {
+        number = number * 10 + (*p++ - '0');
+        digits++;
+    }
+    return digits && wo_str_ieq(p, ".png") ? number : -1;
+}
+
+static const char *authored_name(const WoDirList *authored, const char *name) {
+    for (size_t i = 0; i < authored->count; i++) {
+        if (!authored->items[i].is_dir && wo_str_ieq(authored->items[i].name, name)) {
+            return authored->items[i].name;
+        }
+    }
+    return NULL;
+}
+
+static bool put_picture(WoJson *shown, int number, const char *folder, const char *name,
+                        bool replace, WoError *error) {
+    char key[16];
+    snprintf(key, sizeof(key), "%d", number);
+    if (!replace && wo_json_get(shown, key)) {
+        return true;
+    }
+    char *path = wo_path_child(folder, name, error);
+    bool ok = path && wo_json_put_str(shown, key, path);
+    wo_free(path);
+    return ok || wo_error_is_set(error) || wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
+}
+
+/* A scenery entry's "shown": the authored pictures its scenery textures
+ * show, by texture number ({"3": "<path>"}), each its own or its group's
+ * (manifests/auth-masters.json), as Play shows them. The boards' bars take
+ * their colour from the pictures shown (wo_billboards.h). */
+static bool put_shown(WoJson *entry, const char *folder, const WoDirList *authored,
+                      const WoJson *masters, WoError *error) {
+    char prefix[48];
+    const char *track = wo_json_str(entry, "track", "");
+    size_t n = 0;
+    for (; track[n] && n < 32; n++) {
+        prefix[n] = (char)((track[n] >= 'A' && track[n] <= 'Z') ? track[n] - 'A' + 'a' : track[n]);
+    }
+    snprintf(prefix + n, sizeof(prefix) - n, "-scene-cmp-");
+    WoJson *shown = wo_json_new_object();
+    bool ok = shown != NULL;
+    for (size_t i = 0; ok && i < authored->count; i++) {
+        int number = authored->items[i].is_dir ? -1 : scene_texture(authored->items[i].name, prefix);
+        if (number >= 0) {
+            ok = put_picture(shown, number, folder, authored->items[i].name, true, error);
+        }
+    }
+    const WoJson *groups = wo_json_get(masters, "groups");
+    for (size_t g = 0; ok && g < wo_json_length(groups); g++) {
+        const WoJson *names = wo_json_at(groups, g);
+        const char *art = NULL;
+        for (size_t i = 0; !art && i < wo_json_length(names); i++) {
+            art = authored_name(authored, wo_json_as_str(wo_json_at(names, i), ""));
+        }
+        for (size_t i = 0; ok && art && i < wo_json_length(names); i++) {
+            int number = scene_texture(wo_json_as_str(wo_json_at(names, i), ""), prefix);
+            if (number >= 0) {
+                ok = put_picture(shown, number, folder, art, false, error);
+            }
+        }
+    }
+    if (ok && wo_json_length(shown)) {
+        ok = wo_json_put(entry, "shown", shown) || wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
+        shown = NULL;
+    }
+    wo_json_free(shown);
+    return ok;
+}
+
 bool wo_load_plan(const WoMod *mod, WoJson **out, WoError *error) {
     if (!wo_load_manifest(mod, "manifests/texture-selection.json", out, error)) {
         return false;
@@ -78,10 +158,67 @@ bool wo_load_plan(const WoMod *mod, WoJson **out, WoError *error) {
     }
     wo_json_free(layout);
     wo_free(path);
+    /* The skies, each while its picture is authored. */
+    path = ok ? wo_mod_path(mod, "manifests/sky-layout.json", error) : NULL;
+    WoJson *skies = NULL;
+    ok = path != NULL;
+    if (ok && wo_is_file(path)) {
+        ok = wo_read_json(path, MANIFEST_MAX, &skies, error);
+    }
+    tracks = wo_json_get(skies, "tracks");
+    for (size_t i = 0; ok && tracks && i < wo_json_length(scenery); i++) {
+        WoJson *entry = wo_json_at(scenery, i);
+        const WoJson *sky = wo_json_get(tracks, wo_json_str(entry, "track", ""));
+        const char *picture = wo_json_str(sky, "picture", "");
+        if (!sky || !picture[0] || strpbrk(picture, "/\\:") || strstr(picture, "..")) {
+            continue;
+        }
+        char *relative = wo_format(error, "assets/auth/%s", picture);
+        char *file = relative ? wo_mod_path(mod, relative, error) : NULL;
+        ok = file != NULL;
+        if (ok && wo_is_file(file) && !wo_json_put(entry, "sky", wo_json_clone(sky))) {
+            ok = wo_fail(error, WO_ERR_INTERNAL, "Out of memory.");
+        }
+        wo_free(file);
+        wo_free(relative);
+    }
+    wo_json_free(skies);
+    wo_free(path);
+    /* The authored pictures the boards of each track with any show. */
+    char *folder = ok ? wo_mod_path(mod, "assets/auth", error) : NULL;
+    WoDirList authored = {0};
+    WoJson *masters = NULL;
+    ok = folder && (!wo_is_dir(folder) || wo_list_dir(folder, &authored, error)) &&
+         wo_load_masters(mod, &masters, error);
+    for (size_t i = 0; ok && authored.count && i < wo_json_length(scenery); i++) {
+        WoJson *entry = wo_json_at(scenery, i);
+        if (wo_json_get(entry, "billboards")) {
+            ok = put_shown(entry, folder, &authored, masters, error);
+        }
+    }
+    wo_json_free(masters);
+    wo_dirlist_free(&authored);
+    wo_free(folder);
     if (!ok) {
         wo_json_free(*out);
         *out = NULL;
     }
+    return ok;
+}
+
+void wo_plan_drop_authored(WoJson *plan) {
+    const WoJson *scenery = wo_json_get(plan, "scenery");
+    for (size_t i = 0; i < wo_json_length(scenery); i++) {
+        wo_json_remove(wo_json_at(scenery, i), "sky");
+        wo_json_remove(wo_json_at(scenery, i), "shown");
+    }
+}
+
+bool wo_load_masters(const WoMod *mod, WoJson **out, WoError *error) {
+    *out = NULL;
+    char *path = wo_mod_path(mod, "manifests/auth-masters.json", error);
+    bool ok = path && (!wo_is_file(path) || wo_read_json(path, MANIFEST_MAX, out, error));
+    wo_free(path);
     return ok;
 }
 
@@ -452,6 +589,9 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
         wo_json_free(plan);
         return false;
     }
+    if (!config->hd_textures) {
+        wo_plan_drop_authored(plan);
+    }
     char *session = wo_mod_new_work_dir(mod, "i-", error);
     char *stage = session ? wo_path_join(session, "wobble", error) : NULL;
     char *inputs = stage ? wo_path_join(session, "inputs", error) : NULL;
@@ -590,16 +730,20 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
         ok = upscaled && wo_install_upscaled(mod, stage, config->upscale_textures, catalog, NULL,
                                                progress, error);
         const char *authored = config->hd_textures ? canonical : NULL;
+        WoJson *masters = NULL;
+        ok = ok && wo_load_masters(mod, &masters, error);
         WoHdOptions options = {catalog,
                                authored,
                                authored,
                                stage,
                                NULL,
                                plan,
-                               config->upscale_textures ? upscaled : NULL};
+                               config->upscale_textures ? upscaled : NULL,
+                               masters};
         WoHdResult result = {0};
         ok = ok && wo_hd_install(&options, &result, error);
         wo_hd_result_free(&result);
+        wo_json_free(masters);
         wo_free(upscaled);
         wo_free(canonical);
     }

@@ -28,6 +28,9 @@ typedef struct WoHdOptions {
      * scenery in effect, region placements on the relaid sheets follow it. */
     const WoJson *plan;
     const char *fallback_dir; /* optional: <mod>/assets/hd */
+    /* Optional parsed manifests/auth-masters.json: groups of names that are
+     * one picture, whose authored file stands for all of them. */
+    const WoJson *masters;
 } WoHdOptions;
 
 typedef struct WoHdResult {

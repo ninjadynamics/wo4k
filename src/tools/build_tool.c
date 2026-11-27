@@ -24,6 +24,12 @@
  *       picture fills its board. See build_billboards.c.
  *   wo4k-build billboard-layout <export.json> <manifests/billboard-layout.json>
  *       The page's export as the manifest Setup and Play lay boards out by.
+ *   wo4k-build auth [<port>]
+ *       The authoring studio: a page served on this machine for choosing
+ *       textures to draw anew, each once for all its copies. See build_auth.c.
+ *   wo4k-build sky [<port>]
+ *       The studio opened at its sky page: how each track's sky picture goes
+ *       round its sky, in the proportions chosen. See build_sky.c.
  *   wo4k-build upscale <assets/sd> <assets/hd> 2|4 [<assets/auth>]
  *       A set of neurally upscaled textures from the debanded ones, less
  *       those the authored folder has. See build_upscale.c.
@@ -175,6 +181,10 @@ int wmain(int argc, wchar_t **argv) {
         ok = build_billboard_layout(args[2], args[3], &error);
     } else if ((argc == 4 || argc == 5) && wo_str_eq(args[1], "billboards")) {
         ok = build_billboards(args[2], args[3], argc == 5 ? args[4] : NULL, &error);
+    } else if ((argc == 2 || argc == 3) && wo_str_eq(args[1], "auth")) {
+        ok = build_auth(argc == 3 ? args[2] : NULL, false, &error);
+    } else if ((argc == 2 || argc == 3) && wo_str_eq(args[1], "sky")) {
+        ok = build_auth(argc == 3 ? args[2] : NULL, true, &error);
     } else if ((argc == 5 || argc == 6) && wo_str_eq(args[1], "upscale")) {
         ok = build_upscale(args[2], args[3], args[4], argc == 6 ? args[5] : NULL, &error);
     } else if (argc == 5 && wo_str_eq(args[1], "extract-music") &&
@@ -194,7 +204,9 @@ int wmain(int argc, wchar_t **argv) {
                         "       wo4k-build extract-music <source> <output folder> pc|psx\n"
                         "       wo4k-build billboards <wobble> <output folder> [<assets>]\n"
                         "       wo4k-build billboard-layout <export.json> <manifests/billboard-layout.json>\n"
-                        "       wo4k-build upscale <assets/sd> <assets/hd> 2|4 [<assets/auth>]\n");
+                        "       wo4k-build auth [<port>]\n"
+                        "       wo4k-build sky [<port>]\n"
+                        "       wo4k-build upscale <originals> <assets/hd> 2|4 [<assets/auth>]\n");
         ok = false;
         wo_fail(&error, WO_ERR_FORMAT, "Invalid arguments.");
     }

@@ -43,9 +43,13 @@
 #include "core/wo_json.h"
 
 /* Lay out the boards `entries` (a track's list of the manifest) in the
- * track archive `archive`, which is replaced. *changed (optional) counts the
+ * track archive `archive`, which is replaced. `shown` (optional) names the
+ * pictures the game shows in place of the archive's scenery textures
+ * ({"<texture number>": "<PNG path>"}: authored artwork): a bar's texel is
+ * found where that picture, not the archive's, is in the bars colour. *changed (optional) counts the
  * boards laid out; a board this code cannot read is left as it is. Only
  * running out of memory fails. */
-bool wo_billboards_apply(const WoJson *entries, WoBuf *archive, size_t *changed, WoError *error);
+bool wo_billboards_apply(const WoJson *entries, const WoJson *shown, WoBuf *archive,
+                         size_t *changed, WoError *error);
 
 #endif

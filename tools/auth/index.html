@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WO4K Authoring</title>
+<style>
+:root {
+  --bg: #111317; --panel: #1b1e24; --panel2: #232730; --line: #2f343f; --text: #e6e8ec;
+  --quiet: #9aa1ad; --accent: #66dbd0; --accent-ink: #0b1f1d; --warn: #ffb347; --bad: #ff6b6b;
+  --good: #7ddc7a; --check-a: #2a2d33; --check-b: #1f2227;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: rgba(17,19,23,.96);
+  border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; flex-wrap: wrap;
+  gap: 10px 16px; align-items: center; }
+h1 { font-size: 18px; margin: 0 8px 0 0; font-weight: 600; }
+.counts { color: var(--quiet); }
+.counts b { color: var(--text); font-weight: 600; }
+select, input[type=search] { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; font: inherit; }
+input[type=search] { width: 200px; }
+label.size { color: var(--quiet); display: flex; gap: 6px; align-items: center; }
+main { padding: 16px; display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card, 230px), 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card.authored { border-color: #2f5f4b; }
+.thumbs { display: flex; gap: 6px; align-items: flex-end; }
+.thumb { flex: 1; aspect-ratio: var(--ar, 1); max-height: calc(var(--card, 230px) * 1.2);
+  background: repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0/16px 16px;
+  border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: contain; }
+.thumb img.px { image-rendering: pixelated; }
+.inset { flex: 0 0 28%; }
+.title { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.where { color: var(--quiet); font-size: 12px; }
+.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px;
+  background: #22463a; color: var(--good); margin-left: 6px; vertical-align: 1px; }
+.badge.warn { background: #4a3a1d; color: var(--warn); }
+.names { margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--quiet);
+  max-height: 120px; overflow: auto; }
+.names li { display: flex; gap: 6px; align-items: center; padding: 1px 0; }
+.names li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.names li.mine span { color: var(--good); }
+.names li.apart span { text-decoration: line-through; }
+.mini { background: none; border: none; color: var(--quiet); cursor: pointer; padding: 0 3px;
+  font: inherit; }
+.mini:hover { color: var(--text); }
+.buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+button.b { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+button.b:hover { border-color: #4a5160; }
+button.b.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  font-weight: 600; }
+button.b.danger:hover { border-color: var(--bad); color: var(--bad); }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  background: #3a1f22; color: #ffd7d7; border: 1px solid #6b2f35; padding: 10px 14px;
+  border-radius: 8px; display: none; max-width: 90vw; z-index: 9; }
+.help { color: var(--quiet); font-size: 13px; padding: 0 16px; margin: 12px 0 0; }
+.empty { color: var(--quiet); padding: 40px 16px; }
+@media (max-width: 600px) { input[type=search] { width: 100%; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Authoring</h1>
+  <span class="counts" id="counts"></span>
+  <select id="track"><option value="">All tracks</option></select>
+  <select id="kind">
+    <option value="">All kinds</option><option value="scene">Scenery</option>
+    <option value="road">Roads</option><option value="sky">Skies</option>
+    <option value="ships">Ships and effects</option><option value="other">Other</option>
+  </select>
+  <select id="show">
+    <option value="">Everything</option><option value="authored">Authored</option>
+    <option value="todo">Not authored</option><option value="copies">With copies</option>
+  </select>
+  <input type="search" id="search" placeholder="Search names">
+  <label class="size">Size <input type="range" id="size" min="150" max="420" value="230"></label>
+</header>
+<p class="help">Author a texture to put a picture to start from into <code>assets\auth</code>,
+then Edit opens it in your picture editor: draw, save, done. Each card is one picture with
+every copy of it in the game; the one file covers them all, at their own sizes. The game shows
+your changes the next time it starts.</p>
+<main id="grid"></main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const TOKEN = "__TOKEN__";
+const $ = id => document.getElementById(id);
+let state = null, lastText = "";
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("wo4k-auth-" + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("wo4k-auth-" + k, v); } catch (e) {} }
+};
+for (const id of ["track", "kind", "show", "search", "size"]) {
+  $(id).value = store.get(id, $(id).value);
+  $(id).addEventListener("input", () => { store.set(id, $(id).value); applySize(); render(); });
+}
+function applySize() { document.documentElement.style.setProperty("--card", $("size").value + "px"); }
+applySize();
+
+function kindOf(name) {
+  if (/-road-/.test(name)) return "road";
+  if (/sky/.test(name)) return "sky";
+  if (/-scene-/.test(name)) return "scene";
+  if (/^textures-|^common-/.test(name)) return "ships";
+  return "other";
+}
+function trackOf(name) { const m = /^(track\d\d)/.exec(name); return m ? m[1] : ""; }
+function trackName(id) {
+  if (!state) return id;
+  const t = state.tracks.find(t => t[0] === id);
+  return t ? t[1] : id;
+}
+
+async function call(path) {
+  const r = await fetch(path + (path.includes("?") ? "&" : "?") + "t=" + TOKEN,
+                        { method: path.startsWith("/act") ? "POST" : "GET", cache: "no-store" });
+  if (!r.ok) throw new Error("The authoring tool did not answer (" + r.status + "). Is its window still open?");
+  return r.json();
+}
+function toast(text) {
+  const t = $("toast"); t.textContent = text; t.style.display = "block";
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.style.display = "none", 6000);
+}
+async function act(action, name) {
+  try {
+    const s = await call("/act?a=" + encodeURIComponent(action) + "&n=" + encodeURIComponent(name));
+    if (s.error) toast(s.error);
+    take(s, true);
+  } catch (e) { toast(e.message); }
+}
+function take(s, force) {
+  const text = JSON.stringify(s.groups);
+  if (!force && text === lastText) return;
+  lastText = text; state = s; render();
+}
+async function poll() {
+  try { take(await call("/state"), false); } catch (e) { /* the window may be closed; keep trying */ }
+  setTimeout(poll, 2500);
+}
+
+function img(src, pixelated) {
+  const i = document.createElement("img");
+  i.src = src; i.loading = "lazy"; if (pixelated) i.className = "px"; i.alt = "";
+  return i;
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag); if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text; return e;
+}
+function button(text, cls, fn) {
+  const b = el("button", "b" + (cls ? " " + cls : ""), text); b.type = "button";
+  b.addEventListener("click", fn); return b;
+}
+
+function card(g) {
+  const names = g.names, mine = names.filter(n => n.authored);
+  const main = names.find(n => n.original) || names[0];
+  const art = mine[0];
+  const c = el("div", "card" + (art ? " authored" : ""));
+  c.style.setProperty("--ar", (main.w / main.h).toFixed(4));
+
+  const thumbs = el("div", "thumbs");
+  const big = el("div", "thumb");
+  if (art) big.append(img("/a/" + art.name + "?v=" + art.v + "&t=" + TOKEN, false));
+  else if (main.original) big.append(img("/o/" + main.name + "?t=" + TOKEN, true));
+  thumbs.append(big);
+  if (art && main.original) {
+    const inset = el("div", "thumb inset"); inset.title = "As the game has it";
+    inset.append(img("/o/" + main.name + "?t=" + TOKEN, true)); thumbs.append(inset);
+  }
+  c.append(thumbs);
+
+  const title = el("div", "title", (art || main).name.replace(/\.png$/, ""));
+  if (art) title.append(el("span", "badge", "authored"));
+  if (mine.length > 1) title.append(el("span", "badge warn", mine.length + " files"));
+  c.append(title);
+
+  const places = [...new Set(names.map(n => trackOf(n.name)).filter(Boolean))].map(trackName);
+  const sizes = [...new Set(names.map(n => n.w + "×" + n.h))];
+  c.append(el("div", "where",
+    (names.length > 1 ? names.length + " copies · " : "") + sizes.join(", ") +
+    (places.length ? " · " + places.join(", ") : "")));
+
+  if (names.length > 1 || names.some(n => n.apart)) {
+    const list = el("ul", "names");
+    for (const n of names) {
+      const li = el("li", (n.authored ? "mine" : "") + (n.apart ? " apart" : ""));
+      li.append(el("span", "", n.name.replace(/\.png$/, "") + " · " + n.w + "×" + n.h));
+      if (n.authored && mine.length > 1) {
+        const keep = el("button", "mini", "use this"); keep.title = "Use this file for the whole picture; the others move to assets\\auth-unused";
+        keep.addEventListener("click", () => act("keep", n.name)); li.append(keep);
+      }
+      if (n.apart) {
+        const back = el("button", "mini", "↺"); back.title = "It is the same picture after all";
+        back.addEventListener("click", () => act("rejoin", n.name)); li.append(back);
+      } else if (names.length > 1) {
+        const x = el("button", "mini", "✕"); x.title = "Not the same picture";
+        x.addEventListener("click", () => act("split", n.name)); li.append(x);
+      }
+      list.append(li);
+    }
+    c.append(list);
+  } else if (names[0].apart) {
+    const back = button("Group with its copies again", "", () => act("rejoin", names[0].name));
+    c.append(back);
+  }
+
+  const buttons = el("div", "buttons");
+  if (!art) {
+    buttons.append(button("Author", "primary", () => act("author", names[0].name)));
+  } else {
+    buttons.append(button("Edit", "primary", () => act("edit", art.name)));
+    buttons.append(button("Show in folder", "", () => act("reveal", art.name)));
+    if (!names.some(n => n.keep))
+      buttons.append(button("Stop authoring", "danger", () => act("unauthor", art.name)));
+  }
+  c.append(buttons);
+  return c;
+}
+
+function render() {
+  if (!state) return;
+  const trackSel = $("track");
+  if (trackSel.options.length === 1) {
+    for (const [id, name] of state.tracks) {
+      const o = el("option", "", name); o.value = id; trackSel.append(o);
+    }
+    trackSel.value = store.get("track", "");
+  }
+  const want = { track: $("track").value, kind: $("kind").value, show: $("show").value,
+                 q: $("search").value.trim().toLowerCase() };
+  const groups = state.groups.filter(g => {
+    const names = g.names.map(n => n.name);
+    if (want.track && !names.some(n => trackOf(n) === want.track)) return false;
+    if (want.kind && !names.some(n => kindOf(n) === want.kind)) return false;
+    if (want.show === "authored" && !g.authored) return false;
+    if (want.show === "todo" && g.authored) return false;
+    if (want.show === "copies" && g.names.length < 2) return false;
+    if (want.q && !names.some(n => n.includes(want.q))) return false;
+    return true;
+  });
+  groups.sort((a, b) => (b.authored > 0) - (a.authored > 0) || b.names.length - a.names.length ||
+                        a.names[0].name.localeCompare(b.names[0].name, undefined, { numeric: true }));
+  const authored = state.groups.filter(g => g.authored).length;
+  const copies = state.groups.reduce((n, g) => n + g.names.length - 1, 0);
+  $("counts").innerHTML = "<b>" + authored + "</b> of " + state.groups.length +
+    " pictures authored · " + copies + " copies covered by them";
+  const grid = $("grid"), scroll = window.scrollY;
+  grid.replaceChildren(...groups.map(card));
+  if (!groups.length) grid.append(el("div", "empty", "Nothing matches."));
+  window.scrollTo(0, scroll);
+}
+poll();
+</script>
+</body>
+</html>

@@ -634,6 +634,9 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
     WoJson *patches = NULL;
     WoJson *plan = NULL;
     ok = ok && load_manifests(mod, &files, &patches, &plan, error);
+    if (ok && !config.hd_textures) {
+        wo_plan_drop_authored(plan); /* the game's own sky pictures, in their own layout */
+    }
     wo_laps_mark(laps, "config_ms");
     if (ok && receipt && !force_repair && !wo_json_bool(receipt, "playstation_required", false)) {
         /* Only Setup's Install makes such an installation again: the player
@@ -842,10 +845,13 @@ static bool refresh_assets(const WoMod *mod, WoProgress *progress, WoHashCache *
         bool upscale = wo_json_bool(receipt, "upscale_textures", true);
         ok = ok && upscaled && wo_install_upscaled(mod, mod->game, upscale, catalog, cache, progress, error);
         const char *authored = wo_json_bool(receipt, "hd_textures", false) ? canonical : NULL;
+        WoJson *masters = NULL;
+        ok = ok && wo_load_masters(mod, &masters, error);
         WoHdOptions options = {catalog,   authored, authored,
                                mod->game, cache,    plan,
-                               upscale ? upscaled : NULL};
+                               upscale ? upscaled : NULL, masters};
         ok = ok && wo_hd_install(&options, &art, error);
+        wo_json_free(masters);
         wo_json_free(plan);
         wo_free(upscaled);
         wo_free(canonical);

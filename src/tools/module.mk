@@ -8,7 +8,7 @@ DEPFILES += $(BUILD_TOOL_OBJECTS:.o=.d)
 
 $(BUILD_TOOL): $(BUILD_TOOL_OBJECTS) $(CORE_LIB)
 	$(call MKDIR,$(@D))
-	$(CC) $(BUILD_TOOL_OBJECTS) $(CORE_LIB) $(LDFLAGS) -municode -mconsole $(CORE_SYSLIBS) -o $@
+	$(CC) $(BUILD_TOOL_OBJECTS) $(CORE_LIB) $(LDFLAGS) -municode -mconsole $(CORE_SYSLIBS) -lws2_32 -o $@
 
 # Generated inputs shared by several programs.
 $(GENERATED)/setup.ico: assets/icons/setup.png $(BUILD_TOOL)

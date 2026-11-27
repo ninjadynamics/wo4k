@@ -105,6 +105,83 @@ deband the game's textures by (see
 [the texture notes](NATIVE-TEXTURES.md#debanded-textures)). `assets/sd/` is
 that step's output, not this tool's.
 
+## Authoring studio
+
+`tools\auth.cmd` (`wo4k-build auth`, `src/tools/build_auth.c`) opens a page
+for drawing textures anew, served from this machine only while its window
+is open. Each card is one picture with every copy of it in the game: the
+same texture is there under several names, at one size or several (a road
+on every track, a sign at 64 texels here and 128 there). The copies are
+found at every start from `wobble/textures/originals/` (the same picture
+exactly, or the same picture in the same proportions at another size;
+pictures of one size that are only alike, an animation's frames, stay
+apart) and written to
+`manifests/auth-masters.json`, which Play reads: the one authored file of a
+group is shown in the places of all of it, each at its own size, and a copy
+with a file of its own keeps that.
+
+On the page, **Author** puts a picture to start from into `assets/auth`
+(the upscaled one where there is one, else the game's own), **Edit** opens
+it in the program that opens PNGs (Photoshop, say), **Show in folder**
+selects it in Explorer, and **Stop authoring** moves it to
+`assets/auth-unused/` (never deleted; the HD fonts, HUD and menus, which the
+game has no picture of its own for, cannot be stopped). Where a group has
+more than one authored file, **use this** keeps one. A name that is not
+really the same picture is taken out of its group with ✕ and stays out
+(the manifest's `"apart"`) until ↺ puts it back. The page follows the
+folder by itself, so a save in the editor shows on it at once; the game
+shows it the next time it starts. Requests need the token the page was
+opened with.
+
+### Skies
+
+`tools\sky.cmd` (`wo4k-build sky`, `src/tools/build_sky.c`) opens the
+studio at its sky page. The game repeats each track's one sky picture round
+the sky, eight or twelve times (and twice up the sky on Talon's Reach), so a
+sky could only be drawn as that narrow picture. On the page, pick a track
+and drop any picture on it (PNG, JPG or anything else Windows reads; at most
+8192 pixels each way, larger ones are made smaller in the browser). It
+becomes the track's authored picture, as PNG (a picture already there goes
+to `assets/auth-unused/`), laid once round the sky, undistorted, its middle
+on the horizon. Then the sliders:
+
+- **The picture is**: a photo or painting (the default, unless it has a
+  panorama's 2 : 1 proportions), laid flat on the sky's faces as on walls
+  round you, so straight lines stay straight; or a 360° panorama, laid by
+  direction from the camera, as panoramas are made. The 1996 skies are
+  low-polygon: Talon's Reach is a box of four flat walls, Gare d'Europa,
+  Odessa Keys and Spilskinanke rings of 16 flat panels, the others domes.
+  On Talon's Reach a photo four times round fills each wall as a 90 degree
+  photo would.
+- **Repeats**: how many times it goes round (the counts offered are those
+  whose seams fall between the sky's faces).
+- **Turn**: where its seam is (the places a seam fits).
+- **Up / down**: where it sits.
+- **Stretch**: taller or flatter (it notches at none).
+
+Each change shows in the view at once and is saved when the slider is let
+go. Sky beyond the picture's top or bottom edge shows its edge row
+stretched, and a picture reaching beyond the sky has those parts unseen. An
+edge between the sky's rows of corners bends the picture a little in the
+faces it crosses, so moving it, an edge within a degree or so of a row goes
+onto it. The view shows the sky from the camera's place, yours or the
+game's; drag to look round (the sky stays under the pointer), the wheel
+zooms; the view is 90 degrees across, about a racing camera's, and
+shows the sky's faces where the model has them. Under **More**: replace the picture, open it in your editor, show it
+in its folder, or go back to the game's sky (the picture goes to
+`assets/auth-unused/`). A track with no picture can also start from the
+game's own sky, unwrapped once round into `assets/auth` to draw over. A
+picture authored before the page (laid out the game's way) stays so until
+**Lay it out my way**.
+
+The layouts are kept in `manifests/sky-layout.json`; Play lays a track's sky
+out by its entry while the picture is authored and Install HD artwork is on,
+by rewriting the texture coordinates of the sky's faces in the track's
+archive (`src/core/wo_sky.c`). The
+sky's faces stay as they are, so the picture's columns are whole texels of
+the 128-texel sky picture: a column's edges may be half a texel off, and the
+last texel column and row of the picture are not shown.
+
 ## Maintainer neural upscaler
 
 Setup's **Upscale textures** makes this set on the player's computer
