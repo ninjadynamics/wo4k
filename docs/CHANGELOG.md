@@ -1,5 +1,25 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.13
+
+- Video player: CRT/NTSC display shader (D3D11, lightweight enough for older
+  GPUs) for intro and ending movies, with automatic fallback to standard video
+  presentation when disabled (`WO4K_VIDEO_SHADER=0` / `--no-shader`) or
+  unavailable.
+- Setup: **Video Intro** row below Audio output with a choice of intro movie
+  (**Fluke** default, **Upscaled**, or **Original**) and aspect mode
+  (**Widescreen** default, which fits horizontally and crops top/bottom bars,
+  or **4:3** for the full uncropped frame).
+- Mod video overrides (`fluke.mp4`, `intro.mp4`, `XTRO1..4.mp4`) now live in
+  `assets/video/` while `wobble/movies/` keeps only the original game `.MPG`
+  files.
+- Setup: renamed "Adjust shadows / highlights…" to **Graphics…** (aligned with
+  "Show FPS counter") and added a **Shaders…** placeholder button above it.
+- Note for users updating from `0.2.0-beta.12`: download the `0.2.0-beta.13`
+  ZIP directly once, as `beta.12`'s in-app updater rejects the new `.mp4` files
+  in `assets/video/`. From `0.2.0-beta.13` onward, in-app updates handle them
+  automatically.
+
 ## 0.2.0-beta.12
 
 - Setup: **Upscale textures**, below Install HD artwork. It makes every
