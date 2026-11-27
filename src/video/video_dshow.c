@@ -21,6 +21,7 @@
 #include <dshow.h>
 #include <qedit.h>
 
+#include "video/video_crt.h"
 #include "video/video_evr.h"
 #include "video/video_frames.h"
 
@@ -47,14 +48,21 @@ typedef struct DshowPlayer {
     IMediaSeeking *seeking;
     IBaseFilter *video_renderer;
     IMFVideoDisplayControl *display;
-    /* --frames */
+    /* --frames or CRT shader */
     bool frames_mode;
+    bool widescreen;
+    VideoCrt *crt; /* borrowed from VideoApp when presenting via CRT shader */
     IBaseFilter *grabber_filter;
     ISampleGrabber *grabber;
     ISampleGrabberCB callback; /* lives as long as the player */
     CRITICAL_SECTION lock;     /* pending, and the slot written */
     bool lock_ready;
     VideoFrameSlots slots;
+    VideoFrameBuffer local;
+    LONG last_shown;
+    LONGLONG qpc_frequency;
+    LONGLONG crt_first_qpc;
+    int crt_drawn;
     uint32_t frame_width;
     uint32_t frame_height;
     LONG frame_pitch; /* negative: bottom-up rows */
@@ -103,6 +111,7 @@ static void dshow_release(DshowPlayer *player)
     if (player->graph != NULL) {
         IGraphBuilder_Release(player->graph);
     }
+    video_frame_buffer_close(&player->local);
     video_frame_slots_close(&player->slots);
     if (player->lock_ready) {
         DeleteCriticalSection(&player->lock);
@@ -113,7 +122,11 @@ static void dshow_release(DshowPlayer *player)
 static void dshow_publish_pending(DshowPlayer *player)
 {
     if (player->pending >= 0) {
-        video_frame_slots_publish(&player->slots, player->pending);
+        if (player->crt != NULL) {
+            video_frame_buffer_publish(&player->local, player->pending);
+        } else {
+            video_frame_slots_publish(&player->slots, player->pending);
+        }
         player->pending = -1;
     }
 }
@@ -159,13 +172,23 @@ static HRESULT STDMETHODCALLTYPE dshow_callback_sample(ISampleGrabberCB *callbac
     }
     EnterCriticalSection(&player->lock);
     dshow_publish_pending(player);
-    if (player->slots.view == NULL &&
+    const BYTE *top = player->frame_pitch < 0 ?
+        data + (SIZE_T)span * (player->frame_height - 1) : data;
+    player->pending_time = (LONGLONG)(time * 1e7 + 0.5);
+    if (player->crt != NULL) {
+        if (player->local.data == NULL &&
+            !video_frame_buffer_create(&player->local, player->frame_width,
+                player->frame_height, VIDEO_PIXEL_BGRA, false, false,
+                player->window)) {
+            InterlockedExchange(&player->slots_failed, 1);
+        } else {
+            player->pending = video_frame_buffer_write_bgra(&player->local,
+                top, player->frame_pitch);
+        }
+    } else if (player->slots.view == NULL &&
         !video_frame_slots_create(&player->slots, player->frame_width, player->frame_height)) {
         InterlockedExchange(&player->slots_failed, 1);
     } else {
-        const BYTE *top = player->frame_pitch < 0 ?
-            data + (SIZE_T)span * (player->frame_height - 1) : data;
-        player->pending_time = (LONGLONG)(time * 1e7 + 0.5);
         player->pending = video_frame_slots_write(&player->slots, top,
             player->frame_pitch, player->pending_time);
     }
@@ -206,7 +229,32 @@ static void dshow_poll_frames(DshowPlayer *player)
         dshow_publish_pending(player);
     }
     LeaveCriticalSection(&player->lock);
-    if (player->slots.published > 0) {
+    if (player->crt != NULL) {
+        if (video_frame_buffer_present(&player->local, player->crt,
+                &player->last_shown, backend->state == VIDEO_STATE_PLAYING)) {
+            if (backend->state == VIDEO_STATE_PLAYING) {
+                LARGE_INTEGER tick;
+                QueryPerformanceCounter(&tick);
+                if (player->crt_drawn == 0) {
+                    player->crt_first_qpc = tick.QuadPart;
+                }
+                ++player->crt_drawn;
+                backend->quality = true;
+                backend->frames_drawn = player->crt_drawn;
+                backend->frames_dropped = 0;
+                if (player->crt_drawn > 1 && player->qpc_frequency > 0 &&
+                    tick.QuadPart > player->crt_first_qpc) {
+                    double seconds = (double)(tick.QuadPart - player->crt_first_qpc) /
+                        (double)player->qpc_frequency;
+                    backend->average_rate_x100 =
+                        (int)((double)(player->crt_drawn - 1) * 100.0 / seconds + 0.5);
+                }
+            }
+        }
+        if (player->last_shown > 0) {
+            backend->cued = true;
+        }
+    } else if (player->slots.published > 0) {
         backend->cued = true;
     }
 }
@@ -229,7 +277,8 @@ static void dshow_poll(VideoBackend *backend)
         }
         IMediaEventEx_FreeEventParams(player->events, code, first, second);
     }
-    if (player->frames_mode && backend->state != VIDEO_STATE_FAILED) {
+    if ((player->frames_mode || player->crt != NULL) &&
+        backend->state != VIDEO_STATE_FAILED) {
         dshow_poll_frames(player);
     }
 }
@@ -260,15 +309,20 @@ static bool dshow_position(VideoBackend *backend, LONGLONG *position_hns)
 static void dshow_layout(VideoBackend *backend, const RECT *client)
 {
     DshowPlayer *player = (DshowPlayer *)backend;
-    if (player->display != NULL) {
-        video_evr_layout(player->display, client);
+    if (player->crt != NULL) {
+        video_crt_resize(player->crt, client);
+        video_crt_repaint(player->crt);
+    } else if (player->display != NULL) {
+        video_evr_layout(player->display, client, player->widescreen);
     }
 }
 
 static void dshow_repaint(VideoBackend *backend)
 {
     DshowPlayer *player = (DshowPlayer *)backend;
-    if (player->display != NULL) {
+    if (player->crt != NULL) {
+        video_crt_repaint(player->crt);
+    } else if (player->display != NULL) {
         IMFVideoDisplayControl_RepaintVideo(player->display);
     }
 }
@@ -288,7 +342,8 @@ static void dshow_preroll(VideoBackend *backend)
     if (backend->state != VIDEO_STATE_READY || backend->cued) {
         return;
     }
-    if (SUCCEEDED(IMediaControl_Pause(player->control)) && !player->frames_mode) {
+    if (SUCCEEDED(IMediaControl_Pause(player->control)) &&
+        !player->frames_mode && player->crt == NULL) {
         backend->cued = true;
     }
 }
@@ -595,7 +650,8 @@ static void dshow_read_video_info(DshowPlayer *player)
 }
 
 HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
-    bool frames, VideoBackend **out, char *reason, size_t reason_size)
+    bool frames, bool widescreen, VideoCrt *crt, VideoBackend **out,
+    char *reason, size_t reason_size)
 {
     *out = NULL;
     DshowPlayer *player = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
@@ -609,14 +665,24 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
     player->base.state = VIDEO_STATE_OPENING;
     player->window = window;
     player->frames_mode = frames;
+    player->widescreen = widescreen;
+    player->crt = frames ? NULL : crt;
+    player->base.shader = player->crt != NULL ? "crt_ntsc" : NULL;
+    player->local.latest = -1;
     player->pending = -1;
+    if (player->crt != NULL) {
+        LARGE_INTEGER frequency;
+        QueryPerformanceFrequency(&frequency);
+        player->qpc_frequency = frequency.QuadPart;
+    }
+    bool use_grabber = frames || (player->crt != NULL);
     player->callback.lpVtbl = &dshow_callback_vtable;
     InitializeCriticalSection(&player->lock);
     player->lock_ready = true;
     const char *step = "DirectShow is unavailable";
     HRESULT hr = CoCreateInstance(&CLSID_FilterGraph, NULL,
         CLSCTX_INPROC_SERVER, &IID_IGraphBuilder, (void **)&player->graph);
-    if (SUCCEEDED(hr) && frames) {
+    if (SUCCEEDED(hr) && use_grabber) {
         step = "the DirectShow sample grabber is unavailable";
         hr = dshow_add_frames(player);
     } else if (SUCCEEDED(hr)) {
@@ -628,9 +694,10 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
             dshow_add_audio_renderer(player->graph);
         }
         step = "DirectShow could not render the file";
-        hr = frames ? dshow_render_frames(player, path) : dshow_render(player->graph, path);
+        hr = use_grabber ? dshow_render_frames(player, path) :
+            dshow_render(player->graph, path);
     }
-    if (SUCCEEDED(hr) && frames) {
+    if (SUCCEEDED(hr) && use_grabber) {
         step = "DirectShow could not decode the video to RGB";
         hr = dshow_read_frame_format(player);
     }
@@ -655,6 +722,8 @@ HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
     }
     if (frames) {
         player->base.frames_published = &player->slots.published;
+    } else if (player->crt != NULL) {
+        player->base.frames_published = &player->local.published;
     } else {
         dshow_read_video_info(player);
     }

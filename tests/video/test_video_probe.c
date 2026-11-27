@@ -39,6 +39,8 @@ typedef struct Fixture {
     wchar_t root[VIDEO_PATH_CAPACITY];
     wchar_t game[VIDEO_PATH_CAPACITY];
     wchar_t movies[VIDEO_PATH_CAPACITY];
+    wchar_t assets[VIDEO_PATH_CAPACITY];
+    wchar_t videos[VIDEO_PATH_CAPACITY];
     wchar_t logs[VIDEO_PATH_CAPACITY];
 } Fixture;
 
@@ -76,7 +78,7 @@ static bool full_path(const wchar_t *path, wchar_t *out)
     return length > 0 && length < VIDEO_PATH_CAPACITY;
 }
 
-/* <work>\<name>\game\movies and <work>\<name>\logs, emptied. */
+/* <work>\<name>\{game\movies, assets\video, logs}, emptied. */
 static bool fixture_create(Fixture *fixture, const wchar_t *name)
 {
     wchar_t relative[VIDEO_PATH_CAPACITY];
@@ -86,35 +88,48 @@ static bool fixture_create(Fixture *fixture, const wchar_t *name)
             L"game") ||
         !video_join(fixture->movies, VIDEO_PATH_CAPACITY, fixture->game,
             L"movies") ||
+        !video_join(fixture->assets, VIDEO_PATH_CAPACITY, fixture->root,
+            L"assets") ||
+        !video_join(fixture->videos, VIDEO_PATH_CAPACITY, fixture->assets,
+            L"video") ||
         !video_join(fixture->logs, VIDEO_PATH_CAPACITY, fixture->root,
             L"logs")) {
         return false;
     }
     if (!make_directory(fixture->root) || !make_directory(fixture->game) ||
-        !make_directory(fixture->movies) || !make_directory(fixture->logs)) {
+        !make_directory(fixture->movies) || !make_directory(fixture->assets) ||
+        !make_directory(fixture->videos) || !make_directory(fixture->logs)) {
         return false;
     }
     clear_files(fixture->movies);
+    clear_files(fixture->videos);
     clear_files(fixture->logs);
     return true;
 }
 
-/* A copy, never a link: the source movies stay untouched. */
-static bool fixture_add(const Fixture *fixture, const wchar_t *source,
+/* A copy into game\movies (originals) or assets\video (overrides). */
+static bool fixture_add_to(const wchar_t *directory, const wchar_t *source,
     const wchar_t *name)
 {
     wchar_t target[VIDEO_PATH_CAPACITY];
-    if (!video_join(target, VIDEO_PATH_CAPACITY, fixture->movies, name)) {
+    if (!video_join(target, VIDEO_PATH_CAPACITY, directory, name)) {
         return false;
     }
     return CopyFileW(source, target, TRUE) != 0;
 }
 
-static bool fixture_write(const Fixture *fixture, const wchar_t *name,
+static bool fixture_add(const Fixture *fixture, const wchar_t *source,
+    const wchar_t *name)
+{
+    return fixture_add_to(video_has_extension(name, L".mp4") ?
+        fixture->videos : fixture->movies, source, name);
+}
+
+static bool fixture_write_to(const wchar_t *directory, const wchar_t *name,
     const char *text)
 {
     wchar_t target[VIDEO_PATH_CAPACITY];
-    if (!video_join(target, VIDEO_PATH_CAPACITY, fixture->movies, name)) {
+    if (!video_join(target, VIDEO_PATH_CAPACITY, directory, name)) {
         return false;
     }
     HANDLE file = CreateFileW(target, GENERIC_WRITE, 0, NULL, CREATE_NEW,
@@ -127,6 +142,13 @@ static bool fixture_write(const Fixture *fixture, const wchar_t *name,
     bool ok = WriteFile(file, text, length, &written, NULL) && written == length;
     CloseHandle(file);
     return ok;
+}
+
+static bool fixture_write(const Fixture *fixture, const wchar_t *name,
+    const char *text)
+{
+    return fixture_write_to(video_has_extension(name, L".mp4") ?
+        fixture->videos : fixture->movies, name, text);
 }
 
 /* Reads a log into text (always terminated); false when it cannot. */
@@ -304,30 +326,41 @@ static void test_missing(void)
 }
 
 typedef struct Source {
-    wchar_t directory[VIDEO_PATH_CAPACITY];
+    wchar_t movies_dir[VIDEO_PATH_CAPACITY];
+    wchar_t videos_dir[VIDEO_PATH_CAPACITY];
     unsigned found;
 } Source;
 
 static bool source_file(const Source *source, const wchar_t *name,
     wchar_t *out)
 {
-    if (!video_join(out, VIDEO_PATH_CAPACITY, source->directory, name)) {
-        return false;
+    const wchar_t *dirs[2] = {
+        video_has_extension(name, L".mp4") ? source->videos_dir : source->movies_dir,
+        video_has_extension(name, L".mp4") ? source->movies_dir : source->videos_dir
+    };
+    for (int i = 0; i < 2; ++i) {
+        if (dirs[i][0] == L'\0' ||
+            !video_join(out, VIDEO_PATH_CAPACITY, dirs[i], name)) {
+            continue;
+        }
+        DWORD attributes = GetFileAttributesW(out);
+        if (attributes != INVALID_FILE_ATTRIBUTES &&
+            (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            return true;
+        }
     }
-    DWORD attributes = GetFileAttributesW(out);
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-        (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    return false;
 }
 
 /* A probe of fixture/movie: exit 0, and the log shows a passed probe of
  * the expected file. */
-static bool probe_passes(const Fixture *fixture, const wchar_t *movie,
-    const wchar_t *expected_file, char *text)
+static bool probe_passes_extra(const Fixture *fixture, const wchar_t *movie,
+    const wchar_t *extra, const wchar_t *expected_file, char *text)
 {
     wchar_t arguments[2 * VIDEO_PATH_CAPACITY];
     char file_field[96];
     if (!probe_arguments(arguments, 2 * VIDEO_PATH_CAPACITY, fixture, movie,
-            L"")) {
+            extra)) {
         return false;
     }
     DWORD code = run_player(arguments, NULL);
@@ -350,77 +383,92 @@ static bool probe_passes(const Fixture *fixture, const wchar_t *movie,
     return ok;
 }
 
+static bool probe_passes(const Fixture *fixture, const wchar_t *movie,
+    const wchar_t *expected_file, char *text)
+{
+    return probe_passes_extra(fixture, movie, L"", expected_file, text);
+}
+
+typedef struct ProbeEntry {
+    const wchar_t *movie;
+    const wchar_t *file;
+    const wchar_t *extra;
+} ProbeEntry;
+
+static const ProbeEntry probe_entries[] = {
+    { L"intro", L"fluke.mp4",   L"" },
+    { L"intro", L"intro.mp4",   L" --intro Upscaled" },
+    { L"intro", L"WXLINTR.MPG", L"" },
+    { L"xtro1", L"XTRO1.mp4",   L"" },
+    { L"xtro1", L"XTRO1.MPG",   L"" },
+    { L"xtro2", L"XTRO2.mp4",   L"" },
+    { L"xtro2", L"XTRO2.MPG",   L"" },
+    { L"xtro3", L"XTRO3.mp4",   L"" },
+    { L"xtro3", L"XTRO3.MPG",   L"" },
+    { L"xtro4", L"XTRO4.mp4",   L"" },
+    { L"xtro4", L"XTRO4.MPG",   L"" }
+};
+
 /* Every movie file the source has, each alone in its fixture. */
 static unsigned test_each_file(Source *source)
 {
-    static const wchar_t *const movies[] = {
-        L"intro", L"xtro1", L"xtro2", L"xtro3", L"xtro4"
-    };
     char text[LOG_TEXT_SIZE];
     unsigned played = 0;
-    for (int m = 0; m < VIDEO_MOVIE_COUNT; ++m) {
-        const wchar_t *names[VIDEO_MAX_CANDIDATES];
-        size_t count = video_movie_candidates((VideoMovie)m, false, names);
-        for (size_t i = 0; i < count; ++i) {
-            wchar_t path[VIDEO_PATH_CAPACITY];
-            Fixture fixture;
-            if (!source_file(source, names[i], path)) {
-                continue;
-            }
-            ++source->found;
-            if (!fixture_create(&fixture, L"each") ||
-                !fixture_add(&fixture, path, names[i])) {
-                CHECK(false, "cannot prepare a playback fixture");
-                continue;
-            }
-            bool passed = probe_passes(&fixture, movies[m], names[i], text);
-            CHECK(passed, "probe playback of a movie file");
-            if (passed) {
-                const char *backend = strstr(text, "\"backend\":\"directshow\"") ?
-                    "DirectShow" : "Media Foundation";
-                printf("PASS: %ls (%ls) decoded and advanced via %s.\n",
-                    movies[m], names[i], backend);
-                ++played;
-            }
+    for (size_t i = 0; i < sizeof(probe_entries) / sizeof(probe_entries[0]); ++i) {
+        wchar_t path[VIDEO_PATH_CAPACITY];
+        Fixture fixture;
+        if (!source_file(source, probe_entries[i].file, path)) {
+            continue;
+        }
+        ++source->found;
+        if (!fixture_create(&fixture, L"each") ||
+            !fixture_add(&fixture, path, probe_entries[i].file)) {
+            CHECK(false, "cannot prepare a playback fixture");
+            continue;
+        }
+        bool passed = probe_passes_extra(&fixture, probe_entries[i].movie,
+            probe_entries[i].extra, probe_entries[i].file, text);
+        CHECK(passed, "probe playback of a movie file");
+        if (passed) {
+            const char *backend = strstr(text, "\"backend\":\"directshow\"") ?
+                "DirectShow" : "Media Foundation";
+            printf("PASS: %ls (%ls) decoded and advanced via %s.\n",
+                probe_entries[i].movie, probe_entries[i].file, backend);
+            ++played;
         }
     }
     return played;
 }
 
-/* With both the MP4 replacement and the MPG, the MP4 plays. */
+/* With both the MP4 override in assets/video and the MPG in movies, the MP4 plays;
+ * --intro Original plays the original MPG. */
 static void test_priority(const Source *source)
 {
-    static const wchar_t *const movies[] = {
-        L"intro", L"xtro1", L"xtro2", L"xtro3", L"xtro4"
-    };
     char text[LOG_TEXT_SIZE];
-    for (int m = 0; m < VIDEO_MOVIE_COUNT; ++m) {
-        const wchar_t *names[VIDEO_MAX_CANDIDATES];
-        size_t count = video_movie_candidates((VideoMovie)m, false, names);
-        wchar_t mp4[VIDEO_PATH_CAPACITY];
-        wchar_t mpg[VIDEO_PATH_CAPACITY];
-        Fixture fixture;
-        /* names[count - 2] is XTRON.mp4 or WXLINTR.mp4. */
-        if (!source_file(source, names[count - 2], mp4) ||
-            !source_file(source, names[count - 1], mpg)) {
-            continue;
-        }
+    wchar_t fluke[VIDEO_PATH_CAPACITY];
+    wchar_t mpg[VIDEO_PATH_CAPACITY];
+    Fixture fixture;
+    if (source_file(source, L"fluke.mp4", fluke) &&
+        source_file(source, L"WXLINTR.MPG", mpg)) {
         bool ready = fixture_create(&fixture, L"priority") &&
-            fixture_add(&fixture, mp4, names[count - 2]) &&
-            fixture_add(&fixture, mpg, names[count - 1]);
+            fixture_add(&fixture, fluke, L"fluke.mp4") &&
+            fixture_add(&fixture, mpg, L"WXLINTR.MPG");
         CHECK(ready, "cannot prepare the priority fixture");
         if (ready) {
-            CHECK(probe_passes(&fixture, movies[m], names[count - 2], text),
-                "an MP4 replacement wins over the original MPG");
-            printf("PASS: %ls prefers %ls over %ls.\n", movies[m],
-                names[count - 2], names[count - 1]);
+            CHECK(probe_passes(&fixture, L"intro", L"fluke.mp4", text),
+                "default Fluke intro prefers assets/video/fluke.mp4 over WXLINTR.MPG");
+            CHECK(probe_passes_extra(&fixture, L"intro", L" --intro Original",
+                    L"WXLINTR.MPG", text),
+                "--intro Original plays wobble/movies/WXLINTR.MPG");
+            printf("PASS: intro prefers assets/video/fluke.mp4 by default and "
+                "WXLINTR.MPG for Original.\n");
         }
         return;
     }
-    printf("SKIP: MP4 priority needs an MP4 and its MPG in the source.\n");
+    printf("SKIP: MP4 priority needs fluke.mp4 and WXLINTR.MPG.\n");
 }
 
-/* An unreadable replacement falls back to the original MPG. */
+/* An unreadable override in assets/video falls back to the original MPG. */
 static void test_broken_replacement(const Source *source)
 {
     char text[LOG_TEXT_SIZE];
@@ -432,36 +480,30 @@ static void test_broken_replacement(const Source *source)
     }
     bool ready = fixture_create(&fixture, L"broken") &&
         fixture_add(&fixture, mpg, L"WXLINTR.MPG") &&
-        fixture_write(&fixture, L"intro.mp4", "invalid media");
+        fixture_write(&fixture, L"fluke.mp4", "invalid media");
     CHECK(ready, "cannot prepare the broken-MP4 fixture");
     if (!ready) {
         return;
     }
     bool passed = probe_passes(&fixture, L"intro", L"WXLINTR.MPG", text);
-    CHECK(passed && strstr(text, "\"file\":\"intro.mp4\"") != NULL &&
+    CHECK(passed && strstr(text, "\"file\":\"fluke.mp4\"") != NULL &&
         strstr(text, "\"event\":\"video_failed\"") != NULL &&
         strstr(text, "\"event\":\"video_original_fallback\"") != NULL,
-        "a broken intro.mp4 falls back to WXLINTR.MPG");
-    printf("PASS: a broken intro.mp4 falls back to the original MPG.\n");
+        "a broken assets/video/fluke.mp4 falls back to WXLINTR.MPG");
+    printf("PASS: a broken assets/video/fluke.mp4 falls back to the original MPG.\n");
 }
 
 /* The first movie file the source has, alone in a fixture. */
 static bool any_movie(const Source *source, Fixture *fixture,
     const wchar_t *fixture_name, const wchar_t **movie)
 {
-    static const wchar_t *const movies[] = {
-        L"intro", L"xtro1", L"xtro2", L"xtro3", L"xtro4"
-    };
-    for (int m = 0; m < VIDEO_MOVIE_COUNT; ++m) {
-        const wchar_t *names[VIDEO_MAX_CANDIDATES];
-        size_t count = video_movie_candidates((VideoMovie)m, false, names);
-        for (size_t i = 0; i < count; ++i) {
-            wchar_t path[VIDEO_PATH_CAPACITY];
-            if (source_file(source, names[i], path)) {
-                *movie = movies[m];
-                return fixture_create(fixture, fixture_name) &&
-                    fixture_add(fixture, path, names[i]);
-            }
+    for (size_t i = 0; i < sizeof(probe_entries) / sizeof(probe_entries[0]); ++i) {
+        wchar_t path[VIDEO_PATH_CAPACITY];
+        if (probe_entries[i].extra[0] == L'\0' &&
+            source_file(source, probe_entries[i].file, path)) {
+            *movie = probe_entries[i].movie;
+            return fixture_create(fixture, fixture_name) &&
+                fixture_add(fixture, path, probe_entries[i].file);
         }
     }
     return false;
@@ -574,25 +616,19 @@ static void frames_pass(const Fixture *fixture, const wchar_t *movie,
  * Foundation, the original MPEG-1 through DirectShow. */
 static void test_frames(const Source *source)
 {
-    static const wchar_t *const movies[] = {
-        L"intro", L"xtro1", L"xtro2", L"xtro3", L"xtro4"
-    };
-    for (int m = 0; m < VIDEO_MOVIE_COUNT; ++m) {
-        const wchar_t *names[VIDEO_MAX_CANDIDATES];
-        size_t count = video_movie_candidates((VideoMovie)m, false, names);
-        for (size_t i = 0; i < count; ++i) {
-            wchar_t path[VIDEO_PATH_CAPACITY];
-            Fixture fixture;
-            if (!source_file(source, names[i], path)) {
-                continue;
-            }
-            if (!fixture_create(&fixture, L"frames") ||
-                !fixture_add(&fixture, path, names[i])) {
-                CHECK(false, "cannot prepare the frames fixture");
-                continue;
-            }
-            frames_pass(&fixture, movies[m], names[i]);
+    for (size_t i = 0; i < sizeof(probe_entries) / sizeof(probe_entries[0]); ++i) {
+        wchar_t path[VIDEO_PATH_CAPACITY];
+        Fixture fixture;
+        if (probe_entries[i].extra[0] != L'\0' ||
+            !source_file(source, probe_entries[i].file, path)) {
+            continue;
         }
+        if (!fixture_create(&fixture, L"frames") ||
+            !fixture_add(&fixture, path, probe_entries[i].file)) {
+            CHECK(false, "cannot prepare the frames fixture");
+            continue;
+        }
+        frames_pass(&fixture, probe_entries[i].movie, probe_entries[i].file);
     }
     printf("PASS: --frames hands each frame to the game without a window.\n");
 }
@@ -777,12 +813,13 @@ static bool find_source(Source *source)
     wchar_t configured[VIDEO_PATH_CAPACITY];
     DWORD length = GetEnvironmentVariableW(L"WO4K_TEST_MOVIES", configured,
         VIDEO_PATH_CAPACITY);
-    const wchar_t *directory = L"wobble\\movies";
-    if (length > 0 && length < VIDEO_PATH_CAPACITY) {
-        directory = configured;
-    }
     source->found = 0;
-    return full_path(directory, source->directory);
+    if (length > 0 && length < VIDEO_PATH_CAPACITY) {
+        return full_path(configured, source->movies_dir) &&
+            video_copy(source->videos_dir, VIDEO_PATH_CAPACITY, source->movies_dir);
+    }
+    return full_path(L"wobble\\movies", source->movies_dir) &&
+        full_path(L"assets\\video", source->videos_dir);
 }
 
 int main(void)
@@ -807,7 +844,7 @@ int main(void)
     unsigned played = test_each_file(&source);
     if (source.found == 0) {
         printf("SKIP: no movie files in %ls (set WO4K_TEST_MOVIES); playback "
-            "probes skipped.\n", source.directory);
+            "probes skipped.\n", source.movies_dir);
     } else {
         CHECK(played == source.found, "every movie file plays");
         test_priority(&source);

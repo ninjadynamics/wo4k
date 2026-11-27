@@ -32,8 +32,8 @@ static const char *const runtime_files[] = {
     "runtime/libiconv-2.dll",  "runtime/wo2097-controller.exe", "runtime/wo4k-video.exe",
     "runtime/Wipeout2097.ini", "runtime/DDrawCompat-Wipeout2097.ini",
     "runtime/w2097-hd.cg",     "runtime/w2097-hd.cgp"};
-static const char *const folders[] = {"assets/auth", "assets/ui", "manifests", "licenses", "docs",
-                                      "patches"};
+static const char *const folders[] = {"assets/auth", "assets/ui", "assets/video", "manifests",
+                                      "licenses", "docs", "patches"};
 
 static bool write_if_changed(const char *path, const WoJson *value, WoError *error) {
     WoBuf text = {0};

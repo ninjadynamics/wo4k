@@ -73,6 +73,8 @@ typedef struct WoConfig {
     bool clean_audio;
     int sound_mode;
     WoFullscreen fullscreen;
+    WoIntroVideo intro_video;
+    WoVideoAspect video_aspect;
 } WoConfig;
 
 /* Effective configuration: .state/setup.json, else the receipt's copy, else

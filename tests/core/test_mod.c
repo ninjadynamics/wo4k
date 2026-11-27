@@ -26,7 +26,8 @@ static void test_defaults_without_state(void) {
     CHECK_STR(config.game_source, "");
     CHECK(config.soundtrack == WO_SOUNDTRACK_PC);
     CHECK(config.hd_textures && config.upscale_textures && config.clean_audio);
-    CHECK(config.sound_mode == 2 && config.fullscreen == WO_FULLSCREEN_BORDERLESS);
+    CHECK(config.sound_mode == 2 && config.fullscreen == WO_FULLSCREEN_BORDERLESS &&
+          config.intro_video == WO_INTRO_FLUKE && config.video_aspect == WO_VIDEO_WIDESCREEN);
     wo_config_free(&config);
 
     /* An installed game without saved settings: sources default to wobble,
@@ -64,12 +65,15 @@ static void test_save_round_trip_and_revision(void) {
     config.clean_audio = false;
     config.sound_mode = 1;
     config.fullscreen = WO_FULLSCREEN_EXCLUSIVE;
+    config.intro_video = WO_INTRO_UPSCALED;
+    config.video_aspect = WO_VIDEO_4_3;
     WoConfig saved;
     CHECK_OK(wo_config_save(&mod, &config, &saved, &error), &error);
     CHECK(saved.revision == 1);
     CHECK_STR(saved.game_source, inside);
     CHECK_STR(saved.psx_source, "D:\\Games\\WipEout 2097 (Europe).cue");
-    CHECK(saved.soundtrack == WO_SOUNDTRACK_PSX && !saved.clean_audio && saved.sound_mode == 1);
+    CHECK(saved.soundtrack == WO_SOUNDTRACK_PSX && !saved.clean_audio && saved.sound_mode == 1 &&
+          saved.intro_video == WO_INTRO_UPSCALED && saved.video_aspect == WO_VIDEO_4_3);
 
     WoJson *stored = NULL;
     CHECK_OK(wo_state_load(&mod, "setup.json", &stored, &error), &error);

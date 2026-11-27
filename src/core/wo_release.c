@@ -532,6 +532,10 @@ bool wo_release_path_allowed(const char *path, WoError *error) {
     }
     for (size_t i = 0; i < WO_COUNT(forbidden_extensions); i++) {
         if (wo_str_iends_with(path, forbidden_extensions[i])) {
+            if (wo_str_ieq(forbidden_extensions[i], ".mp4") &&
+                wo_str_istarts_with(path, "assets/video/")) {
+                continue;
+            }
             return wo_fail(error, WO_ERR_UNSAFE, "Forbidden update payload: %s", path);
         }
     }

@@ -366,8 +366,26 @@ bool wo_config_load(const WoMod *mod, WoConfig *config, WoError *error) {
         if (!WO_EXCLUSIVE_FULLSCREEN_OFFERED) {
             config->fullscreen = WO_FULLSCREEN_BORDERLESS;
         }
+        const char *intro = wo_json_str(saved, "IntroVideo", NULL);
+        bool intro_ok = true;
+        if (intro) {
+            intro_ok = wo_intro_video_parse(intro, &config->intro_video);
+        } else if (game_ini) {
+            config->intro_video = wo_settings_get_intro_video(game_ini);
+        } else {
+            config->intro_video = WO_INTRO_FLUKE;
+        }
+        const char *aspect = wo_json_str(saved, "VideoAspect", NULL);
+        bool aspect_ok = true;
+        if (aspect) {
+            aspect_ok = wo_video_aspect_parse(aspect, &config->video_aspect);
+        } else if (game_ini) {
+            config->video_aspect = wo_settings_get_video_aspect(game_ini);
+        } else {
+            config->video_aspect = WO_VIDEO_WIDESCREEN;
+        }
         if (!wo_soundtrack_parse(soundtrack, &config->soundtrack) ||
-            !wo_sound_mode_valid(config->sound_mode) || !fullscreen_ok) {
+            !wo_sound_mode_valid(config->sound_mode) || !fullscreen_ok || !intro_ok || !aspect_ok) {
             ok = wo_fail(error, WO_ERR_FORMAT, "Invalid saved Setup preferences.");
         }
         wo_free(game_ini);
@@ -400,7 +418,9 @@ static WoJson *config_to_json(const WoMod *mod, const WoConfig *config, WoError 
               wo_json_put_str(stored, "FullscreenMode",
                               wo_fullscreen_name(WO_EXCLUSIVE_FULLSCREEN_OFFERED
                                                      ? config->fullscreen
-                                                     : WO_FULLSCREEN_BORDERLESS));
+                                                     : WO_FULLSCREEN_BORDERLESS)) &&
+              wo_json_put_str(stored, "IntroVideo", wo_intro_video_name(config->intro_video)) &&
+              wo_json_put_str(stored, "VideoAspect", wo_video_aspect_name(config->video_aspect));
     wo_free(game);
     wo_free(pc);
     wo_free(psx);

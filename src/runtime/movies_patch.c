@@ -37,18 +37,28 @@ static const WCHAR *movie_name(UINT movie) {
     static const WCHAR *names[]={L"intro",L"xtro1",L"xtro2",L"xtro3",L"xtro4"};
     return movie<5?names[movie]:0;
 }
+static BOOL movie_file_exists(const WCHAR *path) {
+    DWORD attributes=GetFileAttributesW(path);
+    return attributes!=INVALID_FILE_ATTRIBUTES && !(attributes&FILE_ATTRIBUTE_DIRECTORY);
+}
 static BOOL movie_available(UINT movie) {
-    const WCHAR *names[3]={0,0,0};
-    if(movie==0){names[0]=L"intro.mp4";names[1]=L"WXLINTR.mp4";names[2]=L"WXLINTR.MPG";}
+    const WCHAR *overrides[2]={0,0};
+    const WCHAR *original=0;
+    if(movie==0){overrides[0]=L"fluke.mp4";overrides[1]=L"intro.mp4";original=L"WXLINTR.MPG";}
     else if(movie<=4){
         static const WCHAR *mp4[]={L"",L"XTRO1.mp4",L"XTRO2.mp4",L"XTRO3.mp4",L"XTRO4.mp4"};
         static const WCHAR *mpg[]={L"",L"XTRO1.MPG",L"XTRO2.MPG",L"XTRO3.MPG",L"XTRO4.MPG"};
-        names[0]=mp4[movie];names[1]=mpg[movie];
+        overrides[0]=mp4[movie];original=mpg[movie];
     }
-    for(UINT i=0;i<3 && names[i];++i){
+    if(original){
         WCHAR path[MAX_PATH];path[0]=0;
-        if(!movie_append(path,MAX_PATH,movie_root) || !movie_append(path,MAX_PATH,L"movies\\") || !movie_append(path,MAX_PATH,names[i]))continue;
-        DWORD attributes=GetFileAttributesW(path);if(attributes!=INVALID_FILE_ATTRIBUTES && !(attributes&FILE_ATTRIBUTE_DIRECTORY))return TRUE;
+        if(movie_append(path,MAX_PATH,movie_root) && movie_append(path,MAX_PATH,L"movies\\") &&
+            movie_append(path,MAX_PATH,original) && movie_file_exists(path))return TRUE;
+    }
+    for(UINT i=0;i<2 && overrides[i];++i){
+        WCHAR path[MAX_PATH];path[0]=0;
+        if(movie_append(path,MAX_PATH,movie_root) && movie_append(path,MAX_PATH,L"..\\assets\\video\\") &&
+            movie_append(path,MAX_PATH,overrides[i]) && movie_file_exists(path))return TRUE;
     }
     return FALSE;
 }

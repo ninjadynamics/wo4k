@@ -702,6 +702,8 @@ static bool reconcile_inner(const WoMod *mod, bool force_repair, WoProgress *pro
             bool was_none = wo_str_eq(wo_json_str(receipt, "default_soundtrack", ""), "None");
             ok = wo_settings_apply_soundtrack(ini, config.soundtrack, was_none, error) &&
                  wo_settings_set_sound_mode(ini, config.sound_mode, error) &&
+                 wo_settings_set_intro_video(ini, config.intro_video, error) &&
+                 wo_settings_set_video_aspect(ini, config.video_aspect, error) &&
                  wo_settings_set_fullscreen(ddraw, config.fullscreen, error);
         }
     }

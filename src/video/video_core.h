@@ -35,17 +35,37 @@ typedef enum VideoMovie {
     VIDEO_MOVIE_COUNT
 } VideoMovie;
 
+typedef enum VideoIntroChoice {
+    VIDEO_INTRO_ORIGINAL,
+    VIDEO_INTRO_UPSCALED,
+    VIDEO_INTRO_FLUKE
+} VideoIntroChoice;
+
+typedef enum VideoAspectMode {
+    VIDEO_ASPECT_WIDESCREEN,
+    VIDEO_ASPECT_4_3
+} VideoAspectMode;
+
 bool video_movie_parse(const wchar_t *name, VideoMovie *movie);
 const wchar_t *video_movie_name(VideoMovie movie);
+bool video_intro_parse(const wchar_t *name, VideoIntroChoice *choice);
+/* Reads [Video] Intro from <game_root>\Wipeout2097.ini; defaults to Fluke. */
+VideoIntroChoice video_read_intro_choice(const wchar_t *game_root);
+bool video_aspect_parse(const wchar_t *name, VideoAspectMode *mode);
+/* Reads [Video] Aspect from <game_root>\Wipeout2097.ini; defaults to Widescreen. */
+VideoAspectMode video_read_aspect_mode(const wchar_t *game_root);
 
-/* File names under <game root>\movies, in priority order. Replacements come
- * first; original_only leaves just the original MPEG-1 file. */
-size_t video_movie_candidates(VideoMovie movie, bool original_only,
-    const wchar_t *names[VIDEO_MAX_CANDIDATES]);
+/* Override file name under <mod root>\assets\video (NULL when none applies,
+ * such as intro=Original), and original MPEG-1 file name under
+ * <game root>\movies. */
+const wchar_t *video_override_name(VideoMovie movie, VideoIntroChoice intro);
+const wchar_t *video_original_name(VideoMovie movie);
 
-/* Writes the first existing candidate's full path into out. */
+/* Writes the first existing candidate's full path into out: first the mod
+ * override under <mod root>\assets\video (unless original_only or
+ * intro == Original), then the original MPEG-1 under <game root>\movies. */
 bool video_find_movie(const wchar_t *game_root, VideoMovie movie,
-    bool original_only, wchar_t *out, size_t capacity);
+    VideoIntroChoice intro, bool original_only, wchar_t *out, size_t capacity);
 
 bool video_has_extension(const wchar_t *path, const wchar_t *extension);
 const wchar_t *video_file_name(const wchar_t *path);
@@ -66,6 +86,10 @@ typedef struct VideoOptions {
     const wchar_t *game_root;
     VideoMovie movie;
     bool has_movie;
+    VideoIntroChoice intro;
+    bool has_intro;
+    VideoAspectMode aspect;
+    bool has_aspect;
     DWORD game_pid;
     HWND owner_window;
     HANDLE skip_event;
@@ -73,7 +97,8 @@ typedef struct VideoOptions {
     HANDLE stage_event; /* prepared mode: put the window on screen, transparent */
     bool probe;
     bool original_only;
-    bool frames; /* no window: frames go to the game runtime */
+    bool frames;    /* no window: frames go to the game runtime */
+    bool no_shader; /* disable CRT shader and use EVR directly */
 } VideoOptions;
 
 /* Parses argv (argv[0] is the program). On failure *error names the problem

@@ -317,21 +317,6 @@ static bool exists_in(const char *root, const char *relative) {
     return exists;
 }
 
-static bool carry_movies(const char *target, const char *stage, WoError *error) {
-    static const char *const names[] = {"intro", "WXLINTR", "XTRO1", "XTRO2", "XTRO3", "XTRO4"};
-    bool ok = true;
-    for (size_t i = 0; ok && i < WO_COUNT(names); i++) {
-        char *mp4 = wo_format(error, "movies/%s.mp4", names[i]);
-        if (mp4 && exists_in(target, mp4)) {
-            /* Drop-in MP4s belong to the user. The original MPEG stays: it
-             * plays when Windows cannot decode the replacement. */
-            ok = copy_between(target, mp4, stage, mp4, true, error);
-        }
-        wo_free(mp4);
-    }
-    return ok;
-}
-
 static bool install_bank(const char *input, const char *work_folder, const char *stage,
                          WoMusicBank bank, bool allow_missing, bool *installed, WoError *error) {
     *installed = false;
@@ -410,6 +395,8 @@ static bool apply_settings(const WoMod *mod, const char *stage, WoSoundtrack sou
     wo_json_free(prior);
     ok = ok && wo_settings_apply_soundtrack(ini, soundtrack, was_none, error) &&
          wo_settings_set_sound_mode(ini, config->sound_mode, error) &&
+         wo_settings_set_intro_video(ini, config->intro_video, error) &&
+         wo_settings_set_video_aspect(ini, config->video_aspect, error) &&
          wo_settings_set_fullscreen(ddraw, config->fullscreen, error);
     wo_free(ddraw);
     wo_free(ini);
@@ -614,8 +601,7 @@ static bool install_locked(const WoMod *mod, const WoConfig *config, bool preser
         wo_progress(progress, WO_STAGE_GAME_SOURCE, 12,
                     "Copying game data and applying the executable patch");
         ok = wo_copy_game_data(native, stage, error) &&
-             wo_patch_install_executable(native, stage, patches, mod->root, error) &&
-             carry_movies(mod->game, stage, error);
+             wo_patch_install_executable(native, stage, patches, mod->root, error);
     }
     char *sd = ok ? wo_path_join(stage, "textures/sd", error) : NULL;
     if (ok) {

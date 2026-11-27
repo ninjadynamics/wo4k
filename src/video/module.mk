@@ -5,8 +5,9 @@
 VIDEO_EXE := runtime/wo4k-video.exe
 VIDEO_CORE_OBJECTS := $(BUILD)/obj/src/video/video_core.o
 VIDEO_OBJECTS := $(VIDEO_CORE_OBJECTS) \
-	$(patsubst %,$(BUILD)/obj/src/video/%.o,main video_backend video_dshow \
-		video_evr video_frames video_input video_log video_mf video_window) \
+	$(patsubst %,$(BUILD)/obj/src/video/%.o,main video_backend video_crt \
+		video_dshow video_evr video_frames video_input video_log video_mf \
+		video_window) \
 	$(BUILD)/obj/src/video/video.res.o
 # Media Foundation (mfplat.dll, mf.dll) is loaded at run time from System32,
 # so only GUID libraries and always-present system DLLs are linked.
@@ -35,9 +36,10 @@ VIDEO_TEST_OBJECTS := $(BUILD)/obj/tests/video/test_video_core.o \
 	$(BUILD)/obj/tests/video/test_video_window.o \
 	$(BUILD)/obj/tests/video/test_video_probe.o
 
-$(VIDEO_TEST_CORE): $(BUILD)/obj/tests/video/test_video_core.o $(VIDEO_CORE_OBJECTS)
+$(VIDEO_TEST_CORE): $(BUILD)/obj/tests/video/test_video_core.o $(VIDEO_CORE_OBJECTS) \
+	$(BUILD)/obj/src/video/video_crt.o
 	$(call MKDIR,$(@D))
-	$(CC) $(CONSOLE_LDFLAGS) $^ -o $@
+	$(CC) $(CONSOLE_LDFLAGS) $^ -luser32 -o $@
 
 $(VIDEO_TEST_WINDOW): $(BUILD)/obj/tests/video/test_video_window.o \
 	$(BUILD)/obj/src/video/video_window.o

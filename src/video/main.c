@@ -50,6 +50,7 @@
 
 #include "video/video_backend.h"
 #include "video/video_core.h"
+#include "video/video_crt.h"
 #include "video/video_input.h"
 #include "video/video_log.h"
 #include "video/video_window.h"
@@ -63,6 +64,8 @@ typedef struct VideoApp {
     VideoLog log;
     VideoInput input;
     VideoWindow window;
+    VideoCrt *crt;
+    bool widescreen;
     bool window_ready;
     /* Prepared mode (--start-event): the movie is opened in a hidden window
      * ahead of time; playback starts, and the window shows, once the game
@@ -208,6 +211,9 @@ static void video_log_opened(VideoApp *app, const VideoBackend *backend)
     json_member_fixed(&json, "duration_seconds",
         backend->info.duration_seconds, 3);
     json_member_string(&json, "backend", backend->name);
+    if (backend->shader != NULL) {
+        json_member_string(&json, "shader", backend->shader);
+    }
     json_object_end(&json);
     video_log_event(&app->log, "video_opened",
         json_ok(&json) ? json.data : NULL, false);
@@ -301,8 +307,8 @@ static VideoBackend *video_open_directshow(VideoApp *app, const wchar_t *path,
     char directshow_reason[192];
     video_log_fallback(app, media_foundation_reason);
     HRESULT hr = video_dshow_create(app->window.hwnd, path,
-        app->options.probe, app->options.frames, &backend, directshow_reason,
-        sizeof(directshow_reason));
+        app->options.probe, app->options.frames, app->widescreen, app->crt,
+        &backend, directshow_reason, sizeof(directshow_reason));
     if (FAILED(hr)) {
         int written = snprintf(reason, reason_size, "%s; %s",
             media_foundation_reason, directshow_reason);
@@ -449,6 +455,9 @@ static void video_reveal(VideoApp *app, const VideoBackend *backend,
         LARGE_INTEGER frequency;
         QueryPerformanceCounter(&begin);
         video_window_show(&app->window);
+        if (app->crt != NULL) {
+            video_crt_repaint(app->crt);
+        }
         QueryPerformanceCounter(&end);
         char storage[128];
         JsonBuffer json;
@@ -476,8 +485,8 @@ static void video_play(VideoApp *app, const wchar_t *path,
     memset(attempt, 0, sizeof(*attempt));
     reason[0] = '\0';
     HRESULT hr = video_mf_create(app->window.hwnd, path, app->options.probe,
-        app->options.frames, &backend, media_foundation_reason,
-        sizeof(media_foundation_reason));
+        app->options.frames, app->widescreen, app->crt, &backend,
+        media_foundation_reason, sizeof(media_foundation_reason));
     if (FAILED(hr)) {
         directshow_tried = true;
         backend = video_open_directshow(app, path, media_foundation_reason,
@@ -568,13 +577,32 @@ static void video_play(VideoApp *app, const wchar_t *path,
     }
 }
 
+static bool video_shader_enabled(const VideoOptions *options)
+{
+    if (options->frames || options->no_shader) {
+        return false;
+    }
+    wchar_t value[8];
+    DWORD len = GetEnvironmentVariableW(L"WO4K_VIDEO_SHADER", value,
+        (DWORD)(sizeof(value) / sizeof(value[0])));
+    if (len > 0 && value[0] == L'0') {
+        return false;
+    }
+    return true;
+}
+
 static int video_run(VideoApp *app)
 {
     bool original_only = app->options.original_only;
+    VideoIntroChoice intro = app->options.has_intro ? app->options.intro :
+        video_read_intro_choice(app->game_root);
+    VideoAspectMode aspect = app->options.has_aspect ? app->options.aspect :
+        video_read_aspect_mode(app->game_root);
+    app->widescreen = (aspect == VIDEO_ASPECT_WIDESCREEN);
     wchar_t path[VIDEO_PATH_CAPACITY];
     for (;;) {
         bool found = video_find_movie(app->game_root, app->options.movie,
-            original_only, path, VIDEO_PATH_CAPACITY);
+            intro, original_only, path, VIDEO_PATH_CAPACITY);
         video_log_requested(app, path, original_only);
         if (!found) {
             video_log_text(&app->log, "video_unavailable",
@@ -590,6 +618,17 @@ static int video_run(VideoApp *app)
                 return VIDEO_EXIT_FAILED;
             }
             app->window_ready = true;
+            if (video_shader_enabled(&app->options)) {
+                char crt_reason[192];
+                crt_reason[0] = '\0';
+                app->crt = video_crt_create(app->window.hwnd,
+                    !app->options.probe, app->widescreen, crt_reason,
+                    sizeof(crt_reason));
+                if (app->crt == NULL) {
+                    video_log_text(&app->log, "video_shader_fallback",
+                        crt_reason);
+                }
+            }
             if (!hidden) {
                 video_log_event(&app->log, "video_window_shown", NULL, false);
             }
@@ -602,7 +641,7 @@ static int video_run(VideoApp *app)
         if (attempt.failed && !original_only && !attempt.window_lost &&
             (!app->options.frames || attempt.frames == 0) &&
             video_has_extension(path, L".mp4") &&
-            video_find_movie(app->game_root, app->options.movie, true,
+            video_find_movie(app->game_root, app->options.movie, intro, true,
                 original, VIDEO_PATH_CAPACITY)) {
             video_log_event(&app->log, "video_original_fallback", NULL, false);
             original_only = true;
@@ -661,6 +700,10 @@ static int video_main(VideoApp *app, int argc, wchar_t **argv)
     }
     video_input_open(&app->input, &app->options, app->owner);
     int code = video_run(app);
+    if (app->crt != NULL) {
+        video_crt_destroy(app->crt);
+        app->crt = NULL;
+    }
     if (app->window_ready) {
         video_window_destroy(&app->window);
     }
@@ -671,6 +714,7 @@ static int video_main(VideoApp *app, int argc, wchar_t **argv)
     if (app->stage_event != NULL) {
         CloseHandle(app->stage_event);
     }
+    video_crt_unload();
     video_mf_unload();
     CoUninitialize();
     return code;

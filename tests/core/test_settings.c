@@ -232,9 +232,32 @@ static void test_snapshot(void) {
     wo_free(game);
 }
 
+static void test_intro_video(void) {
+    const char *dir = wo_test_dir("settings-intro");
+    if (!dir) {
+        return;
+    }
+    WoError error = {0};
+    char *missing = wo_path_join(dir, "missing.ini", &error);
+    CHECK(wo_settings_get_intro_video(missing) == WO_INTRO_FLUKE);
+    char *path = write_temp(dir, "game.ini", "[Video]\nIntro=Upscaled ; comment\n");
+    CHECK(wo_settings_get_intro_video(path) == WO_INTRO_UPSCALED);
+    CHECK_OK(wo_settings_set_intro_video(path, WO_INTRO_ORIGINAL, &error), &error);
+    char *text = read_back(path);
+    CHECK_STR(text, "[Video]\r\nIntro=Original\r\n");
+    wo_free(text);
+    CHECK(wo_settings_get_intro_video(path) == WO_INTRO_ORIGINAL);
+    CHECK(wo_settings_get_video_aspect(missing) == WO_VIDEO_WIDESCREEN);
+    CHECK_OK(wo_settings_set_video_aspect(path, WO_VIDEO_4_3, &error), &error);
+    CHECK(wo_settings_get_video_aspect(path) == WO_VIDEO_4_3);
+    wo_free(path);
+    wo_free(missing);
+}
+
 int main(void) {
     RUN(test_fullscreen);
     RUN(test_sound_mode);
+    RUN(test_intro_video);
     RUN(test_render_settings);
     RUN(test_soundtrack);
     RUN(test_merge_defaults);

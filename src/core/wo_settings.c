@@ -363,6 +363,40 @@ bool wo_soundtrack_parse(const char *name, WoSoundtrack *soundtrack) {
     return true;
 }
 
+const char *wo_intro_video_name(WoIntroVideo intro) {
+    return intro == WO_INTRO_ORIGINAL ? "Original"
+         : intro == WO_INTRO_UPSCALED ? "Upscaled"
+                                      : "Fluke";
+}
+
+bool wo_intro_video_parse(const char *name, WoIntroVideo *intro) {
+    if (wo_str_ieq(name, "Original")) {
+        *intro = WO_INTRO_ORIGINAL;
+    } else if (wo_str_ieq(name, "Upscaled")) {
+        *intro = WO_INTRO_UPSCALED;
+    } else if (wo_str_ieq(name, "Fluke")) {
+        *intro = WO_INTRO_FLUKE;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+const char *wo_video_aspect_name(WoVideoAspect aspect) {
+    return aspect == WO_VIDEO_4_3 ? "4:3" : "Widescreen";
+}
+
+bool wo_video_aspect_parse(const char *name, WoVideoAspect *aspect) {
+    if (wo_str_ieq(name, "Widescreen")) {
+        *aspect = WO_VIDEO_WIDESCREEN;
+    } else if (wo_str_ieq(name, "4:3")) {
+        *aspect = WO_VIDEO_4_3;
+    } else {
+        return false;
+    }
+    return true;
+}
+
 bool wo_sound_mode_valid(int mode) {
     return mode == 1 || mode == 2 || mode == 5;
 }
@@ -474,6 +508,74 @@ bool wo_settings_set_sound_mode(const char *game_ini, int mode, WoError *error) 
     return ok;
 }
 
+WoIntroVideo wo_settings_get_intro_video(const char *game_ini) {
+    WoIni ini;
+    WoIntroVideo intro = WO_INTRO_FLUKE;
+    if (!wo_ini_load(game_ini, &ini, NULL)) {
+        return intro;
+    }
+    char *raw = wo_ini_get(&ini, "Video", "Intro", NULL);
+    if (raw) {
+        size_t len = strcspn(raw, ";#");
+        char *clean = trimmed_copy(raw, len, NULL);
+        if (clean) {
+            wo_intro_video_parse(clean, &intro);
+            wo_free(clean);
+        }
+        wo_free(raw);
+    }
+    wo_ini_free(&ini);
+    return intro;
+}
+
+bool wo_settings_set_intro_video(const char *game_ini, WoIntroVideo intro, WoError *error) {
+    if ((int)intro < WO_INTRO_ORIGINAL || (int)intro > WO_INTRO_FLUKE) {
+        return wo_fail(error, WO_ERR_UNSUPPORTED, "Invalid intro video setting %d.", (int)intro);
+    }
+    WoIni ini;
+    if (!wo_ini_load(game_ini, &ini, error)) {
+        return false;
+    }
+    bool ok = wo_ini_set(&ini, "Video", "Intro", wo_intro_video_name(intro), "=", error) &&
+              wo_ini_save(game_ini, &ini, error);
+    wo_ini_free(&ini);
+    return ok;
+}
+
+WoVideoAspect wo_settings_get_video_aspect(const char *game_ini) {
+    WoIni ini;
+    WoVideoAspect aspect = WO_VIDEO_WIDESCREEN;
+    if (!wo_ini_load(game_ini, &ini, NULL)) {
+        return aspect;
+    }
+    char *raw = wo_ini_get(&ini, "Video", "Aspect", NULL);
+    if (raw) {
+        size_t len = strcspn(raw, ";#");
+        char *clean = trimmed_copy(raw, len, NULL);
+        if (clean) {
+            wo_video_aspect_parse(clean, &aspect);
+            wo_free(clean);
+        }
+        wo_free(raw);
+    }
+    wo_ini_free(&ini);
+    return aspect;
+}
+
+bool wo_settings_set_video_aspect(const char *game_ini, WoVideoAspect aspect, WoError *error) {
+    if ((int)aspect < WO_VIDEO_WIDESCREEN || (int)aspect > WO_VIDEO_4_3) {
+        return wo_fail(error, WO_ERR_UNSUPPORTED, "Invalid video aspect setting %d.", (int)aspect);
+    }
+    WoIni ini;
+    if (!wo_ini_load(game_ini, &ini, error)) {
+        return false;
+    }
+    bool ok = wo_ini_set(&ini, "Video", "Aspect", wo_video_aspect_name(aspect), "=", error) &&
+              wo_ini_save(game_ini, &ini, error);
+    wo_ini_free(&ini);
+    return ok;
+}
+
 int wo_settings_get_render(const char *game_ini, const char *key, int limit, int fallback) {
     WoIni ini;
     if (!wo_ini_load(game_ini, &ini, NULL)) {
@@ -544,6 +646,7 @@ static bool allowed_key(const char *key) {
         "ShadowOpacityPercent", "ShadowSoftnessPercent", "GlowAftOffset", "GlowUpOffset",
         "ShowFPS",       "ShadowLiftPercent",    "HighlightsPercent", "Soundtrack",
         "MusicVolume",   "EffectsVolume",        "Track",            "SoundMode",
+        "Intro",         "Aspect",
         "EnableDDrawCompat", "LogLevel",         "DisplayResolution", "DisplayAspectRatio",
         "FullscreenMode", "AltTabFix",           "ResolutionScale",  "RenderColorDepth",
         "Antialiasing",  "TextureFilter",        "ColorKeyMethod",   "FpsLimiter",

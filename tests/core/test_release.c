@@ -134,20 +134,22 @@ static void test_inventory(void) {
              "{\"version\":\"0.2.0\",\"files\":["
              "{\"path\":\"Setup.exe\",\"bytes\":10,\"sha256\":\"%s\"},"
              "{\"path\":\"runtime/wohr.dll\",\"bytes\":20,\"sha256\":\"%s\"},"
-             "{\"path\":\"assets/hd/title.png\",\"bytes\":30,\"sha256\":\"%s\"}]}",
-             digest, digest, digest);
+             "{\"path\":\"assets/hd/title.png\",\"bytes\":30,\"sha256\":\"%s\"},"
+             "{\"path\":\"assets/video/fluke.mp4\",\"bytes\":40,\"sha256\":\"%s\"}]}",
+             digest, digest, digest, digest);
     WoJson *json = parse(text);
     WoInventory inventory;
     WoError error = {0};
     CHECK_OK(wo_inventory_parse(json, &inventory, &error), &error);
-    CHECK(inventory.count == 3);
+    CHECK(inventory.count == 4);
     CHECK(wo_inventory_find(&inventory, "RUNTIME/WOHR.DLL") != NULL);
     wo_inventory_free(&inventory);
     wo_json_free(json);
 
     const char *bad_paths[] = {"scripts/Setup.ps1", "../x", "runtime/evil.exe", "Setup.ps1",
                                "runtime/x.dll", "docs/a\\b.md", "assets/../Setup.exe",
-                               "manifests/run.cmd", "C:/x"};
+                               "manifests/run.cmd", "C:/x", "runtime/bad.mp4",
+                               "assets/video/WXLINTR.MPG"};
     for (size_t i = 0; i < WO_COUNT(bad_paths); i++) {
         snprintf(text, sizeof(text),
                  "{\"version\":\"0.2.0\",\"files\":[{\"path\":\"%s\",\"bytes\":1,\"sha256\":\"%s\"}]}",

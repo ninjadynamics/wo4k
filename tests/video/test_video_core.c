@@ -6,6 +6,7 @@
 #include <wchar.h>
 
 #include "video/video_core.h"
+#include "video/video_crt.h"
 
 static int failures;
 
@@ -32,29 +33,37 @@ static void test_movie_names(void)
 
 static void test_candidates(void)
 {
-    const wchar_t *names[VIDEO_MAX_CANDIDATES];
-    CHECK(video_movie_candidates(VIDEO_MOVIE_INTRO, false, names) == 3);
-    CHECK(wcscmp(names[0], L"intro.mp4") == 0);
-    CHECK(wcscmp(names[1], L"WXLINTR.mp4") == 0);
-    CHECK(wcscmp(names[2], L"WXLINTR.MPG") == 0);
-    CHECK(video_movie_candidates(VIDEO_MOVIE_INTRO, true, names) == 1);
-    CHECK(wcscmp(names[0], L"WXLINTR.MPG") == 0);
-    CHECK(video_movie_candidates(VIDEO_MOVIE_XTRO3, false, names) == 2);
-    CHECK(wcscmp(names[0], L"XTRO3.mp4") == 0);
-    CHECK(wcscmp(names[1], L"XTRO3.MPG") == 0);
-    CHECK(video_movie_candidates(VIDEO_MOVIE_XTRO3, true, names) == 1);
-    CHECK(wcscmp(names[0], L"XTRO3.MPG") == 0);
+    VideoIntroChoice intro = VIDEO_INTRO_ORIGINAL;
+    CHECK(video_intro_parse(L"Original", &intro) && intro == VIDEO_INTRO_ORIGINAL);
+    CHECK(video_intro_parse(L"upscaled", &intro) && intro == VIDEO_INTRO_UPSCALED);
+    CHECK(video_intro_parse(L"FLUKE", &intro) && intro == VIDEO_INTRO_FLUKE);
+    CHECK(!video_intro_parse(L"custom", &intro));
+
+    CHECK(video_override_name(VIDEO_MOVIE_INTRO, VIDEO_INTRO_ORIGINAL) == NULL);
+    CHECK(wcscmp(video_override_name(VIDEO_MOVIE_INTRO, VIDEO_INTRO_UPSCALED), L"intro.mp4") == 0);
+    CHECK(wcscmp(video_override_name(VIDEO_MOVIE_INTRO, VIDEO_INTRO_FLUKE), L"fluke.mp4") == 0);
+    CHECK(wcscmp(video_original_name(VIDEO_MOVIE_INTRO), L"WXLINTR.MPG") == 0);
+    CHECK(wcscmp(video_override_name(VIDEO_MOVIE_XTRO3, VIDEO_INTRO_FLUKE), L"XTRO3.mp4") == 0);
+    CHECK(wcscmp(video_original_name(VIDEO_MOVIE_XTRO3), L"XTRO3.MPG") == 0);
 }
 
-static bool write_file(const wchar_t *path)
+static bool write_text_file(const wchar_t *path, const char *text)
 {
     HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
         FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE) {
         return false;
     }
+    DWORD written = 0;
+    DWORD len = (DWORD)strlen(text);
+    bool ok = len == 0 || (WriteFile(file, text, len, &written, NULL) && written == len);
     CloseHandle(file);
-    return true;
+    return ok;
+}
+
+static bool write_file(const wchar_t *path)
+{
+    return write_text_file(path, "");
 }
 
 static bool make_directory(const wchar_t *path)
@@ -63,22 +72,40 @@ static bool make_directory(const wchar_t *path)
         GetLastError() == ERROR_ALREADY_EXISTS;
 }
 
-/* build\test-work\video-core\game\movies, emptied first. */
-static bool prepare_game(wchar_t *game, wchar_t *movies, size_t capacity)
+/* build\test-work\video-core\{game\movies, assets\video}, emptied first. */
+static bool prepare_game(wchar_t *game, wchar_t *movies, wchar_t *videos,
+    size_t capacity)
 {
-    const wchar_t *const names[] = {
-        L"intro.mp4", L"WXLINTR.mp4", L"WXLINTR.MPG", L"XTRO1.MPG"
+    const wchar_t *const movie_files[] = {
+        L"WXLINTR.MPG", L"XTRO1.MPG"
+    };
+    const wchar_t *const video_files[] = {
+        L"fluke.mp4", L"intro.mp4", L"XTRO1.mp4"
     };
     wchar_t path[VIDEO_PATH_CAPACITY];
+    wchar_t assets[VIDEO_PATH_CAPACITY];
     if (!make_directory(L"build") || !make_directory(L"build\\test-work") ||
         !make_directory(L"build\\test-work\\video-core") ||
         !video_copy(game, capacity, L"build\\test-work\\video-core\\game") ||
         !make_directory(game) || !video_join(movies, capacity, game, L"movies") ||
-        !make_directory(movies)) {
+        !make_directory(movies) ||
+        !video_copy(assets, VIDEO_PATH_CAPACITY, L"build\\test-work\\video-core\\assets") ||
+        !make_directory(assets) || !video_join(videos, capacity, assets, L"video") ||
+        !make_directory(videos)) {
         return false;
     }
-    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
-        if (!video_join(path, VIDEO_PATH_CAPACITY, movies, names[i])) {
+    if (video_join(path, VIDEO_PATH_CAPACITY, game, L"Wipeout2097.ini")) {
+        DeleteFileW(path);
+    }
+    for (size_t i = 0; i < sizeof(movie_files) / sizeof(movie_files[0]); ++i) {
+        if (!video_join(path, VIDEO_PATH_CAPACITY, movies, movie_files[i])) {
+            return false;
+        }
+        DeleteFileW(path);
+        RemoveDirectoryW(path);
+    }
+    for (size_t i = 0; i < sizeof(video_files) / sizeof(video_files[0]); ++i) {
+        if (!video_join(path, VIDEO_PATH_CAPACITY, videos, video_files[i])) {
             return false;
         }
         DeleteFileW(path);
@@ -91,48 +118,66 @@ static void test_find_movie(void)
 {
     wchar_t game[VIDEO_PATH_CAPACITY];
     wchar_t movies[VIDEO_PATH_CAPACITY];
+    wchar_t videos[VIDEO_PATH_CAPACITY];
     wchar_t path[VIDEO_PATH_CAPACITY];
     wchar_t found[VIDEO_PATH_CAPACITY];
-    if (!prepare_game(game, movies, VIDEO_PATH_CAPACITY)) {
+    if (!prepare_game(game, movies, videos, VIDEO_PATH_CAPACITY)) {
         CHECK(!"cannot prepare build\\test-work\\video-core");
         return;
     }
-    CHECK(!video_find_movie(game, VIDEO_MOVIE_INTRO, false, found,
-        VIDEO_PATH_CAPACITY));
+    CHECK(video_read_intro_choice(game) == VIDEO_INTRO_FLUKE);
+    CHECK(video_join(path, VIDEO_PATH_CAPACITY, game, L"Wipeout2097.ini"));
+    CHECK(write_text_file(path, "[Video]\r\nIntro=Upscaled\r\n"));
+    CHECK(video_read_intro_choice(game) == VIDEO_INTRO_UPSCALED);
+
+    CHECK(!video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_FLUKE, false,
+        found, VIDEO_PATH_CAPACITY));
     CHECK(found[0] == L'\0');
 
     CHECK(video_join(path, VIDEO_PATH_CAPACITY, movies, L"WXLINTR.MPG"));
     CHECK(write_file(path));
-    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, false, found,
-        VIDEO_PATH_CAPACITY));
+    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_FLUKE, false,
+        found, VIDEO_PATH_CAPACITY));
     CHECK(wcscmp(video_file_name(found), L"WXLINTR.MPG") == 0);
 
-    CHECK(video_join(path, VIDEO_PATH_CAPACITY, movies, L"WXLINTR.mp4"));
+    CHECK(video_join(path, VIDEO_PATH_CAPACITY, videos, L"fluke.mp4"));
     CHECK(write_file(path));
-    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, false, found,
-        VIDEO_PATH_CAPACITY));
-    CHECK(wcscmp(video_file_name(found), L"WXLINTR.mp4") == 0);
+    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_FLUKE, false,
+        found, VIDEO_PATH_CAPACITY));
+    CHECK(wcscmp(video_file_name(found), L"fluke.mp4") == 0);
+    /* Original choice bypasses assets/video overrides. */
+    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_ORIGINAL, false,
+        found, VIDEO_PATH_CAPACITY));
+    CHECK(wcscmp(video_file_name(found), L"WXLINTR.MPG") == 0);
 
     /* A directory with a candidate's name is not a movie. */
-    CHECK(video_join(path, VIDEO_PATH_CAPACITY, movies, L"intro.mp4"));
+    CHECK(video_join(path, VIDEO_PATH_CAPACITY, videos, L"intro.mp4"));
     CHECK(make_directory(path));
-    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, false, found,
-        VIDEO_PATH_CAPACITY));
-    CHECK(wcscmp(video_file_name(found), L"WXLINTR.mp4") == 0);
+    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_UPSCALED, false,
+        found, VIDEO_PATH_CAPACITY));
+    CHECK(wcscmp(video_file_name(found), L"WXLINTR.MPG") == 0);
     CHECK(RemoveDirectoryW(path));
     CHECK(write_file(path));
-    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, false, found,
-        VIDEO_PATH_CAPACITY));
+    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_UPSCALED, false,
+        found, VIDEO_PATH_CAPACITY));
     CHECK(wcscmp(video_file_name(found), L"intro.mp4") == 0);
 
-    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, true, found,
-        VIDEO_PATH_CAPACITY));
+    CHECK(video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_FLUKE, true,
+        found, VIDEO_PATH_CAPACITY));
     CHECK(wcscmp(video_file_name(found), L"WXLINTR.MPG") == 0);
-    CHECK(!video_find_movie(game, VIDEO_MOVIE_XTRO1, false, found,
-        VIDEO_PATH_CAPACITY));
+
+    /* Outro overrides come from assets/video, falling back to wobble/movies. */
+    CHECK(!video_find_movie(game, VIDEO_MOVIE_XTRO1, VIDEO_INTRO_FLUKE, false,
+        found, VIDEO_PATH_CAPACITY));
+    CHECK(video_join(path, VIDEO_PATH_CAPACITY, videos, L"XTRO1.mp4"));
+    CHECK(write_file(path));
+    CHECK(video_find_movie(game, VIDEO_MOVIE_XTRO1, VIDEO_INTRO_FLUKE, false,
+        found, VIDEO_PATH_CAPACITY));
+    CHECK(wcscmp(video_file_name(found), L"XTRO1.mp4") == 0);
 
     /* A result that cannot fit is reported, not truncated. */
-    CHECK(!video_find_movie(game, VIDEO_MOVIE_INTRO, false, found, 8));
+    CHECK(!video_find_movie(game, VIDEO_MOVIE_INTRO, VIDEO_INTRO_FLUKE, false,
+        found, 8));
 }
 
 static void test_paths(void)
@@ -224,7 +269,16 @@ static void test_arguments(void)
     wchar_t frames_flag[] = L"--frames";
     CHECK(parse(&options, &error, 6, program, root_flag, root, movie_flag,
         movie, frames_flag));
-    CHECK(options.frames && !options.probe);
+    CHECK(options.frames && !options.probe && !options.no_shader);
+    wchar_t no_shader_flag[] = L"--no-shader";
+    CHECK(parse(&options, &error, 6, program, root_flag, root, movie_flag,
+        movie, no_shader_flag));
+    CHECK(options.no_shader && !options.frames);
+    wchar_t intro_flag[] = L"--intro";
+    wchar_t intro_val[] = L"Upscaled";
+    CHECK(parse(&options, &error, 7, program, root_flag, root, movie_flag,
+        movie, intro_flag, intro_val));
+    CHECK(options.has_intro && options.intro == VIDEO_INTRO_UPSCALED);
 
     CHECK(parse(&options, &error, 5, program, root_flag, root, movie_flag,
         movie));
@@ -375,6 +429,51 @@ static void test_controller(void)
     CHECK(!video_controller_pressed(&state, &wire));
 }
 
+static void test_crt_layout(void)
+{
+    VideoCrtLayout layout;
+    /* 4:3 mode on 1080p: preserves full uncropped video with pillarbox bars. */
+    video_crt_compute_layout(320, 192, 1920, 1080, false, &layout);
+    CHECK(layout.crt_width == 320 && layout.crt_height == 192);
+    CHECK(layout.viewport_w > 1799.0f && layout.viewport_w < 1801.0f);
+    CHECK(layout.viewport_h > 1079.0f && layout.viewport_h < 1081.0f);
+    CHECK(layout.uv_y_offset == 0.0f && layout.uv_y_scale == 1.0f);
+    CHECK(layout.letterboxed);
+    CHECK(layout.mask_size == 1.0f && layout.mask_zoom == -2.0f);
+    CHECK(layout.slot_width == 1.0f && layout.double_slot == 2.0f);
+
+    /* HD 1440x1080 in 4:3 mode on 1080p: pillarboxed, 640x320 CRT grid. */
+    video_crt_compute_layout(1440, 1080, 1920, 1080, false, &layout);
+    CHECK(layout.crt_width == 640 && layout.crt_height == 320);
+    CHECK(layout.viewport_w > 1439.0f && layout.viewport_w < 1441.0f);
+    CHECK(layout.viewport_x > 239.0f && layout.viewport_x < 241.0f);
+    CHECK(layout.uv_y_offset == 0.0f && layout.uv_y_scale == 1.0f);
+    CHECK(layout.letterboxed);
+
+    /* HD 1440x1080 in Widescreen mode on 1080p: fits horizontally (1920x1080),
+     * crops 12.5% top and 12.5% bottom (uv_y_scale = 0.75). */
+    video_crt_compute_layout(1440, 1080, 1920, 1080, true, &layout);
+    CHECK(layout.crt_width == 640 && layout.crt_height == 320);
+    CHECK(layout.viewport_w > 1919.0f && layout.viewport_w < 1921.0f);
+    CHECK(layout.viewport_h > 1079.0f && layout.viewport_h < 1081.0f);
+    CHECK(!layout.letterboxed);
+    CHECK(layout.uv_y_scale > 0.749f && layout.uv_y_scale < 0.751f);
+    CHECK(layout.uv_y_offset > 0.124f && layout.uv_y_offset < 0.126f);
+
+    /* 4K display switches automatically to 4K Flat mask parameters. */
+    video_crt_compute_layout(1440, 1080, 3840, 2160, true, &layout);
+    CHECK(layout.crt_width == 640 && layout.crt_height == 320);
+    CHECK(layout.mask_size == 2.0f && layout.mask_zoom == -5.0f);
+    CHECK(layout.slot_width == 12.0f && layout.double_slot == 2.0f);
+
+    /* 320x192 inside 640x480 probe window: narrower target letterboxes top/bottom. */
+    video_crt_compute_layout(320, 192, 640, 480, true, &layout);
+    CHECK(layout.viewport_w > 639.0f && layout.viewport_w < 641.0f);
+    CHECK(layout.viewport_h > 383.0f && layout.viewport_h < 385.0f);
+    CHECK(layout.uv_y_offset == 0.0f && layout.uv_y_scale == 1.0f);
+    CHECK(layout.letterboxed);
+}
+
 int main(void)
 {
     test_movie_names();
@@ -387,6 +486,7 @@ int main(void)
     test_breadcrumb();
     test_timeouts();
     test_controller();
+    test_crt_layout();
     if (failures != 0) {
         fprintf(stderr, "FAIL: %d video core check(s) failed.\n", failures);
         return 1;

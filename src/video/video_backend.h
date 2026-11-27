@@ -24,6 +24,7 @@ typedef struct VideoInfo {
 } VideoInfo;
 
 typedef struct VideoBackend VideoBackend;
+typedef struct VideoCrt VideoCrt;
 
 typedef struct VideoBackendOps {
     /* Drains pending media events and updates state. */
@@ -44,6 +45,7 @@ typedef struct VideoBackendOps {
 struct VideoBackend {
     const VideoBackendOps *ops;
     const char *name;
+    const char *shader; /* active shader preset name, or NULL for EVR */
     VideoState state;
     bool cued; /* prerolled: the first frame is presented, playback paused */
     VideoInfo info;
@@ -67,11 +69,14 @@ void video_backend_fail(VideoBackend *backend, HRESULT error,
 /* Each returns a backend in VIDEO_STATE_OPENING or VIDEO_STATE_READY, or a
  * failure HRESULT with reason (at least reason_size bytes) filled in. */
 /* frames: no window; frames go to the game runtime through shared memory
- * (video_frames.h) instead. */
+ * (video_frames.h) instead. crt: when non-NULL (and !frames), decoded frames
+ * are presented through the D3D11 CRT shader renderer instead of EVR. */
 HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
-    bool frames, VideoBackend **out, char *reason, size_t reason_size);
+    bool frames, bool widescreen, VideoCrt *crt, VideoBackend **out,
+    char *reason, size_t reason_size);
 HRESULT video_dshow_create(HWND window, const wchar_t *path, bool mute,
-    bool frames, VideoBackend **out, char *reason, size_t reason_size);
+    bool frames, bool widescreen, VideoCrt *crt, VideoBackend **out,
+    char *reason, size_t reason_size);
 
 /* Media Foundation is loaded on first use; this releases it at exit. */
 void video_mf_unload(void);

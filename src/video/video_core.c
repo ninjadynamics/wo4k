@@ -10,9 +10,10 @@ static const wchar_t *const movie_names[VIDEO_MOVIE_COUNT] = {
     L"intro", L"xtro1", L"xtro2", L"xtro3", L"xtro4"
 };
 
-/* Explicit names keep drop-in replacements local to the movies folder. */
+/* Override MP4 names live in <mod root>\assets\video; originals stay in
+ * <game root>\movies. */
 static const wchar_t *const movie_mp4[VIDEO_MOVIE_COUNT] = {
-    L"WXLINTR.mp4", L"XTRO1.mp4", L"XTRO2.mp4", L"XTRO3.mp4", L"XTRO4.mp4"
+    L"fluke.mp4", L"XTRO1.mp4", L"XTRO2.mp4", L"XTRO3.mp4", L"XTRO4.mp4"
 };
 
 static const wchar_t *const movie_mpg[VIDEO_MOVIE_COUNT] = {
@@ -41,24 +42,113 @@ const wchar_t *video_movie_name(VideoMovie movie)
     return movie_names[movie];
 }
 
-size_t video_movie_candidates(VideoMovie movie, bool original_only,
-    const wchar_t *names[VIDEO_MAX_CANDIDATES])
+bool video_intro_parse(const wchar_t *name, VideoIntroChoice *choice)
 {
-    size_t count = 0;
-    if ((int)movie < 0 || movie >= VIDEO_MOVIE_COUNT) {
-        return 0;
+    if (name == NULL) {
+        return false;
     }
-    if (!original_only) {
-        if (movie == VIDEO_MOVIE_INTRO) {
-            names[count] = L"intro.mp4";
-            ++count;
+    if (_wcsicmp(name, L"Original") == 0) {
+        *choice = VIDEO_INTRO_ORIGINAL;
+        return true;
+    }
+    if (_wcsicmp(name, L"Upscaled") == 0) {
+        *choice = VIDEO_INTRO_UPSCALED;
+        return true;
+    }
+    if (_wcsicmp(name, L"Fluke") == 0) {
+        *choice = VIDEO_INTRO_FLUKE;
+        return true;
+    }
+    return false;
+}
+
+VideoIntroChoice video_read_intro_choice(const wchar_t *game_root)
+{
+    wchar_t ini[VIDEO_PATH_CAPACITY];
+    wchar_t value[64];
+    VideoIntroChoice choice = VIDEO_INTRO_FLUKE;
+    if (game_root == NULL ||
+        !video_join(ini, VIDEO_PATH_CAPACITY, game_root, L"Wipeout2097.ini")) {
+        return choice;
+    }
+    DWORD len = GetPrivateProfileStringW(L"Video", L"Intro", L"", value,
+        (DWORD)(sizeof(value) / sizeof(value[0])), ini);
+    if (len > 0) {
+        /* Strip trailing comments or whitespace. */
+        wchar_t *cut = wcspbrk(value, L";#");
+        if (cut != NULL) {
+            *cut = L'\0';
         }
-        names[count] = movie_mp4[movie];
-        ++count;
+        size_t end = wcslen(value);
+        while (end > 0 && (value[end - 1] == L' ' || value[end - 1] == L'\t')) {
+            value[--end] = L'\0';
+        }
+        video_intro_parse(value, &choice);
     }
-    names[count] = movie_mpg[movie];
-    ++count;
-    return count;
+    return choice;
+}
+
+bool video_aspect_parse(const wchar_t *name, VideoAspectMode *mode)
+{
+    if (name == NULL) {
+        return false;
+    }
+    if (_wcsicmp(name, L"Widescreen") == 0) {
+        *mode = VIDEO_ASPECT_WIDESCREEN;
+        return true;
+    }
+    if (_wcsicmp(name, L"4:3") == 0) {
+        *mode = VIDEO_ASPECT_4_3;
+        return true;
+    }
+    return false;
+}
+
+VideoAspectMode video_read_aspect_mode(const wchar_t *game_root)
+{
+    wchar_t ini[VIDEO_PATH_CAPACITY];
+    wchar_t value[64];
+    VideoAspectMode mode = VIDEO_ASPECT_WIDESCREEN;
+    if (game_root == NULL ||
+        !video_join(ini, VIDEO_PATH_CAPACITY, game_root, L"Wipeout2097.ini")) {
+        return mode;
+    }
+    DWORD len = GetPrivateProfileStringW(L"Video", L"Aspect", L"", value,
+        (DWORD)(sizeof(value) / sizeof(value[0])), ini);
+    if (len > 0) {
+        wchar_t *cut = wcspbrk(value, L";#");
+        if (cut != NULL) {
+            *cut = L'\0';
+        }
+        size_t end = wcslen(value);
+        while (end > 0 && (value[end - 1] == L' ' || value[end - 1] == L'\t')) {
+            value[--end] = L'\0';
+        }
+        video_aspect_parse(value, &mode);
+    }
+    return mode;
+}
+
+const wchar_t *video_override_name(VideoMovie movie, VideoIntroChoice intro)
+{
+    if ((int)movie < 0 || movie >= VIDEO_MOVIE_COUNT) {
+        return NULL;
+    }
+    if (movie == VIDEO_MOVIE_INTRO) {
+        if (intro == VIDEO_INTRO_ORIGINAL) {
+            return NULL;
+        }
+        return intro == VIDEO_INTRO_UPSCALED ? L"intro.mp4" : L"fluke.mp4";
+    }
+    return movie_mp4[movie];
+}
+
+const wchar_t *video_original_name(VideoMovie movie)
+{
+    if ((int)movie < 0 || movie >= VIDEO_MOVIE_COUNT) {
+        return NULL;
+    }
+    return movie_mpg[movie];
 }
 
 bool video_copy(wchar_t *out, size_t capacity, const wchar_t *text)
@@ -161,24 +251,34 @@ static bool video_is_file(const wchar_t *path)
 }
 
 bool video_find_movie(const wchar_t *game_root, VideoMovie movie,
-    bool original_only, wchar_t *out, size_t capacity)
+    VideoIntroChoice intro, bool original_only, wchar_t *out, size_t capacity)
 {
-    const wchar_t *names[VIDEO_MAX_CANDIDATES];
+    wchar_t mod_root[VIDEO_PATH_CAPACITY];
     wchar_t directory[VIDEO_PATH_CAPACITY];
-    size_t count = video_movie_candidates(movie, original_only, names);
     if (capacity > 0) {
         out[0] = L'\0';
     }
-    if (!video_join(directory, VIDEO_PATH_CAPACITY, game_root, L"movies")) {
+    if ((int)movie < 0 || movie >= VIDEO_MOVIE_COUNT) {
         return false;
     }
-    for (size_t i = 0; i < count; ++i) {
-        if (!video_join(out, capacity, directory, names[i])) {
-            continue;
-        }
-        if (video_is_file(out)) {
+    if (!original_only) {
+        const wchar_t *override_file = video_override_name(movie, intro);
+        if (override_file != NULL &&
+            video_copy(mod_root, VIDEO_PATH_CAPACITY, game_root) &&
+            video_parent(mod_root) &&
+            video_join(directory, VIDEO_PATH_CAPACITY, mod_root,
+                L"assets\\video") &&
+            video_join(out, capacity, directory, override_file) &&
+            video_is_file(out)) {
             return true;
         }
+    }
+    const wchar_t *original_file = video_original_name(movie);
+    if (original_file != NULL &&
+        video_join(directory, VIDEO_PATH_CAPACITY, game_root, L"movies") &&
+        video_join(out, capacity, directory, original_file) &&
+        video_is_file(out)) {
+        return true;
     }
     if (capacity > 0) {
         out[0] = L'\0';
@@ -231,8 +331,14 @@ bool video_parse_arguments(int argc, wchar_t **argv, VideoOptions *options,
             options->frames = true;
             continue;
         }
+        if (wcscmp(name, L"--no-shader") == 0) {
+            options->no_shader = true;
+            continue;
+        }
         bool takes_value = wcscmp(name, L"--game-root") == 0 ||
             wcscmp(name, L"--movie") == 0 ||
+            wcscmp(name, L"--intro") == 0 ||
+            wcscmp(name, L"--aspect") == 0 ||
             wcscmp(name, L"--game-pid") == 0 ||
             wcscmp(name, L"--owner-window") == 0 ||
             wcscmp(name, L"--skip-event") == 0 ||
@@ -261,6 +367,18 @@ bool video_parse_arguments(int argc, wchar_t **argv, VideoOptions *options,
                 return false;
             }
             options->has_movie = true;
+        } else if (wcscmp(name, L"--intro") == 0) {
+            if (!video_intro_parse(value, &options->intro)) {
+                *error = "unknown --intro";
+                return false;
+            }
+            options->has_intro = true;
+        } else if (wcscmp(name, L"--aspect") == 0) {
+            if (!video_aspect_parse(value, &options->aspect)) {
+                *error = "unknown --aspect";
+                return false;
+            }
+            options->has_aspect = true;
         } else if (!video_parse_u32(value, &number)) {
             *error = "invalid number";
             return false;

@@ -13,6 +13,7 @@
 
 #include <dshow.h>
 
+#include "video/video_crt.h"
 #include "video/video_evr.h"
 #include "video/video_frames.h"
 
@@ -59,13 +60,18 @@ typedef struct MfPlayer {
     IQualProp *quality; /* NULL where the renderer keeps no count */
     IMFPresentationClock *clock;
     IMFSimpleAudioVolume *volume; /* muted while prerolling */
-    /* --frames: a source reader hands frames to the game; the session, if
-     * any, plays only the sound and is the clock. Without sound there is
-     * no session and the clock counts from start(). */
+    /* --frames or CRT shader: a source reader decodes video frames; the
+     * session, if any, plays only the sound and is the clock. Without sound
+     * there is no session and the clock counts from start(). */
     bool frames_mode;
+    bool widescreen;
+    VideoCrt *crt; /* borrowed from VideoApp when presenting via CRT shader */
     VideoFrames *frames;
+    LONG last_shown;
     LONGLONG started_qpc;
+    LONGLONG crt_first_qpc;
     LONGLONG qpc_frequency;
+    int crt_drawn;
     bool start_pending; /* start() came before the first frame */
     ULONGLONG first_frame_deadline;
     bool has_audio;
@@ -245,8 +251,8 @@ static HRESULT mf_build_topology(MfPlayer *player,
         if (SUCCEEDED(hr)) {
             if (!streams->video && IsEqualGUID(&major, &MFMediaType_Video)) {
                 mf_read_video_info(handler, &player->base.info);
-                /* --frames leaves the video stream to the reader. */
-                hr = player->frames_mode ? S_OK :
+                /* --frames and CRT shader decode video via the source reader. */
+                hr = (player->frames_mode || player->crt != NULL) ? S_OK :
                     mf_api.create_video_renderer(player->window, &renderer);
                 streams->video = SUCCEEDED(hr);
             } else if (!mute && !streams->audio &&
@@ -337,7 +343,7 @@ static void mf_release(MfPlayer *player)
 
 static void mf_topology_ready(MfPlayer *player)
 {
-    if (player->frames_mode) {
+    if (player->frames_mode || player->crt != NULL) {
         if (player->base.state == VIDEO_STATE_OPENING) {
             player->base.state = VIDEO_STATE_READY;
         }
@@ -443,7 +449,9 @@ static void mf_handle_event(MfPlayer *player, IMFMediaEvent *event)
     case MESessionPaused:
         if (player->prerolling) {
             player->prerolling = false;
-            player->base.cued = true;
+            if (player->crt == NULL || player->last_shown > 0) {
+                player->base.cued = true;
+            }
             if (player->play_requested) {
                 mf_resume(player);
             }
@@ -469,8 +477,34 @@ static void mf_poll(VideoBackend *backend)
 {
     MfPlayer *player = (MfPlayer *)backend;
     if (player->frames != NULL) {
-        if (video_frames_cued(player->frames)) {
-            backend->cued = true;
+        if (player->crt != NULL &&
+            video_frames_present(player->frames, player->crt,
+                &player->last_shown, backend->state == VIDEO_STATE_PLAYING)) {
+            if (backend->state == VIDEO_STATE_PLAYING) {
+                LARGE_INTEGER now;
+                QueryPerformanceCounter(&now);
+                if (player->crt_drawn == 0) {
+                    player->crt_first_qpc = now.QuadPart;
+                }
+                ++player->crt_drawn;
+                backend->quality = true;
+                backend->frames_drawn = player->crt_drawn;
+                backend->frames_dropped = (int)video_frames_dropped(player->frames);
+                if (player->crt_drawn > 1 && player->qpc_frequency > 0 &&
+                    now.QuadPart > player->crt_first_qpc) {
+                    double seconds = (double)(now.QuadPart - player->crt_first_qpc) /
+                        (double)player->qpc_frequency;
+                    backend->average_rate_x100 =
+                        (int)((double)(player->crt_drawn - 1) * 100.0 / seconds + 0.5);
+                }
+            }
+        }
+        bool frame_ready = player->crt != NULL ? (player->last_shown > 0) :
+            video_frames_cued(player->frames);
+        if (frame_ready) {
+            if (!player->prerolling) {
+                backend->cued = true;
+            }
             if (player->start_pending) {
                 player->start_pending = false;
                 mf_start(backend);
@@ -612,15 +646,23 @@ static bool mf_position(VideoBackend *backend, LONGLONG *position_hns)
 static void mf_layout(VideoBackend *backend, const RECT *client)
 {
     MfPlayer *player = (MfPlayer *)backend;
-    if (player->display != NULL) {
-        video_evr_layout(player->display, client);
+    if (player->crt != NULL) {
+        video_crt_resize(player->crt, client);
+        video_crt_repaint(player->crt);
+    } else if (player->display != NULL) {
+        video_evr_layout(player->display, client, player->widescreen);
     }
 }
 
 static void mf_repaint(VideoBackend *backend)
 {
     MfPlayer *player = (MfPlayer *)backend;
-    if (player->display != NULL && !player->destroying) {
+    if (player->destroying) {
+        return;
+    }
+    if (player->crt != NULL) {
+        video_crt_repaint(player->crt);
+    } else if (player->display != NULL) {
         IMFVideoDisplayControl_RepaintVideo(player->display);
     }
 }
@@ -683,7 +725,8 @@ static const VideoBackendOps mf_ops = {
 };
 
 HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
-    bool frames, VideoBackend **out, char *reason, size_t reason_size)
+    bool frames, bool widescreen, VideoCrt *crt, VideoBackend **out,
+    char *reason, size_t reason_size)
 {
     IMFPresentationDescriptor *presentation = NULL;
     IMFTopology *topology = NULL;
@@ -704,15 +747,20 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
     player->base.ops = &mf_ops;
     player->base.name = frames ? "media_foundation_frames" : "media_foundation";
     player->frames_mode = frames;
+    player->widescreen = widescreen;
+    player->crt = frames ? NULL : crt;
+    player->base.shader = player->crt != NULL ? "crt_ntsc" : NULL;
     player->base.state = VIDEO_STATE_OPENING;
     player->window = window;
+    bool use_frames = frames || (player->crt != NULL);
     const char *step = "Media Foundation could not open the file";
     HRESULT hr = S_OK;
-    if (frames) {
+    if (use_frames) {
         LARGE_INTEGER frequency;
         QueryPerformanceFrequency(&frequency);
         player->qpc_frequency = frequency.QuadPart;
-        player->frames = video_frames_open(path, &player->base.info, &hr, &step);
+        player->frames = video_frames_open(path, player->crt != NULL, window,
+            &player->base.info, &hr, &step);
         /* A decoder normally starts in well under a second; one that hangs
          * (some 10-bit H.264) would otherwise hold the game until the
          * playback limit. */
@@ -743,8 +791,8 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
         hr = MF_E_INVALIDMEDIATYPE;
     }
     player->has_audio = streams.audio;
-    /* --frames without sound needs no session at all. */
-    bool session = !frames || streams.audio;
+    /* Frame-reader mode without sound needs no session at all. */
+    bool session = !use_frames || streams.audio;
     if (SUCCEEDED(hr) && session) {
         step = "Media Foundation could not create a media session";
         hr = mf_api.create_media_session(NULL, &player->session);
@@ -753,7 +801,7 @@ HRESULT video_mf_create(HWND window, const wchar_t *path, bool mute,
         step = "Media Foundation could not set the topology";
         hr = IMFMediaSession_SetTopology(player->session, 0, topology);
     }
-    if (SUCCEEDED(hr) && frames) {
+    if (SUCCEEDED(hr) && use_frames) {
         if (!session) {
             player->base.state = VIDEO_STATE_READY;
         }

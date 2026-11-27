@@ -49,6 +49,10 @@ enum WidgetId {
     W_CLEAN,
     W_FPS,
     W_LIGHT,
+    W_SHADERS,
+    W_SHADERS_CLOSE,
+    W_INTRO,
+    W_VIDEO_ASPECT,
     W_LIGHT_SHADOWS,
     W_LIGHT_HIGHLIGHTS,
     W_LIGHT_ORIGINAL,
@@ -66,6 +70,8 @@ static const char *const soundtrack_items[] = {"PC", "PlayStation", "No music"};
 static const char *const audio_items[] = {"Mono", "Stereo", "Dolby Surround"};
 static const int audio_modes[] = {1, 2, 5};
 static const char *const fullscreen_items[] = {"Borderless", "Exclusive"};
+static const char *const intro_items[] = {"Original", "Upscaled", "Fluke"};
+static const char *const video_aspect_items[] = {"Widescreen", "4:3"};
 static const char *const browse_items[] = {"Select file\xE2\x80\xA6", "Select folder\xE2\x80\xA6"};
 
 /* The dialog for the scenery's lighting. Its preview is made from three
@@ -104,6 +110,8 @@ typedef struct App {
     bool soundtrack_enabled[3];
     int audio;
     int fullscreen;
+    int intro;
+    int video_aspect;
     bool hd;
     bool upscale;
     bool clean;
@@ -111,6 +119,7 @@ typedef struct App {
     int shadows;
     int highlights;
     LightDialog light;
+    bool shaders_open;
 
     GuiState state;
     bool has_installation;
@@ -248,6 +257,8 @@ static void save_preferences_with(bool commit_sources) {
     config.clean_audio = app.clean;
     config.sound_mode = audio_modes[app.audio];
     config.fullscreen = (WoFullscreen)app.fullscreen;
+    config.intro_video = (WoIntroVideo)app.intro;
+    config.video_aspect = (WoVideoAspect)app.video_aspect;
     WoConfig saved;
     WoError error = {0};
     if (config.game_source && config.pc_music_source && config.psx_source &&
@@ -271,6 +282,8 @@ static void show_config(const WoConfig *config) {
     app.soundtrack = (int)config->soundtrack;
     app.audio = config->sound_mode == 1 ? 0 : config->sound_mode == 5 ? 2 : 1;
     app.fullscreen = (int)config->fullscreen;
+    app.intro = (int)config->intro_video;
+    app.video_aspect = (int)config->video_aspect;
     app.hd = config->hd_textures;
     app.upscale = config->upscale_textures;
     app.clean = config->clean_audio;
@@ -971,6 +984,33 @@ static void draw_light_dialog(float width, float height) {
     }
 }
 
+static void draw_shaders_dialog(float width, float height) {
+    DrawRectangle(0, 0, (int)width, (int)height, (Color){0x05, 0x08, 0x0E, 190});
+    float pad = ui_px(20);
+    float title_h = ui_line_height(UI_FONT_SUBTITLE);
+    float body_h = ui_line_height(UI_FONT_BODY);
+    float button_h = ui_px(30);
+    float panel_w = fminf(ui_px(360), width - ui_px(24));
+    float inner = panel_w - pad * 2;
+    float panel_h = pad + title_h + ui_px(12) + body_h + ui_px(20) + button_h + pad;
+    Rectangle panel = {(width - panel_w) / 2, fmaxf(ui_px(8), (height - panel_h) / 2), panel_w,
+                       panel_h};
+    ui_round_rect(panel, ui_px(10), C_HINT_BOX);
+    ui_round_border(panel, ui_px(10), fmaxf(1, ui_px(1)), C_QUIET);
+    float x = panel.x + pad;
+    float y = panel.y + pad;
+    ui_text(UI_FONT_SUBTITLE, "Shaders", x, y, C_OPTION);
+    y += title_h + ui_px(12);
+    ui_text(UI_FONT_BODY, "To be implemented", x, y, C_QUIET);
+    y += body_h + ui_px(20);
+    float button_w = ui_px(100);
+    Rectangle close = {x + inner - button_w, y, button_w, button_h};
+    if (ui_button(W_SHADERS_CLOSE, close, "Close", UI_BUTTON_PRIMARY, true) ||
+        IsKeyPressed(KEY_ESCAPE)) {
+        app.shaders_open = false;
+    }
+}
+
 static float window_min_width(void) {
     return fmaxf(ui_px(760), ui_px(64 + 360 + 180 + 24 + 16) + (float)app.ninja.width);
 }
@@ -983,8 +1023,8 @@ static void apply_window_size(void) {
     app.layout_sources = (int)sources;
     /* The fullscreen row takes 42 units when it is offered. */
     float row = WO_EXCLUSIVE_FULLSCREEN_OFFERED ? 0 : 42;
-    float min_height = ui_px((sources ? 782 : 632) - row);
-    float height = ui_px((sources ? 802 : 652) - row);
+    float min_height = ui_px((sources ? 824 : 674) - row);
+    float height = ui_px((sources ? 844 : 694) - row);
     int area_x;
     int area_y;
     int area_w;
@@ -1008,11 +1048,12 @@ static void draw_frame(void) {
     float s = ui_scale();
     float width = (float)GetScreenWidth();
     float height = (float)GetScreenHeight();
-    /* A job that began meanwhile closes the dialog. */
-    if (app.light.open && locked()) {
+    /* A job that began meanwhile closes open dialogs. */
+    if (locked()) {
         app.light.open = false;
+        app.shaders_open = false;
     }
-    bool dialog = app.light.open;
+    bool dialog = app.light.open || app.shaders_open;
     ui_behind(dialog);
     float left = ui_px(32);
     float content = width - ui_px(64);
@@ -1123,6 +1164,46 @@ static void draw_frame(void) {
         }
         wo_free(ini);
     }
+    y += combo_h + ui_px(10);
+    {
+        float pair_w = ui_px(210);
+        float gap_combo = ui_px(8);
+        float aspect_w = ui_px(108);
+        float intro_w = pair_w - gap_combo - aspect_w;
+        float label_y = y + (combo_h - ui_line_height(UI_FONT_BODY)) / 2;
+        const char *intro_tip =
+            "Choose which intro movie plays on launch: Original (wobble/movies), Upscaled "
+            "(assets/video/intro.mp4) or Fluke (assets/video/fluke.mp4). Falls back to the "
+            "original if the override file is missing.";
+        const char *aspect_tip =
+            "Widescreen fits videos horizontally and crops the top and bottom. 4:3 shows the "
+            "full uncropped video with black bars.";
+        draw_label("Video Intro", left, label_y, content - pair_w - ui_px(10), C_OPTION,
+                   UI_FONT_BODY, intro_tip);
+        Rectangle intro_rect = {left + content - pair_w, y, intro_w, combo_h};
+        Rectangle aspect_rect = {intro_rect.x + intro_w + gap_combo, y, aspect_w, combo_h};
+        ui_tooltip(intro_rect, intro_tip);
+        if (ui_dropdown(W_INTRO, intro_rect, intro_items, NULL, 3, &app.intro, !locked())) {
+            save_preferences();
+            char *ini = mod_file("wobble/Wipeout2097.ini");
+            if (ini && mod_file_exists("wobble/Wipeout2097.exe")) {
+                wo_settings_set_intro_video(ini, (WoIntroVideo)app.intro, NULL);
+                set_status("Intro video saved for the next launch.");
+            }
+            wo_free(ini);
+        }
+        ui_tooltip(aspect_rect, aspect_tip);
+        if (ui_dropdown(W_VIDEO_ASPECT, aspect_rect, video_aspect_items, NULL, 2,
+                        &app.video_aspect, !locked())) {
+            save_preferences();
+            char *ini = mod_file("wobble/Wipeout2097.ini");
+            if (ini && mod_file_exists("wobble/Wipeout2097.exe")) {
+                wo_settings_set_video_aspect(ini, (WoVideoAspect)app.video_aspect, NULL);
+                set_status("Video aspect saved for the next launch.");
+            }
+            wo_free(ini);
+        }
+    }
     if (WO_EXCLUSIVE_FULLSCREEN_OFFERED) {
         y += combo_h + ui_px(10);
         option_row(W_FULLSCREEN, "Fullscreen mode",
@@ -1189,9 +1270,16 @@ static void draw_frame(void) {
                                "switches it on and off."
                              : "Show the frame rate on screen: the ` key (left of 1) in the game. "
                                "Available here once the game is installed.");
-    Rectangle light_button = {left + content - ui_px(210), y - ui_px(7), ui_px(210), ui_px(30)};
-    if (ui_button(W_LIGHT, light_button, "Adjust shadows / highlights\xE2\x80\xA6", UI_BUTTON_NORMAL,
-                  game_settings)) {
+    float light_y = y - ui_px(7);
+    float shaders_y = light_y - ui_px(30) - ui_px(8);
+    Rectangle shaders_button = {left + content - ui_px(210), shaders_y, ui_px(210), ui_px(30)};
+    if (ui_button(W_SHADERS, shaders_button, "Shaders\xE2\x80\xA6", UI_BUTTON_NORMAL, !locked())) {
+        app.shaders_open = true;
+        ui_set_focus(W_SHADERS_CLOSE);
+    }
+    ui_tooltip(shaders_button, "Configure display and video shaders (coming soon).");
+    Rectangle light_button = {left + content - ui_px(210), light_y, ui_px(210), ui_px(30)};
+    if (ui_button(W_LIGHT, light_button, "Graphics\xE2\x80\xA6", UI_BUTTON_NORMAL, game_settings)) {
         light_open();
     }
     ui_tooltip(light_button,
@@ -1274,7 +1362,11 @@ static void draw_frame(void) {
     }
     if (dialog) {
         ui_behind(false);
-        draw_light_dialog(width, height);
+        if (app.light.open) {
+            draw_light_dialog(width, height);
+        } else if (app.shaders_open) {
+            draw_shaders_dialog(width, height);
+        }
     }
 }
 

@@ -5,6 +5,7 @@
 #ifndef WO_VIDEO_EVR_H
 #define WO_VIDEO_EVR_H
 
+#include <stdbool.h>
 #include <windows.h>
 #include <evr.h>
 
@@ -14,7 +15,10 @@ extern const GUID video_clsid_evr;
 
 /* Preserve the picture's aspect ratio inside black borders. */
 void video_evr_prepare(IMFVideoDisplayControl *display);
-/* Fill the client area; the renderer letterboxes inside it. */
-void video_evr_layout(IMFVideoDisplayControl *display, const RECT *client);
+/* Fill the client area: in widescreen mode, fit horizontally and crop top
+ * and bottom when the window is wider than the picture; otherwise preserve
+ * the full picture inside black borders. */
+void video_evr_layout(IMFVideoDisplayControl *display, const RECT *client,
+    bool widescreen);
 
 #endif

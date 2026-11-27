@@ -49,18 +49,35 @@ typedef enum WoFullscreen { WO_FULLSCREEN_BORDERLESS, WO_FULLSCREEN_EXCLUSIVE } 
  * borderless, which the next launch writes back to the game's settings. */
 #define WO_EXCLUSIVE_FULLSCREEN_OFFERED 0
 typedef enum WoSoundtrack { WO_SOUNDTRACK_PC, WO_SOUNDTRACK_PSX, WO_SOUNDTRACK_NONE } WoSoundtrack;
+typedef enum WoIntroVideo {
+    WO_INTRO_ORIGINAL,
+    WO_INTRO_UPSCALED,
+    WO_INTRO_FLUKE
+} WoIntroVideo;
+typedef enum WoVideoAspect {
+    WO_VIDEO_WIDESCREEN,
+    WO_VIDEO_4_3
+} WoVideoAspect;
 
 const char *wo_fullscreen_name(WoFullscreen mode); /* "borderless" / "exclusive" */
 bool wo_fullscreen_parse(const char *name, WoFullscreen *mode);
 const char *wo_soundtrack_name(WoSoundtrack soundtrack); /* "Pc" / "Psx" / "None" */
 bool wo_soundtrack_parse(const char *name, WoSoundtrack *soundtrack);
+const char *wo_intro_video_name(WoIntroVideo intro); /* "Original" / "Upscaled" / "Fluke" */
+bool wo_intro_video_parse(const char *name, WoIntroVideo *intro);
+const char *wo_video_aspect_name(WoVideoAspect aspect); /* "Widescreen" / "4:3" */
+bool wo_video_aspect_parse(const char *name, WoVideoAspect *aspect);
 bool wo_sound_mode_valid(int mode); /* 1 mono, 2 stereo, 5 Dolby Surround */
 
-/* Missing files and unrecognised values give the defaults (borderless, 2). */
+/* Missing files and unrecognised values give the defaults (borderless, 2, Fluke, Widescreen). */
 WoFullscreen wo_settings_get_fullscreen(const char *ddraw_ini);
 bool wo_settings_set_fullscreen(const char *ddraw_ini, WoFullscreen mode, WoError *error);
 int wo_settings_get_sound_mode(const char *game_ini);
 bool wo_settings_set_sound_mode(const char *game_ini, int mode, WoError *error);
+WoIntroVideo wo_settings_get_intro_video(const char *game_ini);
+bool wo_settings_set_intro_video(const char *game_ini, WoIntroVideo intro, WoError *error);
+WoVideoAspect wo_settings_get_video_aspect(const char *game_ini);
+bool wo_settings_set_video_aspect(const char *game_ini, WoVideoAspect aspect, WoError *error);
 /* A whole number from the game INI's [Render] section: whether the frame
  * rate is shown (ShowFPS, 0 or 1) and how the scenery is lit
  * (ShadowLiftPercent and HighlightsPercent, 0 to 300). A missing file or key,

@@ -1,4 +1,4 @@
-﻿wobble/
+wobble/
 .work/
 backups/
 exports/
@@ -24,12 +24,13 @@ src/runtime/build/*
 /release-files.json
 /manifests/third-party.json
 
-# Original movie assets stay local.
+# Original movie assets stay local; mod video overrides live in assets/video/.
 *.mpg
 *.mpeg
 *.mp4
 *.avi
 *.wmv
+!assets/video/*.mp4
 
 .state/
 cache/
