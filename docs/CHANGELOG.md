@@ -1,6 +1,6 @@
 ﻿# Beta release changes
 
-## Unreleased
+## 0.2.0-beta.12
 
 - Setup: **Upscale textures**, below Install HD artwork. It makes every
   texture four times as large on your computer with the neural upscaler,
@@ -12,22 +12,50 @@
   each switches only its own textures, best first authored artwork, then
   the upscaled textures, then the smoothed ones, then the game's own. The
   smoothed textures no longer depend on either.
-- The four PC skies (Talon's Reach, Gare d'Europa, Valparaiso, Phenitia
-  Park) are catalogued as the sky picture itself rather than its whole
+- One authored picture now stands for every copy of it: the same texture
+  is in the game under several names and sizes, and
+  `manifests/auth-masters.json` groups them, so Play shows the one file in
+  all their places. For maintainers, `tools\auth.cmd` opens an authoring
+  page that finds the copies, puts a picture to start from into
+  `assets/auth` with one click, opens it in your editor, and shows each
+  save as it happens. See docs/TOOLS.md.
+- Skies can be drawn in any proportions: `manifests/sky-layout.json` says
+  how many times a track's authored sky picture goes round its sky (once,
+  as one panorama, or more), where its seam is and where its top and
+  bottom edges are, and Play lays the sky
+  out so, where the game repeated its narrow picture eight or twelve
+  times. For maintainers, `tools\sky.cmd` opens the studio's sky page:
+  drop any picture on a track, then turn it, raise it and stretch it with
+  sliders while looking round the sky; it saves by itself. A photo or
+  painting is laid flat on the sky's walls, so its straight lines stay
+  straight; a 360° panorama is laid by direction. See docs/TOOLS.md.
+- Billboard bars in a colour show the colour chosen: their colour is now
+  taken from the picture the board shows (your authored one, where there
+  is one), and the search no longer settled on a texel of another colour
+  (the white bars beside the AG-SYS sign on Gare d'Europa were grey). New
+  billboard faces also keep the original board's shading across their
+  corners.
+- Fix Valparaiso's eight three-panel overhead billboards (Auricom, Feisar,
+  FEED ME and the F-dots sign) cutting off the bottom of their pictures:
+  those triangle-based boards used cropped coordinates in the original
+  model and are now laid out over their full pictures.
+- The authoring studio finds copies of a picture at any size in the same
+  proportions, where it found only exact doubles: the FSOL sign at 64 and
+  128 texels, each track's road at 32 and 128.
+- The four PC skies (Talon's Reach, Sagarmatha, Valparaiso, Odessa Keys)
+  are catalogued as the sky picture itself rather than its whole
   texture page, so authored or upscaled skies fit them as they fit the
   other four.
-
 - Show the trackside billboards in their pictures' proportions. The 1996
   artwork was laid over the boards with little regard for its shape: a
   square picture could be stretched over a board two or three times as
-  wide. 62 boards are now laid out again, each as chosen: the picture at
+  wide. 96 boards are now laid out again, each as chosen: the picture at
   its own proportions with bars beside it in a colour of the picture, tiled
   from the centre, or stretched by a chosen amount.
   Talon's Reach's lucky-cat boards, which the game fills itself, narrow to
-  the cat's square with black beside it. The boards' faces
+  the cat's square. The boards' faces
   change, not the pictures, so authored and HD artwork follows. Play
   rebuilds the track archives once on its next launch.
-
 - Fix Play refusing to start with a whole set of upscaled textures in
   `assets/hd/`. Seven pictures the installer debands had no entry in the HD
   catalogue (the two Red Bull slogans and five textures of Talon's Reach's
