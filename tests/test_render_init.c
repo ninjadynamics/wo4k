@@ -216,6 +216,7 @@ void __stdcall test_entry(void){
     test_sprite_fades();
     test_billboard_roll();
     test_effect_marks(image);
+    test_exhaust_trail_interpolation(image);
     test_train_route(image);
     test_palette_cycle(image);
     test_board_adverts(image);

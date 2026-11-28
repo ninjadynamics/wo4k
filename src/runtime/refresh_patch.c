@@ -135,6 +135,8 @@ static void __cdecl ship_effects(void *camera) {
 static DWORD refresh_frames_measured,refresh_ticks_measured,refresh_measured_fps;
 static BOOL refresh_pose_valid,refresh_show_fps;
 static float camera_previous[3],camera_current[3],ship_previous[15][3],ship_current[15][3];
+static float ship_nose_previous[15][3],ship_nose_current[15][3];
+static float ship_wing_previous[15][3],ship_wing_current[15][3];
 typedef struct RenderHistory {
     const BYTE *skeleton;
     DWORD epoch,frame;
@@ -241,12 +243,37 @@ static void sample_refresh_pose(void) {
         float value=(float)((LONG *)(camera+0x14))[i];
         camera_previous[i]=continuous?camera_current[i]:value;camera_current[i]=value;
         for(UINT ship=0;ship<15;++ship) {
-            value=(float)((LONG *)(ships+ship*240+0x40))[i];
+            const BYTE *entry=ships+ship*240;
+            value=(float)((const LONG *)(entry+0x40))[i];
             ship_previous[ship][i]=continuous?ship_current[ship][i]:value;
             ship_current[ship][i]=value;
+            value=(float)((const LONG *)(entry+0x10))[i];
+            ship_nose_previous[ship][i]=continuous?ship_nose_current[ship][i]:value;
+            ship_nose_current[ship][i]=value;
+            value=(float)((const LONG *)(entry+0x20))[i];
+            ship_wing_previous[ship][i]=continuous?ship_wing_current[ship][i]:value;
+            ship_wing_current[ship][i]=value;
+        }
+    }
+    if(continuous)for(UINT ship=0;ship<15;++ship) {
+        float dist2=0;
+        for(UINT i=0;i<3;++i) {float d=ship_current[ship][i]-ship_previous[ship][i];dist2+=d*d;}
+        if(dist2>8192.0f*8192.0f)for(UINT i=0;i<3;++i) {
+            ship_previous[ship][i]=ship_current[ship][i];
+            ship_nose_previous[ship][i]=ship_nose_current[ship][i];
+            ship_wing_previous[ship][i]=ship_wing_current[ship][i];
         }
     }
     refresh_pose_epoch=refresh_epoch;refresh_pose_valid=TRUE;
+}
+static BOOL refresh_ship_pose(int ship,float *position,float *nose,float *wing) {
+    if(!refresh_active || !refresh_race || !refresh_pose_valid || ship<0 || ship>=15)return FALSE;
+    for(UINT i=0;i<3;++i) {
+        position[i]=ship_previous[ship][i]+(ship_current[ship][i]-ship_previous[ship][i])*refresh_alpha;
+        nose[i]=ship_nose_previous[ship][i]+(ship_nose_current[ship][i]-ship_nose_previous[ship][i])*refresh_alpha;
+        wing[i]=ship_wing_previous[ship][i]+(ship_wing_current[ship][i]-ship_wing_previous[ship][i])*refresh_alpha;
+    }
+    return TRUE;
 }
 static void refresh_ship_delta(int ship,float *delta) {
     float trail_shift[3]={0,0,0};

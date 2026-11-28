@@ -133,11 +133,47 @@ static BOOL is_player_beam(const BYTE *trail,int ship) {
     }
     return TRUE;
 }
+static LONG round_trail_coord(float value) {return (LONG)(value>=0?value+0.5f:value-0.5f);}
+/* The player's native trail is a rebuilt straight beam extending 3840 units
+ * behind the ship along -unitVecNose, right past the chase camera. Translating
+ * it without rotating unitVecNose/unitVecWing makes it whip violently side to
+ * side at the 30 Hz physics cadence while turning. Rebuild the beam (and ring-
+ * buffer trail head) from the ship's interpolated position and axes instead. */
 static BOOL copy_interpolated_trail(BYTE *out,const BYTE *trail,int ship) {
     if(!refresh_active || !refresh_race || !trail || ship<0 || ship>=15)return FALSE;
     int index=*(const int *)(trail+12);if(index<0 || index>=30)return FALSE;
-    float delta[3];refresh_ship_delta(ship,delta);BOOL beam=is_player_beam(trail,ship);
+    BOOL beam=is_player_beam(trail,ship);
     copy(out,trail,0x4c0);
+    float position[3],nose[3],wing[3];
+    if(refresh_ship_pose(ship,position,nose,wing) && (nose[0]!=0 || nose[1]!=0 || nose[2]!=0)) {
+        float center[3],half_wing[3],step[3];
+        for(UINT axis=0;axis<3;++axis) {
+            center[axis]=position[axis]-nose[axis]*(420.0f/4096.0f)-(axis==1?15.0f:0.0f);
+            half_wing[axis]=wing[axis]*(40.0f/4096.0f);
+            step[axis]=nose[axis]*(1.0f/32.0f);
+        }
+        if(beam) {
+            for(UINT segment=0;segment<30;++segment) {
+                LONG *left=(LONG *)(out+16+segment*40+8),*right=(LONG *)(out+16+segment*40+24);
+                for(UINT axis=0;axis<3;++axis) {
+                    float offset=step[axis]*(float)segment;
+                    left[axis]=round_trail_coord(center[axis]-half_wing[axis]-offset);
+                    right[axis]=round_trail_coord(center[axis]+half_wing[axis]-offset);
+                }
+            }
+        } else {
+            BYTE *head=out+16+(UINT)index*40;
+            if(head[0]) {
+                LONG *left=(LONG *)(head+8),*right=(LONG *)(head+24);
+                for(UINT axis=0;axis<3;++axis) {
+                    left[axis]=round_trail_coord(center[axis]-half_wing[axis]);
+                    right[axis]=round_trail_coord(center[axis]+half_wing[axis]);
+                }
+            }
+        }
+        return TRUE;
+    }
+    float delta[3];refresh_ship_delta(ship,delta);
     for(UINT segment=0;segment<30;++segment)if(beam || segment==(UINT)index) {
         LONG *left=(LONG *)(out+16+segment*40+8),*right=(LONG *)(out+16+segment*40+24);
         for(UINT axis=0;axis<3;++axis) {left[axis]+=(LONG)delta[axis];right[axis]+=(LONG)delta[axis];}

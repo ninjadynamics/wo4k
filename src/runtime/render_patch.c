@@ -42,6 +42,7 @@ static DWORD present_serial; /* every presented frame, menus included */
 static DWORD hd_low_alpha_triangles; /* opaque HD world triangles whose vertex alpha would fail a key test */
 static const BYTE *refresh_last_matrix,*refresh_last_skeleton;
 static void refresh_ship_delta(int ship,float *delta);
+static BOOL refresh_ship_pose(int ship,float *position,float *nose,float *wing);
 #define TRAIL_VERTEX_TAG 0x574f5452u
 #define FLARE_VERTEX_TAG 0x574f474cu
 #define SKY_VERTEX_TAG 0x574f534bu
