@@ -1,5 +1,13 @@
 ﻿# Beta release changes
 
+## 0.2.0-beta.14
+
+- Fix the player ship's exhaust trail whipping side to side while turning at
+  high refresh rates: the beam (and AI/external-camera trail head) now
+  interpolates the ship's nose and wing orientation alongside its position so
+  the trail stays locked to the ship mesh and camera between 30 Hz simulation
+  ticks.
+
 ## 0.2.0-beta.13
 
 - Video player: CRT/NTSC display shader (D3D11, lightweight enough for older
